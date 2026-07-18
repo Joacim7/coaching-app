@@ -1,4 +1,6 @@
 {
+  "buildCommand": "next build",
+  "installCommand": "cd ../.. && npm install",
   "crons": [
     {
       "path": "/api/cron/send-checkins",
