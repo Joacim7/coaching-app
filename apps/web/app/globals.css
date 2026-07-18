@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --color-nova-dark:       #1a5c3a;
+  --color-nova-mid:        #2d8653;
+  --color-nova-mint:       #6ecfb0;
+  --color-nova-light:      #ebf5ef;   /* active nav bg — #1a5c3a at ~10% on white */
+  --color-nova-mint-light: #cdeee3;   /* avatar bg — #6ecfb0 at ~30% on white */
+}
+
+body {
+  background-color: #f9fafb;
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}

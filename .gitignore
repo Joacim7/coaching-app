@@ -1,0 +1,16 @@
+node_modules
+.turbo
+.env
+.env.local
+.env*.local
+*.log
+dist
+.next
+.expo
+
+# apps/mobile has its own independent git repo — keep it out of this one
+apps/mobile
+
+# personal/local Claude Code settings — not meant to be shared
+.claude/settings.local.json
+apps/web/.claude/settings.local.json
