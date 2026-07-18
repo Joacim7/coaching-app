@@ -12,7 +12,6 @@ import { Dumbbell } from 'lucide-react'
 
 export default function RegisterPage() {
   const router = useRouter()
-  const supabase = createClient()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -24,6 +23,10 @@ export default function RegisterPage() {
     setLoading(true)
     setError('')
 
+    // Created lazily here (not at module/render time) so this page never
+    // needs NEXT_PUBLIC_SUPABASE_URL/ANON_KEY during prerendering/build —
+    // this only ever runs client-side, on an actual submit.
+    const supabase = createClient()
     const { error } = await supabase.auth.signUp({
       email,
       password,

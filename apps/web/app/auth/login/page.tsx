@@ -12,7 +12,6 @@ import { Dumbbell } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
-  const supabase = createClient()
 
   const next = typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search).get('next') ?? '/dashboard'
@@ -27,6 +26,10 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
+    // Created lazily here (not at module/render time) so this page never
+    // needs NEXT_PUBLIC_SUPABASE_URL/ANON_KEY during prerendering/build —
+    // this only ever runs client-side, on an actual submit.
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
