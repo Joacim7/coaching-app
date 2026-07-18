@@ -23,7 +23,6 @@ export async function GET(req: Request) {
 
   const now         = new Date()
   const currentDay  = jsUTCDayToOurDay(now.getUTCDay())   // 0=Mon … 6=Sun
-  const currentHour = now.getUTCHours()                    // 0–23
   const todayISO    = now.toISOString().slice(0, 10)       // "YYYY-MM-DD"
 
   let supabase: ReturnType<typeof createAdminClient>
@@ -54,12 +53,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: tErr.message }, { status: 500 })
   }
 
-  // ── 2. Filter to templates whose scheduled hour matches current UTC hour ─────
-  const due = (templates ?? []).filter(t => {
-    // schedule_time comes back as "HH:MM:SS" from Postgres TIME column
-    const hour = parseInt((t.schedule_time as string).slice(0, 2), 10)
-    return hour === currentHour
-  })
+  // ── 2. All templates scheduled for today are due — cron runs once daily now,
+  // so we send every check-in due today regardless of its configured hour.
+  const due = templates ?? []
 
   if (due.length === 0) {
     return NextResponse.json({ dispatched: 0, templates: [], timestamp: now.toISOString() })
