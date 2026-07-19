@@ -16,6 +16,8 @@ export default function LoginForm() {
   const next = typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search).get('next') ?? '/dashboard'
     : '/dashboard'
+  const resetSuccess = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('reset') === 'success'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -72,7 +74,12 @@ export default function LoginForm() {
                 />
               </div>
               <div>
-                <Label htmlFor="password">Passord</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Passord</Label>
+                  <Link href="/auth/forgot-password" className="text-sm text-[#2d8653] hover:underline">
+                    Glemt passord?
+                  </Link>
+                </div>
                 <Input
                   id="password"
                   type="password"
@@ -82,6 +89,11 @@ export default function LoginForm() {
                   required
                 />
               </div>
+              {resetSuccess && !error && (
+                <p className="text-sm text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+                  Passordet er oppdatert. Logg inn med det nye passordet ditt.
+                </p>
+              )}
               {error && (
                 <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
               )}
