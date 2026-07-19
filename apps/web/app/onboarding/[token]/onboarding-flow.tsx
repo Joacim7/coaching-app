@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import OnboardingForm from './onboarding-form'
 import type { CheckinTemplate } from '@coaching/types'
@@ -74,9 +74,45 @@ function PasswordSetupStep({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]         = useState('')
 
+  const passwordRef = useRef<HTMLInputElement>(null)
+  const confirmRef  = useRef<HTMLInputElement>(null)
+
   const tooShort   = password.length > 0 && password.length < 8
   const mismatch   = confirm.length > 0 && password !== confirm
   const canSubmit  = password.length >= 8 && password === confirm && !submitting
+
+  // Logs on every keystroke *and* on autofill, independent of submit —
+  // the handleSubmit log below only fires once canSubmit is already true,
+  // which is useless for diagnosing why it's stuck false.
+  useEffect(() => {
+    console.log('[password-step] validation state — password.length:', password.length,
+      'confirm.length:', confirm.length, 'match:', password === confirm, 'canSubmit:', canSubmit)
+  }, [password, confirm, canSubmit])
+
+  useEffect(() => {
+    const passwordEl = passwordRef.current
+    const confirmEl  = confirmRef.current
+    if (!passwordEl || !confirmEl) return
+
+    // Mobile Safari's "Suggest Strong Password" AutoFill can set these two
+    // fields' DOM value without reliably dispatching the native 'input'
+    // event React's onChange relies on — most often on the second (confirm)
+    // field. When that happens the boxes look filled and matching on screen
+    // but React's state (and therefore canSubmit) never updates, so the
+    // button stays silently disabled. Binding directly to the DOM elements
+    // here catches that case regardless of whether the browser fired a
+    // proper input event for the synthetic onChange path.
+    const handlePasswordInput = () => setPassword(passwordEl.value)
+    const handleConfirmInput  = () => setConfirm(confirmEl.value)
+
+    passwordEl.addEventListener('input', handlePasswordInput)
+    confirmEl.addEventListener('input', handleConfirmInput)
+
+    return () => {
+      passwordEl.removeEventListener('input', handlePasswordInput)
+      confirmEl.removeEventListener('input', handleConfirmInput)
+    }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -137,6 +173,7 @@ function PasswordSetupStep({
           Passord
         </label>
         <input
+          ref={passwordRef}
           type="password"
           value={password}
           onChange={e => setPassword(e.target.value)}
@@ -155,6 +192,7 @@ function PasswordSetupStep({
           Bekreft passord
         </label>
         <input
+          ref={confirmRef}
           type="password"
           value={confirm}
           onChange={e => setConfirm(e.target.value)}
