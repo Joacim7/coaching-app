@@ -60,7 +60,7 @@ export async function sendWelcomeEmail({
 
             <div style="text-align:center;margin-bottom:8px">
               <a href="${onboardingUrl}"
-                 style="display:inline-block;padding:15px 36px;background:#2d8653;background:linear-gradient(to right,#1a5c3a,#6ecfb0);color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px">
+                 style="display:inline-block;padding:15px 36px;background:linear-gradient(to right, #1a5c3a, #6ecfb0);color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px">
                 Kom i gang
               </a>
             </div>
@@ -164,7 +164,7 @@ export async function sendOrgInviteEmail({
 
             <div style="text-align:center;margin-bottom:8px">
               <a href="${registerUrl}"
-                 style="display:inline-block;padding:15px 36px;background:#2d8653;background:linear-gradient(to right,#1a5c3a,#6ecfb0);color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px">
+                 style="display:inline-block;padding:15px 36px;background:linear-gradient(to right, #1a5c3a, #6ecfb0);color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px">
                 Kom i gang
               </a>
             </div>
