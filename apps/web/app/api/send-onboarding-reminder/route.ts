@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { sendOnboardingForm } from '@/lib/email'
-import type { CheckinTemplate } from '@coaching/types'
+import { getEffectiveOnboardingTemplate } from '@/lib/onboarding-template'
 
 export async function POST() {
   const supabase = await createClient()
@@ -15,17 +15,8 @@ export async function POST() {
     .eq('id', user.id)
     .single()
 
-  // Coach's onboarding template
-  const { data: tplRaw } = await supabase
-    .from('checkin_templates')
-    .select('*')
-    .eq('coach_id', user.id)
-    .eq('type', 'onboarding')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-
-  const template = tplRaw as CheckinTemplate | null
+  // Coach's own onboarding template, falling back to the org's shared one
+  const template = await getEffectiveOnboardingTemplate(supabase, user.id)
 
   if (!template) {
     return NextResponse.json({ ok: true, sent: 0, reason: 'no_template' })

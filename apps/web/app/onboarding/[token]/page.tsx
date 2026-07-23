@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import OnboardingFlow from './onboarding-flow'
+import { getEffectiveOnboardingTemplate } from '@/lib/onboarding-template'
 
 interface Props {
   params: Promise<{ token: string }>
@@ -74,16 +75,9 @@ export default async function OnboardingPage({ params }: Props) {
     notFound()
   }
 
-  const { data: template, error: templateErr } = await admin
-    .from('checkin_templates')
-    .select('*')
-    .eq('coach_id', link.coach_id)
-    .eq('type', 'onboarding')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
+  const template = await getEffectiveOnboardingTemplate(admin, link.coach_id)
 
-  console.log('[onboarding/page] onboarding template — found:', !!template, 'error:', templateErr?.message ?? null)
+  console.log('[onboarding/page] onboarding template — found:', !!template)
   console.log('[onboarding/page] rendering OnboardingFlow — hasAccount:', profile.has_account, 'email:', profile.email, 'willShowPasswordStep:', !profile.has_account && !!profile.email)
 
   return (

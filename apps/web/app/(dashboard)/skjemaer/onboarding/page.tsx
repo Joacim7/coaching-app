@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { OnboardingView, type ClientOnboardingRow } from './onboarding-view'
-import type { CheckinTemplate } from '@coaching/types'
+import { getEffectiveOnboardingTemplate } from '@/lib/onboarding-template'
 
 export default async function OnboardingSubmissionsPage() {
   const supabase = await createClient()
@@ -27,17 +27,9 @@ export default async function OnboardingSubmissionsPage() {
         .in('client_id', clientIds)
     : { data: [] }
 
-  // 3. Coach's onboarding template (for reminder emails + modal question lookup)
-  const { data: tplRaw } = await supabase
-    .from('checkin_templates')
-    .select('*')
-    .eq('coach_id', user!.id)
-    .eq('type', 'onboarding')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-
-  const template = tplRaw as CheckinTemplate | null
+  // 3. Coach's onboarding template (for reminder emails + modal question lookup),
+  //    falling back to the org's shared one if this coach has none of their own
+  const template = await getEffectiveOnboardingTemplate(supabase, user!.id)
 
   // 4. Build rows
   const subByClient = new Map(
