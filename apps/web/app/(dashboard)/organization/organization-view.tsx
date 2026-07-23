@@ -358,7 +358,7 @@ function CoachesTab({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
                 {inv.status === 'pending' && (
                   <button
                     onClick={() => {
-                      const url = `${window.location.origin}/accept-invite/${inv.token}`
+                      const url = `${window.location.origin}/auth/register?invite=${inv.token}`
                       navigator.clipboard.writeText(url)
                       showToast('Lenke kopiert')
                     }}

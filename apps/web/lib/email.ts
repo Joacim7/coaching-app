@@ -108,6 +108,106 @@ export async function sendWelcomeEmail({
   }
 }
 
+export async function sendOrgInviteEmail({
+  to,
+  orgName,
+  inviterName,
+  inviteToken,
+}: {
+  to: string
+  orgName: string
+  inviterName: string
+  inviteToken: string
+}): Promise<{ ok: boolean; error?: string }> {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    console.warn('[email] RESEND_API_KEY not set — skipping org invite email to', to)
+    return { ok: true }
+  }
+
+  const registerUrl = `${APP_URL}/auth/register?invite=${inviteToken}`
+  const logoUrl = `${APP_URL}/nova-performance-logo.png`
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+
+        <!-- Logo -->
+        <tr>
+          <td style="background:#fff;padding:28px 40px 8px;text-align:center">
+            <img src="${logoUrl}" alt="Nova Performance" width="160" style="display:block;margin:0 auto;height:auto" />
+          </td>
+        </tr>
+
+        <!-- Header -->
+        <tr>
+          <td style="background:#1a5c3a;padding:28px 40px;text-align:center">
+            <h1 style="margin:0;font-size:24px;font-weight:800;color:#fff">Du er invitert som coach til Nova Performance!</h1>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:36px 40px">
+            <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6">
+              Hei!<br><br>
+              ${inviterName} har invitert deg til å bli coach i <strong>${orgName}</strong> på Nova Performance.
+            </p>
+            <p style="margin:0 0 28px;font-size:15px;color:#374151;line-height:1.6">
+              Trykk på knappen under for å opprette kontoen din — du blir automatisk lagt til i
+              organisasjonen så snart du er ferdig registrert.
+            </p>
+
+            <div style="text-align:center;margin-bottom:8px">
+              <a href="${registerUrl}"
+                 style="display:inline-block;padding:15px 36px;background:#2d8653;background:linear-gradient(to right,#1a5c3a,#6ecfb0);color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px">
+                Kom i gang
+              </a>
+            </div>
+
+            <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;text-align:center">
+              Lenken er personlig og er bare til deg.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:20px 40px;background:#ebf5ef;border-top:1px solid #cdeee3;text-align:center">
+            <p style="margin:0;font-size:12px;color:#2d8653;font-weight:600">Nova Performance</p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+
+  try {
+    const { Resend } = await import('resend')
+    const resend = new Resend(apiKey)
+
+    const { error } = await resend.emails.send({
+      from:    FROM,
+      to,
+      subject: 'Du er invitert som coach til Nova Performance! 🎉',
+      html,
+    })
+
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[email] org invite email failed:', msg)
+    return { ok: false, error: msg }
+  }
+}
+
 export async function sendOnboardingForm({
   to,
   clientName,

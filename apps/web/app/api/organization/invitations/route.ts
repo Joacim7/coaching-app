@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { sendOrgInviteEmail } from '@/lib/email'
 
 // POST /api/organization/invitations — invite a coach by email
 export async function POST(req: Request) {
@@ -30,6 +31,20 @@ export async function POST(req: Request) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const [{ data: org }, { data: inviter }] = await Promise.all([
+    supabase.from('organizations').select('name').eq('id', membership.org_id).single(),
+    supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+  ])
+
+  const result = await sendOrgInviteEmail({
+    to:          data.email,
+    orgName:     org?.name ?? 'organisasjonen',
+    inviterName: inviter?.full_name ?? 'En administrator',
+    inviteToken: data.token,
+  })
+  if (!result.ok) console.error('[org-invite] email send failed:', result.error)
+
   return NextResponse.json(data, { status: 201 })
 }
 

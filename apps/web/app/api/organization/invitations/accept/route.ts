@@ -23,6 +23,9 @@ export async function POST(req: Request) {
   if (invErr || !inv) return NextResponse.json({ error: 'Ugyldig invitasjon' }, { status: 404 })
   if (inv.status !== 'pending') return NextResponse.json({ error: 'Invitasjonen er allerede brukt eller avbrutt' }, { status: 409 })
   if (new Date(inv.expires_at) < new Date()) return NextResponse.json({ error: 'Invitasjonen er utløpt' }, { status: 410 })
+  if (inv.email.toLowerCase() !== (user.email ?? '').toLowerCase()) {
+    return NextResponse.json({ error: 'Denne invitasjonen ble sendt til en annen e-postadresse' }, { status: 403 })
+  }
 
   // Check not already a member
   const { data: existing } = await admin
