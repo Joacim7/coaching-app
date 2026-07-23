@@ -348,10 +348,19 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
     setReplaceModal({ mi, ai, mealName, targetCals })
     setLibrarySearch('')
     setLibraryLoading(true)
+
+    // Recipe library is org-wide (see migration 055) — not just this coach's own recipes
+    let coachIds = [coachId]
+    const { data: membership } = await supabase.from('org_members').select('org_id').eq('user_id', coachId).single()
+    if (membership) {
+      const { data: orgMates } = await supabase.from('org_members').select('user_id').eq('org_id', membership.org_id)
+      if (orgMates?.length) coachIds = orgMates.map(m => m.user_id)
+    }
+
     const { data } = await supabase
       .from('recipes')
       .select('id,title,instructions,image_url,meal_type,calories_per_serving,protein_per_serving,carbs_per_serving,fat_per_serving,ingredients')
-      .eq('coach_id', coachId)
+      .in('coach_id', coachIds)
       .ilike('meal_type', mealName)
       .order('title', { ascending: true })
     setLibraryRecipes((data ?? []) as LibraryRecipe[])
