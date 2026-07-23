@@ -32,7 +32,7 @@ export async function GET() {
     coachNameMap.set(m.user_id, (p as { full_name: string | null } | null)?.full_name ?? 'Ukjent')
   }
 
-  if (!coachIds.length) return NextResponse.json([])
+  if (!coachIds.length) return NextResponse.json({ clients: [], coaches: [] })
 
   // Get all coach_clients for all org coaches
   const { data: relations } = await admin
@@ -55,5 +55,7 @@ export async function GET() {
     }]
   })
 
-  return NextResponse.json(rows)
+  const coaches = coachIds.map(id => ({ id, name: coachNameMap.get(id) ?? 'Ukjent' }))
+
+  return NextResponse.json({ clients: rows, coaches })
 }

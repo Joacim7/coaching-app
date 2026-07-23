@@ -976,15 +976,50 @@ function getClientInitials(name: string) {
 
 function OrgClientsTab() {
   const [clients, setClients]   = useState<OrgClient[]>([])
+  const [coaches, setCoaches]   = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading]   = useState(true)
   const [search, setSearch]     = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('alle')
+  const [reassigning, setReassigning] = useState<string | null>(null)
+  const [toast, setToast]       = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
+
+  function showToast(msg: string, type: 'ok' | 'err' = 'ok') {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }
 
   useEffect(() => {
     fetch('/api/organization/clients')
       .then(r => r.json())
-      .then(d => { setClients(Array.isArray(d) ? d : []); setLoading(false) })
+      .then(d => {
+        setClients(Array.isArray(d.clients) ? d.clients : [])
+        setCoaches(Array.isArray(d.coaches) ? d.coaches : [])
+        setLoading(false)
+      })
   }, [])
+
+  async function handleReassign(relId: string, newCoachId: string) {
+    const prev = clients
+    const newCoach = coaches.find(c => c.id === newCoachId)
+    setReassigning(relId)
+    // Optimistic update
+    setClients(cs => cs.map(c => c.id === relId ? { ...c, coachId: newCoachId, coachName: newCoach?.name ?? c.coachName } : c))
+
+    const res = await fetch(`/api/organization/clients/${relId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coachId: newCoachId }),
+    })
+    setReassigning(null)
+
+    if (res.ok) {
+      showToast('Klienten er flyttet til ny coach')
+    } else {
+      setClients(prev)
+      const data = await res.json().catch(() => ({}))
+      showToast(data.error ?? 'Kunne ikke flytte klienten', 'err')
+    }
+  }
 
   const activeCount    = clients.filter(c => c.status === 'active').length
   const appCount       = clients.filter(c => c.status === 'app_access').length
@@ -1005,6 +1040,15 @@ function OrgClientsTab() {
 
   return (
     <div className="space-y-4">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-6 right-6 z-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg ${
+          toast.type === 'ok' ? 'bg-green-600' : 'bg-red-600'
+        }`}>
+          {toast.msg}
+        </div>
+      )}
+
       {/* Stats */}
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-[#ebf5ef] text-[#1a5c3a]">
@@ -1059,7 +1103,7 @@ function OrgClientsTab() {
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           {/* Header */}
-          <div className="grid grid-cols-[1fr_160px_140px] gap-3 px-5 py-2.5 border-b border-gray-100 bg-gray-50/60">
+          <div className="grid grid-cols-[1fr_160px_200px] gap-3 px-5 py-2.5 border-b border-gray-100 bg-gray-50/60">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Klient</span>
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</span>
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Coach</span>
@@ -1088,12 +1132,22 @@ function OrgClientsTab() {
                       {sc.label}
                     </span>
                   </div>
-                  {/* Coach */}
+                  {/* Coach — editable so an admin can reassign the client */}
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
                       <span className="text-[10px] font-bold text-gray-500">{getClientInitials(client.coachName)}</span>
                     </div>
-                    <span className="text-sm text-gray-600 truncate">{client.coachName}</span>
+                    <select
+                      value={client.coachId}
+                      disabled={reassigning === client.id}
+                      onChange={e => handleReassign(client.id, e.target.value)}
+                      className="flex-1 min-w-0 h-8 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-[#2d8653] disabled:opacity-50"
+                    >
+                      {coaches.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    {reassigning === client.id && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin flex-shrink-0" />}
                   </div>
                 </div>
               )
