@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     .eq('user_id', user.id)
     .single()
 
-  if (!membership || membership.role !== 'admin')
+  if (!membership)
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { name, description, file_path, file_size_bytes, file_type } = await req.json()

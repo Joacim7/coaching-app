@@ -16,18 +16,20 @@ export async function DELETE(
     .eq('user_id', user.id)
     .single()
 
-  if (!membership || membership.role !== 'admin')
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!membership) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   // Get file_path to delete from storage
   const { data: doc } = await supabase
     .from('org_documents')
-    .select('file_path')
+    .select('file_path, uploaded_by')
     .eq('id', docId)
     .eq('org_id', membership.org_id)
     .single()
 
   if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (membership.role !== 'admin' && doc.uploaded_by !== user.id)
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   await Promise.all([
     supabase.storage.from('org-documents').remove([doc.file_path]),

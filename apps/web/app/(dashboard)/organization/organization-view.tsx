@@ -52,6 +52,7 @@ interface OrgDocument {
   file_size_bytes: number | null
   file_type: string | null
   created_at: string
+  uploaded_by: string
   profiles: { full_name: string | null } | null
 }
 
@@ -324,8 +325,8 @@ function CoachesTab({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
         )}
       </div>
 
-      {/* Pending invitations */}
-      {invitations.length > 0 && (
+      {/* Pending invitations — admin-only */}
+      {isAdmin && invitations.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-600">Ventende invitasjoner</h3>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100">
@@ -396,6 +397,7 @@ interface SharedItem {
   name:       string
   meta:       string
   sharedAt:   string
+  sharedBy:   string
 }
 interface PickerItem { id: string; name: string }
 
@@ -438,7 +440,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
       setLoading(true)
       const { data: rows, error } = await supabase
         .from('org_shared_resources')
-        .select('id, resource_type, resource_id, created_at')
+        .select('id, resource_type, resource_id, created_at, shared_by')
         .eq('org_id', orgId)
 
       if (error || !rows?.length) { setLoading(false); return }
@@ -487,6 +489,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
             name:       info?.name    ?? 'Ukjent',
             meta:       info?.meta    ?? '—',
             sharedAt:   r.created_at,
+            sharedBy:   r.shared_by,
           })
         }
       }
@@ -552,7 +555,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
     if (data) {
       setShared(prev => ({
         ...prev,
-        [activeType]: [...prev[activeType], { shareId: data.id, resourceId, name, meta: '—', sharedAt: data.created_at }],
+        [activeType]: [...prev[activeType], { shareId: data.id, resourceId, name, meta: '—', sharedAt: data.created_at, sharedBy: userId }],
       }))
       setPickerItems(prev => prev.filter(i => i.id !== resourceId))
     }
@@ -657,19 +660,17 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
               <h2 className="text-base font-semibold text-gray-900">Delte ressurser</h2>
               <p className="text-sm text-gray-500 mt-0.5">Maler tilgjengelig for alle coacher i organisasjonen</p>
             </div>
-            {isAdmin && (
-              <button
-                onClick={openPicker}
-                className={`flex items-center gap-2 h-9 px-4 rounded-xl text-sm font-semibold transition-colors flex-shrink-0 ${
-                  pickerOpen
-                    ? 'bg-gray-100 text-gray-700'
-                    : 'bg-[#2d8653] text-white hover:bg-[#1a5c3a]'
-                }`}
-              >
-                {pickerOpen ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                {pickerOpen ? 'Avbryt' : 'Del eksisterende'}
-              </button>
-            )}
+            <button
+              onClick={openPicker}
+              className={`flex items-center gap-2 h-9 px-4 rounded-xl text-sm font-semibold transition-colors flex-shrink-0 ${
+                pickerOpen
+                  ? 'bg-gray-100 text-gray-700'
+                  : 'bg-[#2d8653] text-white hover:bg-[#1a5c3a]'
+              }`}
+            >
+              {pickerOpen ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+              {pickerOpen ? 'Avbryt' : 'Del eksisterende'}
+            </button>
           </div>
 
           {/* Type tabs */}
@@ -703,7 +704,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
         </div>
 
         {/* Picker panel */}
-        {pickerOpen && isAdmin && (
+        {pickerOpen && (
           <div className="px-6 py-4 bg-[#ebf5ef]/50 border-b border-[#cdeee3]">
             <div className="flex items-center gap-3 mb-3">
               <div className="relative flex-1">
@@ -756,11 +757,9 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
             <p className="text-sm font-medium text-gray-500">
               Ingen {TYPE_CONFIG[activeType].label.toLowerCase()} er delt ennå
             </p>
-            {isAdmin && (
-              <p className="text-xs text-gray-400 mt-1">
-                Klikk «Del eksisterende» for å legge til
-              </p>
-            )}
+            <p className="text-xs text-gray-400 mt-1">
+              Klikk «Del eksisterende» for å legge til
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -770,39 +769,42 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Navn</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">{metaLabel}</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Opprettet</th>
-                  {isAdmin && <th className="px-6 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wide">Handlinger</th>}
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wide">Handlinger</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {currentItems.map(item => (
-                  <tr key={item.shareId} className="group hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-[#ebf5ef] flex items-center justify-center text-[#2d8653] flex-shrink-0">
-                          {TYPE_CONFIG[activeType].icon}
+                {currentItems.map(item => {
+                  const canRemove = isAdmin || item.sharedBy === userId
+                  return (
+                    <tr key={item.shareId} className="group hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-[#ebf5ef] flex items-center justify-center text-[#2d8653] flex-shrink-0">
+                            {TYPE_CONFIG[activeType].icon}
+                          </div>
+                          <span className="font-medium text-gray-900">{item.name}</span>
                         </div>
-                        <span className="font-medium text-gray-900">{item.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3.5 text-gray-500">{item.meta}</td>
-                    <td className="px-6 py-3.5 text-gray-500">{formatDate(item.sharedAt)}</td>
-                    {isAdmin && (
-                      <td className="px-6 py-3.5 text-right">
-                        <button
-                          onClick={() => handleRemove(item.shareId)}
-                          disabled={removing === item.shareId}
-                          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
-                          title="Fjern deling"
-                        >
-                          {removing === item.shareId
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <Trash2 className="w-3.5 h-3.5" />}
-                          Fjern
-                        </button>
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="px-6 py-3.5 text-gray-500">{item.meta}</td>
+                      <td className="px-6 py-3.5 text-gray-500">{formatDate(item.sharedAt)}</td>
+                      <td className="px-6 py-3.5 text-right">
+                        {canRemove && (
+                          <button
+                            onClick={() => handleRemove(item.shareId)}
+                            disabled={removing === item.shareId}
+                            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                            title="Fjern deling"
+                          >
+                            {removing === item.shareId
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <Trash2 className="w-3.5 h-3.5" />}
+                            Fjern
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -816,29 +818,25 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
             <h2 className="text-base font-semibold text-gray-900">Organisasjonsdokumenter</h2>
             <p className="text-sm text-gray-500 mt-0.5">Filer delt med alle coacher i organisasjonen</p>
           </div>
-          {isAdmin && (
-            <button
-              onClick={() => docInputRef.current?.click()}
-              className="flex items-center gap-2 h-9 px-4 rounded-xl text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              {uploading
-                ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <Upload className="w-4 h-4" />}
-              Last opp dokument
-            </button>
-          )}
+          <button
+            onClick={() => docInputRef.current?.click()}
+            className="flex items-center gap-2 h-9 px-4 rounded-xl text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            {uploading
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Upload className="w-4 h-4" />}
+            Last opp dokument
+          </button>
         </div>
 
-        {isAdmin && (
-          <input
-            ref={docInputRef}
-            type="file"
-            multiple
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.gif,.webp"
-            className="hidden"
-            onChange={e => handleUpload(e.target.files)}
-          />
-        )}
+        <input
+          ref={docInputRef}
+          type="file"
+          multiple
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.gif,.webp"
+          className="hidden"
+          onChange={e => handleUpload(e.target.files)}
+        />
 
         {/* Upload error */}
         {uploadError && (
@@ -860,20 +858,18 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
           </div>
         ) : docs.length === 0 ? (
           <div
-            onClick={isAdmin ? () => docInputRef.current?.click() : undefined}
-            onDragOver={isAdmin ? e => e.preventDefault() : undefined}
-            onDrop={isAdmin ? e => { e.preventDefault(); handleUpload(e.dataTransfer.files) } : undefined}
-            className={`px-6 py-12 flex flex-col items-center gap-2 text-center ${isAdmin ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}`}
+            onClick={() => docInputRef.current?.click()}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => { e.preventDefault(); handleUpload(e.dataTransfer.files) }}
+            className="px-6 py-12 flex flex-col items-center gap-2 text-center cursor-pointer hover:bg-gray-50 transition-colors"
           >
             <Upload className="w-6 h-6 text-gray-300" />
-            <p className="text-sm text-gray-400">
-              {isAdmin ? 'Klikk eller dra filer hit for å laste opp' : 'Ingen dokumenter er lastet opp ennå'}
-            </p>
+            <p className="text-sm text-gray-400">Klikk eller dra filer hit for å laste opp</p>
           </div>
         ) : (
           <div
-            onDragOver={isAdmin ? e => e.preventDefault() : undefined}
-            onDrop={isAdmin ? e => { e.preventDefault(); handleUpload(e.dataTransfer.files) } : undefined}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => { e.preventDefault(); handleUpload(e.dataTransfer.files) }}
           >
             {/* Doc table header */}
             <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-6 py-2 border-b border-gray-50">
@@ -883,48 +879,51 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Dato</span>
               <span />
             </div>
-            {docs.map(doc => (
-              <div key={doc.id} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 items-center px-6 py-3.5 border-b border-gray-50 last:border-0 hover:bg-gray-50/40 transition-colors">
-                {/* Name + icon */}
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex-shrink-0">{fileIcon(doc.file_type)}</div>
-                  <span className="text-sm font-medium text-gray-900 truncate">{doc.name}</span>
-                </div>
-                {/* Status badge */}
-                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-700 whitespace-nowrap">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Publisert
-                </span>
-                {/* File size */}
-                <span className="text-xs text-gray-400 whitespace-nowrap">
-                  {formatBytes(doc.file_size_bytes) || '—'}
-                </span>
-                {/* Date */}
-                <span className="text-xs text-gray-400 whitespace-nowrap">{formatDate(doc.created_at)}</span>
-                {/* Actions */}
-                <div className="flex items-center gap-1">
-                  <a
-                    href={getDownloadUrl(doc.file_path)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#2d8653] hover:bg-[#ebf5ef] transition-colors"
-                    title="Last ned"
-                  >
-                    <Download className="w-4 h-4" />
-                  </a>
-                  {isAdmin && (
-                    <button
-                      onClick={() => handleDeleteDoc(doc)}
-                      disabled={deleting === doc.id}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
-                      title="Slett"
+            {docs.map(doc => {
+              const canDelete = isAdmin || doc.uploaded_by === userId
+              return (
+                <div key={doc.id} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 items-center px-6 py-3.5 border-b border-gray-50 last:border-0 hover:bg-gray-50/40 transition-colors">
+                  {/* Name + icon */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex-shrink-0">{fileIcon(doc.file_type)}</div>
+                    <span className="text-sm font-medium text-gray-900 truncate">{doc.name}</span>
+                  </div>
+                  {/* Status badge */}
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-700 whitespace-nowrap">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Publisert
+                  </span>
+                  {/* File size */}
+                  <span className="text-xs text-gray-400 whitespace-nowrap">
+                    {formatBytes(doc.file_size_bytes) || '—'}
+                  </span>
+                  {/* Date */}
+                  <span className="text-xs text-gray-400 whitespace-nowrap">{formatDate(doc.created_at)}</span>
+                  {/* Actions */}
+                  <div className="flex items-center gap-1">
+                    <a
+                      href={getDownloadUrl(doc.file_path)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#2d8653] hover:bg-[#ebf5ef] transition-colors"
+                      title="Last ned"
                     >
-                      {deleting === doc.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                    </button>
-                  )}
+                      <Download className="w-4 h-4" />
+                    </a>
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDeleteDoc(doc)}
+                        disabled={deleting === doc.id}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
+                        title="Slett"
+                      >
+                        {deleting === doc.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

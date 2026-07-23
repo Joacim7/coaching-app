@@ -9,7 +9,7 @@ export async function GET() {
 
   const { data: membership } = await supabase
     .from('org_members')
-    .select('org_id')
+    .select('org_id, role')
     .eq('user_id', user.id)
     .single()
 
@@ -21,11 +21,17 @@ export async function GET() {
     .eq('org_id', membership.org_id)
     .order('joined_at')
 
-  const { data: invitations } = await supabase
-    .from('org_invitations')
-    .select('id, email, role, status, token, created_at, expires_at')
-    .eq('org_id', membership.org_id)
-    .order('created_at', { ascending: false })
+  // Pending invitations are admin-only — regular coaches don't need to see
+  // (or be able to infer) who else has been invited but hasn't joined yet.
+  let invitations: unknown[] = []
+  if (membership.role === 'admin') {
+    const { data } = await supabase
+      .from('org_invitations')
+      .select('id, email, role, status, token, created_at, expires_at')
+      .eq('org_id', membership.org_id)
+      .order('created_at', { ascending: false })
+    invitations = data ?? []
+  }
 
-  return NextResponse.json({ members: members ?? [], invitations: invitations ?? [] })
+  return NextResponse.json({ members: members ?? [], invitations })
 }
