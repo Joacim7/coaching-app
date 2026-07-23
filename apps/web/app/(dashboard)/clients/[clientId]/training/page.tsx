@@ -62,7 +62,7 @@ export default async function TrainingPage({
           <p className="text-sm text-gray-500 mt-0.5">{profile?.full_name}</p>
         </div>
         <Link
-          href="/training-plans/new"
+          href={`/clients/${clientId}/training/new`}
           className="flex items-center gap-1.5 h-9 px-4 text-sm font-bold rounded-lg bg-gradient-to-r from-[#1a5c3a] to-[#6ecfb0] text-white hover:opacity-90 transition-opacity"
         >
           <Plus className="w-4 h-4" />

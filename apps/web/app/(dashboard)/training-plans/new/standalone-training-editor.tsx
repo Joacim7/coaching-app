@@ -698,7 +698,7 @@ export default function StandaloneTrainingPlanEditor({
           .single()
         if (error) throw error
         planId = data.id
-        router.replace(`/training-plans/${planId}`)
+        router.replace(clientId ? `/clients/${clientId}/training/${planId}` : `/training-plans/${planId}`)
       } else {
         const { error } = await supabase
           .from('training_plans')
