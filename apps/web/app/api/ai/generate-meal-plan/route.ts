@@ -1002,22 +1002,23 @@ function pickWithProteinVariety(candidates: RecipeLibRow[], count: number): Reci
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchFromLibrary(supabase: any, coachId: string, mealType: string, target: MealTarget, count: number): Promise<MealAlternative[] | null> {
-  console.log(`[fetchFromLibrary] CALLED — mealType="${mealType}" coachId=${coachId} target=${target.calories}kcal want=${count}`)
+async function fetchFromLibrary(supabase: any, coachIds: string[], mealType: string, target: MealTarget, count: number): Promise<MealAlternative[] | null> {
+  console.log(`[fetchFromLibrary] CALLED — mealType="${mealType}" coachIds=${JSON.stringify(coachIds)} target=${target.calories}kcal want=${count}`)
 
   try {
-    // Diagnostic: count ALL recipes for this coach so we know if the issue is
-    // "no recipes in DB" vs "recipes exist but meal_type doesn't match"
+    // Diagnostic: count ALL recipes visible to this org (or just this coach,
+    // if not in one) so we know if the issue is "no recipes in DB" vs
+    // "recipes exist but meal_type doesn't match"
     const { count: totalCount } = await supabase
       .from('recipes')
       .select('id', { count: 'exact', head: true })
-      .eq('coach_id', coachId)
-    console.log(`[fetchFromLibrary] "${mealType}": coach has ${totalCount ?? '?'} total recipes in DB`)
+      .in('coach_id', coachIds)
+    console.log(`[fetchFromLibrary] "${mealType}": org has ${totalCount ?? '?'} total recipes in DB`)
 
     const { data, error } = await supabase
       .from('recipes')
       .select('id,title,instructions,image_url,calories_per_serving,protein_per_serving,carbs_per_serving,fat_per_serving,ingredients,meal_type')
-      .eq('coach_id', coachId)
+      .in('coach_id', coachIds)
       .ilike('meal_type', mealType)
       .limit(100)
 
@@ -1033,7 +1034,7 @@ async function fetchFromLibrary(supabase: any, coachId: string, mealType: string
       const { data: allTypes } = await supabase
         .from('recipes')
         .select('meal_type')
-        .eq('coach_id', coachId)
+        .in('coach_id', coachIds)
         .limit(200)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const distinct = [...new Set((allTypes ?? []).map((r: any) => r.meal_type))]
@@ -1173,11 +1174,29 @@ export async function POST(req: Request) {
 
   console.log('[generate-meal-plan] MEAL TARGETS:', mealTargets.map(t => `[${t.name}] ${t.calories}kcal P${t.protein} C${t.carbs} F${t.fat}`).join(' | '))
 
+  // Recipe library covers the whole org, not just this coach — a new coach
+  // should immediately see recipes their org-mates (e.g. the admin) created.
+  const { data: membership } = await supabase
+    .from('org_members')
+    .select('org_id')
+    .eq('user_id', user!.id)
+    .single()
+
+  let coachIds = [user!.id]
+  if (membership) {
+    const { data: orgMates } = await supabase
+      .from('org_members')
+      .select('user_id')
+      .eq('org_id', membership.org_id)
+    if (orgMates?.length) coachIds = orgMates.map((m: { user_id: string }) => m.user_id)
+  }
+  console.log(`[generate-meal-plan] Recipe library scope — coachIds: ${JSON.stringify(coachIds)}`)
+
   // Check recipe library before AI generation — skip AI for meal types with enough recipes
   console.log(`[generate-meal-plan] Checking recipe library for ${mealTargets.length} meal slots...`)
   const libAltsMap = new Map<number, MealAlternative[]>()
   for (let mi = 0; mi < mealTargets.length; mi++) {
-    const lib = await fetchFromLibrary(supabase, user!.id, mealTargets[mi].name, mealTargets[mi], alternatives_per_meal)
+    const lib = await fetchFromLibrary(supabase, coachIds, mealTargets[mi].name, mealTargets[mi], alternatives_per_meal)
     if (lib) {
       libAltsMap.set(mi, lib)
     }
