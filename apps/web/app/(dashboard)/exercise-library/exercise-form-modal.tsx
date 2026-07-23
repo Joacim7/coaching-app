@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, Plus, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { youTubeThumbnail } from '@/lib/video-thumbnail'
 
 // ── Shared type ───────────────────────────────────────────────────────────────
 
@@ -88,14 +89,6 @@ function fromExercise(ex: ExerciseRow, mode: FormMode): FormState {
 
 function toggle<T>(arr: T[], v: T): T[] {
   return arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]
-}
-
-// Coaches almost always paste a YouTube link here — auto-derive a thumbnail
-// from it so the video shows up as a picture everywhere the exercise is used
-// (library cards, training plan editor), not just a placeholder icon.
-function youTubeThumbnail(url: string): string | null {
-  const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  return m ? `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg` : null
 }
 
 // ── Modal component ───────────────────────────────────────────────────────────

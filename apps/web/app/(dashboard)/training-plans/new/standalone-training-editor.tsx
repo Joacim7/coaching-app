@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import type { ExerciseRow } from '@/app/(dashboard)/exercise-library/exercise-form-modal'
+import { exerciseThumbnail } from '@/lib/video-thumbnail'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -387,6 +388,7 @@ function ExerciseCard({ ex, onAdd, onDragStart }: {
 }) {
   const primaryMuscle = ex.muscle_groups[0] ?? 'Annet'
   const colorClass = MUSCLE_COLORS[primaryMuscle] ?? 'bg-gray-100 text-gray-600'
+  const thumb = exerciseThumbnail(ex)
 
   function handleDragStart(e: React.DragEvent) {
     e.dataTransfer.setData('exercise_id', ex.id)
@@ -401,9 +403,9 @@ function ExerciseCard({ ex, onAdd, onDragStart }: {
       className="group relative bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md hover:border-[#6ecfb0] transition-all cursor-grab active:cursor-grabbing"
     >
       <div className="h-24 relative bg-gradient-to-br from-[#ebf5ef] to-[#cdeee3] flex items-center justify-center">
-        {ex.thumbnail_url ? (
+        {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={ex.thumbnail_url} alt={ex.name} className="w-full h-full object-cover" />
+          <img src={thumb} alt={ex.name} className="w-full h-full object-cover" />
         ) : (
           <Dumbbell className="w-8 h-8 text-[#6ecfb0]" />
         )}
@@ -463,13 +465,14 @@ function SessionExerciseRow({
 }) {
   const primaryMuscle = ex.muscle_groups?.[0]
   const colorClass = primaryMuscle ? (MUSCLE_COLORS[primaryMuscle] ?? 'bg-gray-100 text-gray-500') : 'bg-gray-100 text-gray-500'
+  const thumb = exerciseThumbnail(ex)
 
   return (
     <div className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-100 group hover:border-[#6ecfb0] transition-colors">
       <div className="relative w-10 h-10 rounded-lg bg-gradient-to-br from-[#ebf5ef] to-[#cdeee3] flex items-center justify-center shrink-0 overflow-hidden group/thumb">
-        {ex.thumbnail_url
+        {thumb
           // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={ex.thumbnail_url} alt={ex.name} className="w-full h-full object-cover" />
+          ? <img src={thumb} alt={ex.name} className="w-full h-full object-cover" />
           : <Dumbbell className="w-4 h-4 text-[#6ecfb0]" />
         }
         {ex.video_url && (

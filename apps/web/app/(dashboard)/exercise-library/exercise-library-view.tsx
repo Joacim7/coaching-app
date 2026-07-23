@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { Search, Video, MoreVertical, Trash2, Pencil, Copy, Dumbbell, Share2 } from 'lucide-react'
 import { ExerciseFormModal, ExerciseModal, type ExerciseRow, type FormMode } from './exercise-form-modal'
+import { exerciseThumbnail } from '@/lib/video-thumbnail'
 
 type Tab = 'alle' | 'mine' | 'standard'
 
@@ -170,6 +171,7 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
             const isMenuOpen = openMenu === ex.id
             const isOwn      = !ex.is_standard
             const canDelete  = isOwn || (isAdmin && ex.is_standard)
+            const thumb      = exerciseThumbnail(ex)
 
             return (
               <div key={ex.id} className="relative group">
@@ -183,6 +185,10 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
                 >
                   {/* Thumbnail */}
                   <div className="relative bg-gray-100 aspect-video flex items-center justify-center overflow-hidden">
+                    {thumb && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={thumb} alt={ex.name} className="absolute inset-0 w-full h-full object-cover" />
+                    )}
                     {ex.video_url ? (
                       <a
                         href={ex.video_url}
@@ -194,7 +200,7 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
                         <div className="w-12 h-12 rounded-full bg-white/90 shadow-md flex items-center justify-center group-hover/thumb:scale-110 transition-transform">
                           <Video className="w-5 h-5 text-gray-700 translate-x-0.5" />
                         </div>
-                        <div className="absolute inset-0 bg-gray-900/10 group-hover/thumb:bg-gray-900/20 transition-colors" />
+                        <div className={`absolute inset-0 transition-colors ${thumb ? 'bg-gray-900/10 group-hover/thumb:bg-gray-900/30' : 'bg-gray-900/10 group-hover/thumb:bg-gray-900/20'}`} />
                       </a>
                     ) : (
                       <div className="flex flex-col items-center gap-1.5 text-gray-300">
