@@ -53,8 +53,14 @@ export async function updateSession(request: NextRequest) {
       || request.nextUrl.pathname.startsWith('/api/onboarding')
     const isStartRoute      = request.nextUrl.pathname.startsWith('/start')
       || request.nextUrl.pathname.startsWith('/api/intake')
+    // Invite-token lookup for the register page — visited by someone who has
+    // no account (and therefore no session) yet, so it must stay public. The
+    // sibling POST /accept route is intentionally excluded: it requires an
+    // authenticated user to know *who* is accepting.
+    const isOrgInviteLookup = request.nextUrl.pathname.startsWith('/api/organization/invitations/')
+      && request.nextUrl.pathname !== '/api/organization/invitations/accept'
     const isPublic = isAuthRoute || isInviteRoute || isOnboardingRoute || isStartRoute
-      || request.nextUrl.pathname === '/'
+      || isOrgInviteLookup || request.nextUrl.pathname === '/'
 
     if (!user && !isPublic) {
       const url = request.nextUrl.clone()
