@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import {
-  Plus, Trash2, Save, ChevronLeft, UserPlus, X, Search, Dumbbell, Activity, Pencil,
+  Plus, Trash2, Save, ChevronLeft, UserPlus, X, Search, Dumbbell, Activity, Pencil, Video,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { ExerciseRow } from '@/app/(dashboard)/exercise-library/exercise-form-modal'
@@ -407,6 +407,22 @@ function ExerciseCard({ ex, onAdd, onDragStart }: {
         ) : (
           <Dumbbell className="w-8 h-8 text-[#6ecfb0]" />
         )}
+        {ex.video_url && (
+          <a
+            href={ex.video_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            draggable={false}
+            title="Se video"
+            className="absolute inset-0 flex items-center justify-center group/thumb"
+          >
+            <div className="absolute inset-0 bg-gray-900/0 group-hover/thumb:bg-gray-900/20 transition-colors" />
+            <div className="relative w-8 h-8 rounded-full bg-white/90 shadow-md flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 group-hover/thumb:scale-110 transition-all">
+              <Video className="w-3.5 h-3.5 text-gray-700 translate-x-0.5" />
+            </div>
+          </a>
+        )}
         <button
           onClick={onAdd}
           className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#1a5c3a] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-[#2d8653]"
@@ -450,12 +466,23 @@ function SessionExerciseRow({
 
   return (
     <div className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-100 group hover:border-[#6ecfb0] transition-colors">
-      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#ebf5ef] to-[#cdeee3] flex items-center justify-center shrink-0 overflow-hidden">
+      <div className="relative w-10 h-10 rounded-lg bg-gradient-to-br from-[#ebf5ef] to-[#cdeee3] flex items-center justify-center shrink-0 overflow-hidden group/thumb">
         {ex.thumbnail_url
           // eslint-disable-next-line @next/next/no-img-element
           ? <img src={ex.thumbnail_url} alt={ex.name} className="w-full h-full object-cover" />
           : <Dumbbell className="w-4 h-4 text-[#6ecfb0]" />
         }
+        {ex.video_url && (
+          <a
+            href={ex.video_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Se video"
+            className="absolute inset-0 flex items-center justify-center bg-gray-900/0 hover:bg-gray-900/30 transition-colors"
+          >
+            <Video className="w-3.5 h-3.5 text-white opacity-0 group-hover/thumb:opacity-100 transition-opacity drop-shadow" />
+          </a>
+        )}
       </div>
 
       <div className="flex-1 min-w-0">

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Plus } from 'lucide-react'
+import { X, Plus, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 // ── Shared type ───────────────────────────────────────────────────────────────
@@ -90,6 +90,14 @@ function toggle<T>(arr: T[], v: T): T[] {
   return arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]
 }
 
+// Coaches almost always paste a YouTube link here — auto-derive a thumbnail
+// from it so the video shows up as a picture everywhere the exercise is used
+// (library cards, training plan editor), not just a placeholder icon.
+function youTubeThumbnail(url: string): string | null {
+  const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  return m ? `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg` : null
+}
+
 // ── Modal component ───────────────────────────────────────────────────────────
 
 interface ModalProps {
@@ -127,6 +135,8 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
     setSaving(true)
     setError('')
 
+    const trimmedVideoUrl = form.video_url.trim()
+
     const payload = {
       name:            form.name.trim(),
       description:     form.description.trim()  || null,
@@ -135,7 +145,8 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
       muscle_groups:   form.muscle_groups,
       primary_muscles: form.primary_muscles,
       equipment:       form.equipment,
-      video_url:       form.video_url.trim()    || null,
+      video_url:       trimmedVideoUrl || null,
+      thumbnail_url:   youTubeThumbnail(trimmedVideoUrl),
     }
 
     let res: Response
@@ -323,6 +334,26 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
                 onChange={e => set('video_url', e.target.value)}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
+              {(() => {
+                const preview = youTubeThumbnail(form.video_url.trim())
+                return preview && (
+                  <a
+                    href={form.video_url.trim()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Se video"
+                    className="relative mt-2 block w-40 aspect-video rounded-lg overflow-hidden bg-gray-100 group/preview"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={preview} alt="Video-forhåndsvisning" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900/20 group-hover/preview:bg-gray-900/40 transition-colors">
+                      <div className="w-8 h-8 rounded-full bg-white/90 shadow-md flex items-center justify-center group-hover/preview:scale-110 transition-transform">
+                        <Video className="w-3.5 h-3.5 text-gray-700 translate-x-0.5" />
+                      </div>
+                    </div>
+                  </a>
+                )
+              })()}
             </div>
 
             {error && (

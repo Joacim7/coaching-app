@@ -31,6 +31,7 @@ export async function POST(req: Request) {
     categories?: string[]
     equipment?: string[]
     video_url?: string
+    thumbnail_url?: string | null
   }
 
   if (!body.name?.trim()) {
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
       categories:      body.categories ?? [],
       equipment:       body.equipment ?? [],
       video_url:       body.video_url?.trim() ?? null,
+      thumbnail_url:   body.thumbnail_url ?? null,
       is_standard:     false,
     })
     .select()
