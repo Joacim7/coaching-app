@@ -282,7 +282,7 @@ function CheckinModal({
           <button
             onClick={handleSave}
             disabled={saving || saved}
-            className="w-full h-10 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            className="w-full h-10 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-all flex items-center justify-center gap-2 [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]"
           >
             {saved ? '✓ Lagret' : saving ? 'Lagrer...' : 'Lagre tilbakemelding'}
           </button>
