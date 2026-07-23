@@ -6,11 +6,10 @@ import {
 } from 'react'
 import {
   Mic, MicOff, Video as CamIcon, VideoOff, Square,
-  Download, Save, AlertCircle, Monitor, X, Circle,
+  Link2, Trash2, CheckCircle2, Loader2, AlertCircle, Monitor, X, Circle,
   MonitorCheck,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -68,8 +67,6 @@ function fmtBytes(b: number) {
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 export function RecordingProvider({ children }: { children: ReactNode }) {
-  const router = useRouter()
-
   const [screenStream,    setScreenStream]   = useState<MediaStream | null>(null)
   const [webcamStream,    setWebcamStream]   = useState<MediaStream | null>(null)
   const [stage,           setStage]          = useState<RecordingStage>('idle')
@@ -79,10 +76,12 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const [displaySurface,  setDisplaySurface] = useState<string | null>(null)
   const [recordModalOpen, setRecordModalOpen] = useState(false)
 
-  const [blob,      setBlob]      = useState<Blob | null>(null)
-  const [recTitle,  setRecTitle]  = useState('')
-  const [upErr,     setUpErr]     = useState('')
-  const [upLoading, setUpLoading] = useState(false)
+  const [blob,        setBlob]        = useState<Blob | null>(null)
+  const [previewUrl,  setPreviewUrl]  = useState<string | null>(null)
+  const [recTitle,    setRecTitle]    = useState('')
+  const [upErr,       setUpErr]       = useState('')
+  const [upLoading,   setUpLoading]   = useState(false)
+  const [linkCopied,  setLinkCopied]  = useState(false)
 
   const [bubblePos, setBubblePos] = useState<BubblePos>({ pinned: true, right: 24, bottom: 88 })
 
@@ -124,6 +123,20 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     cancelAnimationFrame(animRef.current)
     clearInterval(intervalRef.current)
   }, [])
+
+  // Object URL for the finished-recording preview — revoked whenever the
+  // blob changes or the provider unmounts, so we don't leak memory. Not
+  // rendered once blob is null (the modal's JSX condition covers that), so
+  // there's no need to null out previewUrl itself here.
+  useEffect(() => {
+    if (!blob) return
+    const url = URL.createObjectURL(blob)
+    // Unavoidable: the object URL and its cleanup are inherently paired to
+    // this effect run — there's no way to derive it during render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [blob])
 
   // ── Clean up all streams (shared helper) ───────────────────────────────────
   function releaseStreams(streams: { screen: MediaStream | null; webcam: MediaStream | null }) {
@@ -306,8 +319,11 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   }
   function onBubblePointerUp() { dragRef.current = null }
 
-  // ── Save to Supabase Storage ───────────────────────────────────────────────
-  async function saveRecording() {
+  // ── Upload to Supabase Storage + copy the shareable link ──────────────────
+  // Replaces the old "save then go find it in Mine opptak" flow — the link
+  // lands directly on the clipboard so the coach can paste it wherever
+  // they need it right away.
+  async function uploadAndCopyLink() {
     if (!blob) return
     setUpLoading(true)
     setUpErr('')
@@ -340,25 +356,24 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       })
       if (!res.ok) throw new Error('Kunne ikke lagre metadata')
 
+      await navigator.clipboard.writeText(urlData.publicUrl)
+      setLinkCopied(true)
+
       releaseStreams({ screen: screenStream, webcam: webcamStream })
       setScreenStream(null)
       setWebcamStream(null)
-      setStage('idle')
-      setBlob(null)
-      router.push('/recordings')
+
+      // Brief confirmation, then close — no navigation needed.
+      setTimeout(() => {
+        setStage('idle')
+        setBlob(null)
+        setLinkCopied(false)
+      }, 1500)
     } catch (err) {
       setUpErr(err instanceof Error ? err.message : 'Ukjent feil')
     } finally {
       setUpLoading(false)
     }
-  }
-
-  function downloadBlob() {
-    if (!blob) return
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `${recTitle || 'opptak'}.webm`; a.click()
-    URL.revokeObjectURL(url)
   }
 
   function discardRecording() {
@@ -604,14 +619,23 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       {/* ── Global save dialog ─────────────────────────────────────────────── */}
       {stage === 'saving' && blob && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="px-6 pt-6 pb-5 space-y-5">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 pt-6 pb-5 space-y-4">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Opptak fullført</h2>
                 <p className="text-sm text-gray-500 mt-0.5">
                   {fmtTime(timerValRef.current)} · {fmtBytes(blob.size)}
                 </p>
               </div>
+
+              {/* Video preview */}
+              {previewUrl && (
+                <video
+                  src={previewUrl}
+                  controls
+                  className="w-full aspect-video rounded-xl bg-black object-contain"
+                />
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">
@@ -622,8 +646,9 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                   type="text"
                   value={recTitle}
                   onChange={e => setRecTitle(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') saveRecording() }}
-                  className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  onKeyDown={e => { if (e.key === 'Enter') uploadAndCopyLink() }}
+                  disabled={upLoading || linkCopied}
+                  className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653] disabled:opacity-60"
                 />
               </div>
 
@@ -634,29 +659,31 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                 </div>
               )}
 
-              <div className="flex gap-3">
-                <button
-                  onClick={downloadBlob}
-                  className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  Last ned
-                </button>
-                <button
-                  onClick={saveRecording}
-                  disabled={upLoading}
-                  className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors"
-                >
-                  <Save className="w-4 h-4" />
-                  {upLoading ? 'Laster opp...' : 'Lagre'}
-                </button>
-              </div>
+              <button
+                onClick={uploadAndCopyLink}
+                disabled={upLoading || linkCopied}
+                className={`w-full flex items-center justify-center gap-2 h-11 rounded-xl text-white text-sm font-semibold transition-all disabled:cursor-not-allowed ${
+                  linkCopied
+                    ? 'bg-[#2d8653]'
+                    : '[background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a] disabled:opacity-70'
+                }`}
+              >
+                {linkCopied ? (
+                  <><CheckCircle2 className="w-4 h-4" /> Lenke kopiert!</>
+                ) : upLoading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Laster opp...</>
+                ) : (
+                  <><Link2 className="w-4 h-4" /> Last opp og kopier link</>
+                )}
+              </button>
 
               <button
                 onClick={discardRecording}
-                className="w-full text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                disabled={upLoading || linkCopied}
+                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                Forkast opptak
+                <Trash2 className="w-4 h-4" />
+                Slett opptak
               </button>
             </div>
           </div>
