@@ -9,10 +9,11 @@ import {
   Dumbbell,
   UtensilsCrossed,
 } from 'lucide-react'
-import type { ClientPhase, ClientStatus } from '@coaching/types'
+import type { ClientPhase, ClientStatus, CheckinTemplate } from '@coaching/types'
 import { PhaseTimeline } from './phase-timeline'
 import { type CheckinRow } from './recent-checkins'
 import { GoalPanel } from './goal-panel'
+import { OnboardingPanel } from './onboarding-panel'
 
 const STATUS_LABEL: Record<ClientStatus, string> = {
   active:     'Aktiv',
@@ -49,7 +50,7 @@ export default async function ClientOverviewPage({
   const profile = Array.isArray(rel.profile) ? rel.profile[0] : rel.profile
   const status = (rel.status ?? 'active') as ClientStatus
 
-  const [checkinRes, planRes, mealRes, phasesRes, workoutRes, goalRes, allPlansRes, allMealsRes] = await Promise.all([
+  const [checkinRes, planRes, mealRes, phasesRes, workoutRes, goalRes, allPlansRes, allMealsRes, onboardingSubRes, onboardingTplRes] = await Promise.all([
     supabase
       .from('checkins')
       .select(`
@@ -103,6 +104,21 @@ export default async function ClientOverviewPage({
       .select('id, title')
       .eq('client_id', clientId)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('onboarding_submissions')
+      .select('submitted_at, answers, template:checkin_templates(name, questions)')
+      .eq('client_id', clientId)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('checkin_templates')
+      .select('name, questions')
+      .eq('coach_id', user!.id)
+      .eq('type', 'onboarding')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   // Normalise Supabase join shapes (single-row joins can come back as array or object)
@@ -118,6 +134,17 @@ export default async function ClientOverviewPage({
   const goal        = goalRes.data ?? null
   const allPlans    = (allPlansRes.data ?? []) as { id: string; title: string }[]
   const allMeals    = (allMealsRes.data ?? []) as { id: string; title: string }[]
+
+  const onboardingSub  = onboardingSubRes.data ?? null
+  const onboardingSubTpl = onboardingSub
+    ? (Array.isArray(onboardingSub.template) ? onboardingSub.template[0] : onboardingSub.template)
+    : null
+  const onboardingTpl  = onboardingTplRes.data as { name: string; questions: CheckinTemplate['questions'] } | null
+  const onboardingTemplateName = onboardingSubTpl?.name ?? onboardingTpl?.name ?? null
+  const onboardingQuestions    = onboardingSubTpl?.questions ?? onboardingTpl?.questions ?? []
+  const onboardingSubmission   = onboardingSub
+    ? { submitted_at: onboardingSub.submitted_at, answers: onboardingSub.answers as Record<string, unknown> }
+    : null
 
   // Unified activity feed: workout logs + checkins merged and sorted by date desc
   type FeedItem =
@@ -400,6 +427,15 @@ export default async function ClientOverviewPage({
               </Link>
             </div>
           </div>
+
+          {/* Onboarding */}
+          <OnboardingPanel
+            clientId={clientId}
+            clientName={profile?.full_name ?? 'Klient'}
+            templateName={onboardingTemplateName}
+            templateQuestions={onboardingQuestions}
+            submission={onboardingSubmission}
+          />
 
           {/* Mål */}
           <GoalPanel

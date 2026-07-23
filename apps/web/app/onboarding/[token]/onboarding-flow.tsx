@@ -69,65 +69,38 @@ function PasswordSetupStep({
   email: string
   onDone: () => void
 }) {
-  const [password, setPassword]   = useState('')
-  const [confirm, setConfirm]     = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]         = useState('')
 
+  // Uncontrolled inputs, read via ref on submit — mobile Safari's "Suggest
+  // Strong Password" AutoFill sets these fields' DOM value without reliably
+  // dispatching the input event React's onChange relies on, so a controlled
+  // value prop can end up out of sync with (or fight) what's actually on
+  // screen. Reading straight from the DOM at submit time sidesteps that.
   const passwordRef = useRef<HTMLInputElement>(null)
   const confirmRef  = useRef<HTMLInputElement>(null)
 
-  const tooShort   = password.length > 0 && password.length < 8
-  const mismatch   = confirm.length > 0 && password !== confirm
-  const canSubmit  = password.length >= 8 && password === confirm && !submitting
-
-  // Logs on every keystroke *and* on autofill, independent of submit —
-  // the handleSubmit log below only fires once canSubmit is already true,
-  // which is useless for diagnosing why it's stuck false.
-  useEffect(() => {
-    console.log('[password-step] validation state — password.length:', password.length,
-      'confirm.length:', confirm.length, 'match:', password === confirm, 'canSubmit:', canSubmit)
-  }, [password, confirm, canSubmit])
-
-  useEffect(() => {
-    const passwordEl = passwordRef.current
-    const confirmEl  = confirmRef.current
-    if (!passwordEl || !confirmEl) return
-
-    // Mobile Safari's "Suggest Strong Password" AutoFill can set these two
-    // fields' DOM value without reliably dispatching the native 'input'
-    // event React's onChange relies on — most often on the second (confirm)
-    // field. When that happens the boxes look filled and matching on screen
-    // but React's state (and therefore canSubmit) never updates, so the
-    // button stays silently disabled. Binding directly to the DOM elements
-    // here catches that case regardless of whether the browser fired a
-    // proper input event for the synthetic onChange path.
-    const handlePasswordInput = () => setPassword(passwordEl.value)
-    const handleConfirmInput  = () => setConfirm(confirmEl.value)
-
-    passwordEl.addEventListener('input', handlePasswordInput)
-    confirmEl.addEventListener('input', handleConfirmInput)
-
-    return () => {
-      passwordEl.removeEventListener('input', handlePasswordInput)
-      confirmEl.removeEventListener('input', handleConfirmInput)
-    }
-  }, [])
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    console.log('[password-step] handleSubmit fired — canSubmit:', canSubmit,
-      'password.length:', password.length, 'match:', password === confirm, 'submitting:', submitting)
-
-    if (!canSubmit) {
-      console.warn('[password-step] blocked by canSubmit guard — not sending request')
-      return
-    }
-    setSubmitting(true)
     setError('')
 
+    const password = passwordRef.current?.value ?? ''
+    const confirm  = confirmRef.current?.value ?? ''
+
+    if (!password || !confirm) return
+
+    if (password.length < 8) {
+      setError('Passordet må være minst 8 tegn')
+      return
+    }
+    if (password !== confirm) {
+      setError('Passordene er ikke like')
+      return
+    }
+
+    setSubmitting(true)
+
     try {
-      console.log('[password-step] POST /api/onboarding/' + token + '/set-password')
       const res = await fetch(`/api/onboarding/${token}/set-password`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,7 +108,6 @@ function PasswordSetupStep({
       })
 
       const rawText = await res.text()
-      console.log('[password-step] response status:', res.status, res.statusText, '— body:', rawText)
 
       if (!res.ok) {
         let data: { error?: string } = {}
@@ -144,10 +116,8 @@ function PasswordSetupStep({
         return
       }
 
-      console.log('[password-step] success — moving to form step')
       onDone()
     } catch (err) {
-      console.error('[password-step] request threw an exception:', err)
       setError('Kunne ikke koble til serveren. Sjekk internettforbindelsen og prøv igjen.')
     } finally {
       setSubmitting(false)
@@ -175,16 +145,11 @@ function PasswordSetupStep({
         <input
           ref={passwordRef}
           type="password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
           placeholder="Minst 8 tegn"
           autoFocus
           autoComplete="new-password"
           className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653] focus:border-transparent"
         />
-        {tooShort && (
-          <p className="text-xs text-red-600 mt-1.5">Passordet må være minst 8 tegn</p>
-        )}
       </div>
 
       <div>
@@ -194,25 +159,10 @@ function PasswordSetupStep({
         <input
           ref={confirmRef}
           type="password"
-          value={confirm}
-          onChange={e => setConfirm(e.target.value)}
           placeholder="Gjenta passordet"
           autoComplete="new-password"
           className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653] focus:border-transparent"
         />
-        {mismatch && (
-          <p className="text-xs text-red-600 mt-1.5">Passordene er ikke like</p>
-        )}
-      </div>
-
-      {/* Always-visible requirement checklist — makes it obvious why the button is (or isn't) enabled */}
-      <div className="space-y-1 -mt-1">
-        <p className={`text-xs flex items-center gap-1.5 ${password.length >= 8 ? 'text-[#2d8653]' : 'text-gray-400'}`}>
-          <span>{password.length >= 8 ? '✓' : '○'}</span> Minst 8 tegn
-        </p>
-        <p className={`text-xs flex items-center gap-1.5 ${confirm.length > 0 && password === confirm ? 'text-[#2d8653]' : 'text-gray-400'}`}>
-          <span>{confirm.length > 0 && password === confirm ? '✓' : '○'}</span> Passordene er like
-        </p>
       </div>
 
       {error && (
@@ -221,7 +171,7 @@ function PasswordSetupStep({
 
       <Button
         type="submit"
-        disabled={!canSubmit}
+        disabled={submitting}
         className="w-full h-auto py-4 rounded-2xl text-base font-semibold shadow-md"
       >
         {submitting ? 'Oppretter konto...' : 'Fortsett'}
