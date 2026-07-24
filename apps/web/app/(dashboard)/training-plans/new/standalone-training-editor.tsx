@@ -456,16 +456,25 @@ function ExerciseCard({ ex, onAdd, onDragStart }: {
 
 function SessionExerciseRow({
   ex,
+  exerciseLibrary,
   onChange,
   onRemove,
 }: {
   ex: SessionExercise
+  exerciseLibrary: ExerciseRow[]
   onChange: (field: keyof SessionExercise, value: string | number) => void
   onRemove: () => void
 }) {
   const primaryMuscle = ex.muscle_groups?.[0]
   const colorClass = primaryMuscle ? (MUSCLE_COLORS[primaryMuscle] ?? 'bg-gray-100 text-gray-500') : 'bg-gray-100 text-gray-500'
-  const thumb = exerciseThumbnail(ex)
+
+  // Older sessions were saved before thumbnail_url/video_url existed on the
+  // stored exercise snapshot — fall back to the live library entry (matched
+  // by exercise_id) so those plans self-heal instead of showing a dumbbell
+  // forever even though the exercise itself has a video.
+  const libMatch = ex.exercise_id ? exerciseLibrary.find(e => e.id === ex.exercise_id) : undefined
+  const videoUrl = ex.video_url ?? libMatch?.video_url ?? null
+  const thumb = exerciseThumbnail({ thumbnail_url: ex.thumbnail_url ?? libMatch?.thumbnail_url, video_url: videoUrl })
 
   return (
     <div className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-100 group hover:border-[#6ecfb0] transition-colors">
@@ -475,9 +484,9 @@ function SessionExerciseRow({
           ? <img src={thumb} alt={ex.name} className="w-full h-full object-cover" />
           : <Dumbbell className="w-4 h-4 text-[#6ecfb0]" />
         }
-        {ex.video_url && (
+        {videoUrl && (
           <a
-            href={ex.video_url}
+            href={videoUrl}
             target="_blank"
             rel="noopener noreferrer"
             title="Se video"
@@ -1042,6 +1051,7 @@ export default function StandaloneTrainingPlanEditor({
                       <SessionExerciseRow
                         key={ex.id}
                         ex={ex}
+                        exerciseLibrary={exercises}
                         onChange={(field, value) => updateExercise(activeSession.day_of_week, ex.id, field, value)}
                         onRemove={() => removeExercise(activeSession.day_of_week, ex.id)}
                       />
