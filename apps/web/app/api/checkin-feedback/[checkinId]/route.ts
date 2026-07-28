@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { sendExpoPushNotification } from '@/lib/push-notifications'
 import { NextResponse } from 'next/server'
 
 export async function POST(
@@ -16,7 +18,7 @@ export async function POST(
   // Verify the coach actually owns this client's check-in
   const { data: checkin } = await supabase
     .from('checkins')
-    .select('client_id')
+    .select('client_id, type')
     .eq('id', checkinId)
     .single()
 
@@ -49,6 +51,25 @@ export async function POST(
   if (error) {
     console.error('[checkin-feedback] upsert error:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // Push the client only for feedback on their weekly check-in
+  if (checkin.type === 'weekly') {
+    const admin = createAdminClient()
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('expo_push_token')
+      .eq('id', checkin.client_id)
+      .single()
+
+    if (profile?.expo_push_token) {
+      const result = await sendExpoPushNotification({
+        to: profile.expo_push_token,
+        title: 'Nova Performance',
+        body: 'Din coach har svart på din ukentlige check-in',
+      })
+      if (!result.ok) console.error('[checkin-feedback] push failed:', result.error)
+    }
   }
 
   return NextResponse.json({ ok: true })
