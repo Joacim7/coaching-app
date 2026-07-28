@@ -142,10 +142,13 @@ export default async function TrainingPage({
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-bold text-gray-800">Treningslogg</h2>
-          <button className="text-xs text-[#1a5c3a] hover:underline flex items-center gap-0.5">
+          <Link
+            href={`/clients/${clientId}/workout-log`}
+            className="text-xs text-[#1a5c3a] hover:underline flex items-center gap-0.5"
+          >
             Se full oversikt
             <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+          </Link>
         </div>
 
         {(logs ?? []).length === 0 ? (
