@@ -56,7 +56,7 @@ export default async function ClientOverviewPage({
       .select(`
         id, created_at, mood, type, notes, answers,
         template:checkin_templates ( name, questions ),
-        feedback:checkin_feedback ( comment, video_link )
+        feedback:checkin_feedback ( comment, video_link, is_complete )
       `)
       .eq('client_id', clientId)
       .order('created_at', { ascending: false })

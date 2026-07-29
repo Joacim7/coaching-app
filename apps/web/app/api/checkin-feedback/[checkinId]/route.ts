@@ -53,8 +53,10 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Push the client only for feedback on their weekly check-in
-  if (checkin.type === 'weekly') {
+  // Push the client only once feedback is actually sent (isComplete), never
+  // for a draft save — a draft isn't even visible to the client yet (see
+  // the clients_read_own_checkin_feedback RLS policy's is_complete gate).
+  if (isComplete && checkin.type === 'weekly') {
     const admin = createAdminClient()
     const { data: profile } = await admin
       .from('profiles')

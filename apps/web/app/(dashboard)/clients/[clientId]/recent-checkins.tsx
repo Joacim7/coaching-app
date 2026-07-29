@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, X, Link as LinkIcon, MessageSquare, ExternalLink } from 'lucide-react'
+import { CheckCircle2, Send, X, Link as LinkIcon, MessageSquare, ExternalLink } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Question { id: string; text: string; type: string }
 interface Template { name: string; questions: Question[] }
-interface Feedback  { comment: string | null; video_link: string | null }
+interface Feedback  { comment: string | null; video_link: string | null; is_complete: boolean }
 
 export interface CheckinRow {
   id:           string
@@ -84,32 +85,47 @@ function CheckinModal({
   onClose:  () => void
   onSaved:  (id: string, feedback: Feedback) => void
 }) {
-  const [comment,   setComment]   = useState(checkin.feedback?.comment    ?? '')
-  const [videoLink, setVideoLink] = useState(checkin.feedback?.video_link ?? '')
-  const [saving,    setSaving]    = useState(false)
-  const [error,     setError]     = useState('')
-  const [saved,     setSaved]     = useState(false)
+  const [comment,     setComment]     = useState(checkin.feedback?.comment    ?? '')
+  const [videoLink,   setVideoLink]   = useState(checkin.feedback?.video_link ?? '')
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [sending,     setSending]     = useState(false)
+  const [error,       setError]       = useState('')
+  const [draftSaved,  setDraftSaved]  = useState(false)
+  const [sent,        setSent]        = useState(false)
 
   const questions = checkin.template?.questions ?? []
-  const hasFeedback = !!(checkin.feedback?.comment || checkin.feedback?.video_link)
+  const isSent   = !!checkin.feedback?.is_complete
+  const hasDraft = !isSent && !!(checkin.feedback?.comment || checkin.feedback?.video_link)
 
-  async function handleSave() {
-    setSaving(true)
+  // isComplete=false saves a draft only the coach can see (never sent/pushed
+  // to the client); isComplete=true actually sends it and pushes the client.
+  async function handleSave(isComplete: boolean) {
+    const setBusy = isComplete ? setSending : setSavingDraft
+    setBusy(true)
     setError('')
     const res = await fetch(`/api/checkin-feedback/${checkin.id}`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ comment: comment.trim(), videoLink: videoLink.trim() }),
+      body:    JSON.stringify({ comment: comment.trim(), videoLink: videoLink.trim(), isComplete }),
     })
-    setSaving(false)
+    setBusy(false)
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
       setError(d.error ?? 'Kunne ikke lagre')
       return
     }
-    setSaved(true)
-    onSaved(checkin.id, { comment: comment.trim() || null, video_link: videoLink.trim() || null })
-    setTimeout(onClose, 900)
+    onSaved(checkin.id, {
+      comment:     comment.trim()   || null,
+      video_link:  videoLink.trim() || null,
+      is_complete: isComplete,
+    })
+    if (isComplete) {
+      setSent(true)
+      setTimeout(onClose, 900)
+    } else {
+      setDraftSaved(true)
+      setTimeout(() => setDraftSaved(false), 2000)
+    }
   }
 
   return (
@@ -226,8 +242,11 @@ function CheckinModal({
             <div className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-gray-400" />
               <h3 className="text-sm font-semibold text-gray-900">Coach tilbakemelding</h3>
-              {hasFeedback && (
-                <span className="text-[10px] bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">Lagret</span>
+              {isSent && (
+                <span className="text-[10px] bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">Sendt</span>
+              )}
+              {hasDraft && (
+                <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">Utkast lagret</span>
               )}
             </div>
 
@@ -278,13 +297,22 @@ function CheckinModal({
         </div>
 
         {/* Footer */}
-        <div className="flex-shrink-0 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
-          <button
-            onClick={handleSave}
-            disabled={saving || saved}
-            className="w-full h-10 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-all flex items-center justify-center gap-2 [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]"
+        <div className="flex-shrink-0 px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex gap-2">
+          <Button
+            variant="success"
+            onClick={() => handleSave(false)}
+            disabled={savingDraft || sending || sent}
+            className="flex-1"
           >
-            {saved ? '✓ Lagret' : saving ? 'Lagrer...' : 'Lagre tilbakemelding'}
+            {draftSaved ? '✓ Utkast lagret' : savingDraft ? 'Lagrer utkast...' : 'Lagre utkast'}
+          </Button>
+          <button
+            onClick={() => handleSave(true)}
+            disabled={savingDraft || sending || sent}
+            className="flex-1 h-10 rounded-lg text-white text-sm font-medium disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5 bg-[#1a5c3a] hover:bg-[#164a30]"
+          >
+            <Send className="w-4 h-4" />
+            {sent ? '✓ Sendt' : sending ? 'Sender...' : 'Send tilbakemelding'}
           </button>
         </div>
       </div>
@@ -331,9 +359,13 @@ export function RecentCheckins({
                         {c.type === 'daily' ? 'Daglig check-in' : 'Ukentlig check-in'}
                         {c.mood != null ? ` · ${MOOD[c.mood - 1]}` : ''}
                       </p>
-                      {c.feedback?.comment || c.feedback?.video_link ? (
+                      {c.feedback?.is_complete ? (
                         <span className="text-[10px] bg-green-100 text-green-700 font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
                           Tilbakemelding gitt
+                        </span>
+                      ) : c.feedback?.comment || c.feedback?.video_link ? (
+                        <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                          Utkast
                         </span>
                       ) : null}
                     </div>
