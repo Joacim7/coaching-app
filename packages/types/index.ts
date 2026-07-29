@@ -29,6 +29,8 @@ export interface Exercise {
   reps: string
   weight: string
   rest: string
+  rir?: string
+  tempo?: string
   notes: string
   video_url?: string | null
 }

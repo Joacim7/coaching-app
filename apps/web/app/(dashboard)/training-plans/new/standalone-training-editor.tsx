@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import {
-  Plus, Trash2, Save, ChevronLeft, UserPlus, X, Search, Dumbbell, Activity, Pencil, Video,
+  Plus, Trash2, Save, ChevronLeft, ChevronUp, ChevronDown, UserPlus, X, Search, Dumbbell, Activity, Pencil, Video,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { ExerciseRow } from '@/app/(dashboard)/exercise-library/exercise-form-modal'
@@ -23,6 +23,8 @@ type SessionExercise = {
   reps: string
   weight: string
   rest: string
+  rir?: string
+  tempo?: string
   notes: string
   thumbnail_url?: string | null
   video_url?: string | null
@@ -105,6 +107,8 @@ function newExercise(from?: ExerciseRow): SessionExercise {
     reps: '8–10',
     weight: '',
     rest: '60s',
+    rir: '',
+    tempo: '',
     notes: '',
     thumbnail_url: from?.thumbnail_url,
     video_url: from?.video_url,
@@ -459,11 +463,15 @@ function SessionExerciseRow({
   exerciseLibrary,
   onChange,
   onRemove,
+  onMoveUp,
+  onMoveDown,
 }: {
   ex: SessionExercise
   exerciseLibrary: ExerciseRow[]
   onChange: (field: keyof SessionExercise, value: string | number) => void
   onRemove: () => void
+  onMoveUp?: () => void
+  onMoveDown?: () => void
 }) {
   const primaryMuscle = ex.muscle_groups?.[0]
   const colorClass = primaryMuscle ? (MUSCLE_COLORS[primaryMuscle] ?? 'bg-gray-100 text-gray-500') : 'bg-gray-100 text-gray-500'
@@ -478,6 +486,25 @@ function SessionExerciseRow({
 
   return (
     <div className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-100 group hover:border-[#6ecfb0] transition-colors">
+      <div className="flex flex-col shrink-0">
+        <button
+          onClick={onMoveUp}
+          disabled={!onMoveUp}
+          title="Flytt opp"
+          className="w-5 h-4 flex items-center justify-center text-gray-300 hover:text-[#1a5c3a] disabled:opacity-20 disabled:hover:text-gray-300 transition-colors"
+        >
+          <ChevronUp className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={onMoveDown}
+          disabled={!onMoveDown}
+          title="Flytt ned"
+          className="w-5 h-4 flex items-center justify-center text-gray-300 hover:text-[#1a5c3a] disabled:opacity-20 disabled:hover:text-gray-300 transition-colors"
+        >
+          <ChevronDown className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
       <div className="relative w-10 h-10 rounded-lg bg-gradient-to-br from-[#ebf5ef] to-[#cdeee3] flex items-center justify-center shrink-0 overflow-hidden group/thumb">
         {thumb
           // eslint-disable-next-line @next/next/no-img-element
@@ -539,8 +566,20 @@ function SessionExerciseRow({
         <input value={ex.rest} onChange={e => onChange('rest', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="60s" />
       </div>
 
+      {/* RIR */}
+      <div className="text-center">
+        <p className="text-[10px] text-gray-400 mb-0.5">RIR</p>
+        <input value={ex.rir ?? ''} onChange={e => onChange('rir', e.target.value)} className="w-12 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="2" />
+      </div>
+
+      {/* Tempo */}
+      <div className="text-center">
+        <p className="text-[10px] text-gray-400 mb-0.5">Tempo</p>
+        <input value={ex.tempo ?? ''} onChange={e => onChange('tempo', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="30X1" />
+      </div>
+
       {/* Notes */}
-      <input value={ex.notes} onChange={e => onChange('notes', e.target.value)} placeholder="Notater..." className="w-28 text-xs text-gray-500 border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0] placeholder:text-gray-300" />
+      <input value={ex.notes} onChange={e => onChange('notes', e.target.value)} placeholder="Notater..." className="w-20 text-xs text-gray-500 border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0] placeholder:text-gray-300" />
 
       <button onClick={onRemove} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all">
         <Trash2 className="w-4 h-4" />
@@ -674,6 +713,20 @@ export default function StandaloneTrainingPlanEditor({
           ? { ...s, exercises: s.exercises.filter(e => e.id !== exId) }
           : s
       )
+    )
+  }, [])
+
+  const moveExercise = useCallback((dayNum: number, exId: string, direction: -1 | 1) => {
+    setSessions(prev =>
+      prev.map(s => {
+        if (s.day_of_week !== dayNum) return s
+        const idx = s.exercises.findIndex(e => e.id === exId)
+        const newIdx = idx + direction
+        if (idx === -1 || newIdx < 0 || newIdx >= s.exercises.length) return s
+        const next = [...s.exercises]
+        ;[next[idx], next[newIdx]] = [next[newIdx], next[idx]]
+        return { ...s, exercises: next }
+      })
     )
   }, [])
 
@@ -1047,13 +1100,15 @@ export default function StandaloneTrainingPlanEditor({
                 {/* ── Styrkeøkt ── */}
                 {activeSession.type === 'styrke' && (
                   <>
-                    {activeSession.exercises.map(ex => (
+                    {activeSession.exercises.map((ex, i) => (
                       <SessionExerciseRow
                         key={ex.id}
                         ex={ex}
                         exerciseLibrary={exercises}
                         onChange={(field, value) => updateExercise(activeSession.day_of_week, ex.id, field, value)}
                         onRemove={() => removeExercise(activeSession.day_of_week, ex.id)}
+                        onMoveUp={i > 0 ? () => moveExercise(activeSession.day_of_week, ex.id, -1) : undefined}
+                        onMoveDown={i < activeSession.exercises.length - 1 ? () => moveExercise(activeSession.day_of_week, ex.id, 1) : undefined}
                       />
                     ))}
                     <div
