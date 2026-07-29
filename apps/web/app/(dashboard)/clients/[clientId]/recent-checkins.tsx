@@ -306,14 +306,15 @@ function CheckinModal({
           >
             {draftSaved ? '✓ Utkast lagret' : savingDraft ? 'Lagrer utkast...' : 'Lagre utkast'}
           </Button>
-          <button
+          <Button
+            variant="success"
             onClick={() => handleSave(true)}
             disabled={savingDraft || sending || sent}
-            className="flex-1 h-10 rounded-lg text-white text-sm font-medium disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5 bg-[#1a5c3a] hover:bg-[#164a30]"
+            className="flex-1"
           >
             <Send className="w-4 h-4" />
             {sent ? '✓ Sendt' : sending ? 'Sender...' : 'Send tilbakemelding'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
