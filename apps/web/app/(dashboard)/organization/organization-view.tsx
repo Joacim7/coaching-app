@@ -181,7 +181,7 @@ function CreateOrgPanel({ onCreated }: { onCreated: (org: Org) => void }) {
 
 // ── Coaches tab ───────────────────────────────────────────────────────────────
 
-function CoachesTab({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
+function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolean; userId: string }) {
   const [members, setMembers]         = useState<OrgMember[]>([])
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [loading, setLoading]         = useState(true)
@@ -189,6 +189,8 @@ function CoachesTab({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
   const [email, setEmail]             = useState('')
   const [inviting, setInviting]       = useState(false)
   const [toast, setToast]             = useState('')
+  const [removing, setRemoving]       = useState<string | null>(null)
+  const [removeError, setRemoveError] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -237,6 +239,26 @@ function CoachesTab({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
     setInvitations(prev => prev.filter(i => i.id !== id))
   }
 
+  async function handleRemoveMember(m: OrgMember) {
+    if (!window.confirm(`Fjerne ${m.profiles?.full_name ?? m.profiles?.email ?? 'denne coachen'} fra organisasjonen?`)) return
+    setRemoving(m.id)
+    setRemoveError('')
+    const res = await fetch('/api/organization/coaches', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: m.id }),
+    })
+    setRemoving(null)
+    if (res.ok) {
+      setMembers(prev => prev.filter(x => x.id !== m.id))
+      showToast('Coach fjernet')
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setRemoveError(d.error ?? 'Kunne ikke fjerne coach')
+      setTimeout(() => setRemoveError(''), 4000)
+    }
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center py-16">
       <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
@@ -249,6 +271,19 @@ function CoachesTab({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
       {toast && (
         <div className="fixed top-6 right-6 bg-green-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg z-50">
           {toast}
+        </div>
+      )}
+
+      {/* Remove error */}
+      {removeError && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-red-50 border border-red-100">
+          <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-red-700">{removeError}</p>
+          </div>
+          <button onClick={() => setRemoveError('')} className="text-red-400 hover:text-red-600 flex-shrink-0">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
@@ -319,6 +354,18 @@ function CoachesTab({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
                   {m.role === 'admin' ? 'Admin' : 'Coach'}
                 </span>
                 <p className="text-xs text-gray-400 flex-shrink-0 hidden sm:block">{formatDate(m.joined_at)}</p>
+                {isAdmin && m.user_id !== userId && (
+                  <button
+                    onClick={() => handleRemoveMember(m)}
+                    disabled={removing === m.id}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors flex-shrink-0"
+                    title="Fjern coach fra organisasjonen"
+                  >
+                    {removing === m.id
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <Trash2 className="w-3.5 h-3.5" />}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -1283,7 +1330,7 @@ export function OrganizationView({
         )}
 
         {tab === 'coaches' && (
-          <CoachesTab orgId={org.id} isAdmin={isAdmin} />
+          <CoachesTab orgId={org.id} isAdmin={isAdmin} userId={userId} />
         )}
 
         {tab === 'resources' && (
