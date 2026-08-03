@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { LineChart } from './line-chart'
 import { Scale, Moon, Footprints, Zap } from 'lucide-react'
+import { rollingWindowBounds } from '@/lib/client-metrics'
 
 type Filter = 'uke' | 'måned' | 'alt'
 
@@ -19,17 +20,12 @@ interface Props {
   data: MetricRow[]
 }
 
-const DAY = 86_400_000
-
+// "Uke"/"Måned" are rolling N-day windows ending today (not calendar week/month),
+// using the same date-string bounds as Oversikt's "Nåværende" weight calculation.
 function periodRange(filter: Filter) {
-  const now = Date.now()
-  if (filter === 'uke') {
-    return { currentStart: now - 7 * DAY, prevStart: now - 14 * DAY, prevEnd: now - 7 * DAY }
-  }
-  if (filter === 'måned') {
-    return { currentStart: now - 30 * DAY, prevStart: now - 60 * DAY, prevEnd: now - 30 * DAY }
-  }
-  return { currentStart: 0, prevStart: null, prevEnd: null }
+  if (filter === 'uke')   return rollingWindowBounds(7)
+  if (filter === 'måned') return rollingWindowBounds(30)
+  return { start: '', prevStart: '', prevEnd: '' }
 }
 
 function calcStats(vals: number[]) {
@@ -48,20 +44,17 @@ const FILTER_LABELS: Filter[] = ['uke', 'måned', 'alt']
 export function ProgressionView({ data }: Props) {
   const [filter, setFilter] = useState<Filter>('alt')
 
-  const { currentStart, prevStart, prevEnd } = useMemo(() => periodRange(filter), [filter])
+  const { start, prevStart, prevEnd } = useMemo(() => periodRange(filter), [filter])
 
   const filtered = useMemo(
-    () => data.filter(r => new Date(r.date).getTime() >= currentStart),
-    [data, currentStart],
+    () => data.filter(r => r.date >= start),
+    [data, start],
   )
 
   const prevFiltered = useMemo(() => {
-    if (prevStart == null || prevEnd == null) return []
-    return data.filter(r => {
-      const t = new Date(r.date).getTime()
-      return t >= prevStart && t < prevEnd
-    })
-  }, [data, prevStart, prevEnd])
+    if (filter === 'alt') return []
+    return data.filter(r => r.date >= prevStart && r.date < prevEnd)
+  }, [data, prevStart, prevEnd, filter])
 
   const weightData  = filtered.filter(r => r.weight_kg    != null).map(r => ({ date: r.date, value: r.weight_kg!    }))
   const sleepData   = filtered.filter(r => r.sleep_hours  != null).map(r => ({ date: r.date, value: r.sleep_hours!  }))

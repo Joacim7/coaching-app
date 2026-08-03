@@ -10,6 +10,7 @@ import {
   UtensilsCrossed,
 } from 'lucide-react'
 import type { ClientPhase, ClientStatus, CheckinTemplate } from '@coaching/types'
+import { getDailyMetrics, averageRecentWeight } from '@/lib/client-metrics'
 import { PhaseTimeline } from './phase-timeline'
 import { type CheckinRow } from './recent-checkins'
 import { GoalPanel } from './goal-panel'
@@ -50,9 +51,7 @@ export default async function ClientOverviewPage({
   const profile = Array.isArray(rel.profile) ? rel.profile[0] : rel.profile
   const status = (rel.status ?? 'active') as ClientStatus
 
-  const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
-
-  const [checkinRes, planRes, mealRes, phasesRes, workoutRes, goalRes, allPlansRes, allMealsRes, onboardingSubRes, onboardingTplRes, recentWeightRes] = await Promise.all([
+  const [checkinRes, planRes, mealRes, phasesRes, workoutRes, goalRes, allPlansRes, allMealsRes, onboardingSubRes, onboardingTplRes, dailyMetrics] = await Promise.all([
     supabase
       .from('checkins')
       .select(`
@@ -121,13 +120,7 @@ export default async function ClientOverviewPage({
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from('checkins')
-      .select('weight_kg')
-      .eq('client_id', clientId)
-      .eq('type', 'daily')
-      .not('weight_kg', 'is', null)
-      .gte('created_at', sevenDaysAgo),
+    getDailyMetrics(supabase, clientId),
   ])
 
   // Normalise Supabase join shapes (single-row joins can come back as array or object)
@@ -141,12 +134,7 @@ export default async function ClientOverviewPage({
   const phases      = (phasesRes.data ?? []) as ClientPhase[]
   const workoutLogs = workoutRes.data ?? []
   const goal        = goalRes.data ?? null
-  const recentWeights = (recentWeightRes.data ?? [])
-    .map(c => c.weight_kg)
-    .filter((w): w is number => w != null)
-  const currentWeightAvg = recentWeights.length
-    ? recentWeights.reduce((sum, w) => sum + w, 0) / recentWeights.length
-    : null
+  const currentWeightAvg = averageRecentWeight(dailyMetrics)
   const allPlans    = (allPlansRes.data ?? []) as { id: string; title: string }[]
   const allMeals    = (allMealsRes.data ?? []) as { id: string; title: string }[]
 
