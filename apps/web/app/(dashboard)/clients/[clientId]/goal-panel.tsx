@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 export type ClientGoal = {
   id: string
   target_weight_kg: number | null
+  start_weight_kg: number | null
   description: string | null
   start_date: string | null
   target_date: string | null
@@ -29,12 +30,14 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
   const [error, setError]     = useState<string | null>(null)
 
   const [targetWeight, setTargetWeight] = useState(initialGoal?.target_weight_kg?.toString() ?? '')
+  const [startWeight,  setStartWeight]  = useState(initialGoal?.start_weight_kg?.toString() ?? '')
   const [description,  setDescription]  = useState(initialGoal?.description ?? '')
   const [startDate,    setStartDate]    = useState(initialGoal?.start_date ?? '')
   const [targetDate,   setTargetDate]   = useState(initialGoal?.target_date ?? '')
 
   function openForm() {
     setTargetWeight(goal?.target_weight_kg?.toString() ?? '')
+    setStartWeight(goal?.start_weight_kg?.toString() ?? '')
     setDescription(goal?.description ?? '')
     setStartDate(goal?.start_date ?? '')
     setTargetDate(goal?.target_date ?? '')
@@ -50,6 +53,7 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
       client_id:        clientId,
       coach_id:         coachId,
       target_weight_kg: targetWeight ? parseFloat(targetWeight) : null,
+      start_weight_kg:  startWeight ? parseFloat(startWeight) : null,
       description:      description.trim() || null,
       start_date:       startDate || null,
       target_date:      targetDate || null,
@@ -106,17 +110,31 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
 
       {showForm ? (
         <div className="p-4 space-y-3">
-          <div>
-            <Label className="text-xs text-gray-500 block mb-1">Målvekt (kg)</Label>
-            <Input
-              type="number"
-              value={targetWeight}
-              onChange={e => setTargetWeight(e.target.value)}
-              placeholder="f.eks. 80"
-              step="0.1"
-              min="0"
-              className="h-8 text-sm"
-            />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs text-gray-500 block mb-1">Startpunkt (kg)</Label>
+              <Input
+                type="number"
+                value={startWeight}
+                onChange={e => setStartWeight(e.target.value)}
+                placeholder="f.eks. 85"
+                step="0.1"
+                min="0"
+                className="h-8 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500 block mb-1">Målvekt (kg)</Label>
+              <Input
+                type="number"
+                value={targetWeight}
+                onChange={e => setTargetWeight(e.target.value)}
+                placeholder="f.eks. 80"
+                step="0.1"
+                min="0"
+                className="h-8 text-sm"
+              />
+            </div>
           </div>
           <div>
             <Label className="text-xs text-gray-500 block mb-1">Beskrivelse</Label>
@@ -162,6 +180,12 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
         </div>
       ) : goal ? (
         <div className="p-4 space-y-2.5">
+          {goal.start_weight_kg != null && (
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-gray-500">Startpunkt</span>
+              <span className="text-xs font-bold text-gray-700">{goal.start_weight_kg} kg</span>
+            </div>
+          )}
           {goal.target_weight_kg != null && (
             <div className="flex justify-between items-center">
               <span className="text-xs text-gray-500">Målvekt</span>

@@ -50,7 +50,9 @@ export default async function ClientOverviewPage({
   const profile = Array.isArray(rel.profile) ? rel.profile[0] : rel.profile
   const status = (rel.status ?? 'active') as ClientStatus
 
-  const [checkinRes, planRes, mealRes, phasesRes, workoutRes, goalRes, allPlansRes, allMealsRes, onboardingSubRes, onboardingTplRes] = await Promise.all([
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
+
+  const [checkinRes, planRes, mealRes, phasesRes, workoutRes, goalRes, allPlansRes, allMealsRes, onboardingSubRes, onboardingTplRes, recentWeightRes] = await Promise.all([
     supabase
       .from('checkins')
       .select(`
@@ -88,7 +90,7 @@ export default async function ClientOverviewPage({
       .limit(6),
     supabase
       .from('client_goals')
-      .select('id, target_weight_kg, description, start_date, target_date')
+      .select('id, target_weight_kg, start_weight_kg, description, start_date, target_date')
       .eq('client_id', clientId)
       .eq('coach_id', user!.id)
       .order('created_at', { ascending: false })
@@ -119,6 +121,13 @@ export default async function ClientOverviewPage({
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from('checkins')
+      .select('weight_kg')
+      .eq('client_id', clientId)
+      .eq('type', 'daily')
+      .not('weight_kg', 'is', null)
+      .gte('created_at', sevenDaysAgo),
   ])
 
   // Normalise Supabase join shapes (single-row joins can come back as array or object)
@@ -132,6 +141,12 @@ export default async function ClientOverviewPage({
   const phases      = (phasesRes.data ?? []) as ClientPhase[]
   const workoutLogs = workoutRes.data ?? []
   const goal        = goalRes.data ?? null
+  const recentWeights = (recentWeightRes.data ?? [])
+    .map(c => c.weight_kg)
+    .filter((w): w is number => w != null)
+  const currentWeightAvg = recentWeights.length
+    ? recentWeights.reduce((sum, w) => sum + w, 0) / recentWeights.length
+    : null
   const allPlans    = (allPlansRes.data ?? []) as { id: string; title: string }[]
   const allMeals    = (allMealsRes.data ?? []) as { id: string; title: string }[]
 
@@ -238,16 +253,36 @@ export default async function ClientOverviewPage({
         <div className="grid grid-cols-3 divide-x divide-gray-100">
           <div className="p-5 text-center">
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Startpunkt</p>
-            <p className="text-3xl font-bold text-gray-300">—</p>
-            <p className="text-xs text-gray-400 mt-1">
-              {longDate(rel.created_at)}
-            </p>
+            {goal?.start_weight_kg != null ? (
+              <>
+                <p className="text-3xl font-bold text-gray-700">{goal.start_weight_kg}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  kg · {goal.start_date ? longDate(goal.start_date) : longDate(rel.created_at)}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-3xl font-bold text-gray-300">—</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {longDate(rel.created_at)}
+                </p>
+              </>
+            )}
           </div>
           <div className="p-5 text-center relative bg-[#ebf5ef]/50">
             <span className="absolute top-3 left-1/2 -translate-x-1/2 bg-[#2d8653] text-white text-[9px] font-bold px-2 py-0.5 rounded-full">NÅ</span>
             <p className="text-[10px] font-bold uppercase tracking-wider text-[#6ecfb0] mb-2 mt-2">Nåværende</p>
-            <p className="text-3xl font-bold text-[#6ecfb0]">—</p>
-            <p className="text-xs text-[#6ecfb0] mt-1">Ingen data ennå</p>
+            {currentWeightAvg != null ? (
+              <>
+                <p className="text-3xl font-bold text-[#6ecfb0]">{currentWeightAvg.toFixed(1)}</p>
+                <p className="text-xs text-[#6ecfb0] mt-1">kg · snitt siste 7 dager</p>
+              </>
+            ) : (
+              <>
+                <p className="text-3xl font-bold text-[#6ecfb0]">—</p>
+                <p className="text-xs text-[#6ecfb0] mt-1">Ingen data ennå</p>
+              </>
+            )}
           </div>
           <div className="p-5 text-center">
             <p className="text-[10px] font-bold uppercase tracking-wider text-green-400 mb-2">Mål</p>
