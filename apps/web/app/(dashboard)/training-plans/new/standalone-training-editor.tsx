@@ -561,8 +561,8 @@ function SupersetPicker({
   const others = sessionExercises.filter(e => e.id !== ex.id)
   return (
     <>
-      <div className="fixed inset-0 z-20" onClick={onClose} />
-      <div className="absolute z-30 top-full left-0 mt-2 w-72 bg-white rounded-xl border-2 border-[#6ecfb0] shadow-xl p-2">
+      <div className="fixed inset-0 z-10" onClick={onClose} />
+      <div className="absolute z-20 top-full left-0 mt-2 w-72 bg-white rounded-xl border-2 border-[#6ecfb0] shadow-xl p-2">
         <p className="px-2 py-1.5 text-xs font-bold text-[#1a5c3a]">
           Supersett med {ex.name ? `«${ex.name}»` : 'denne øvelsen'}
         </p>
@@ -639,13 +639,13 @@ function SessionExerciseRow({
   const thumb = exerciseThumbnail({ thumbnail_url: ex.thumbnail_url ?? libMatch?.thumbnail_url, video_url: videoUrl })
 
   return (
-    <div className="relative p-3 bg-white rounded-xl border border-gray-100 group hover:border-[#6ecfb0] transition-colors">
+    <div className={`relative p-3 bg-white rounded-xl border border-gray-100 group hover:border-[#6ecfb0] transition-colors ${pickerOpen ? 'z-30' : ''}`}>
       {/* Top row: identity + ordering/superset controls */}
       <div className="flex items-center gap-2">
         <button
           onClick={() => (pickerOpen ? onClosePicker() : onOpenPicker())}
           title={ex.group_id ? 'Endre supersett' : 'Lag supersett med andre øvelser'}
-          className={`relative z-40 shrink-0 flex items-center justify-center h-6 min-w-[26px] px-1.5 rounded-md text-[10px] font-extrabold tracking-wide transition-colors ${
+          className={`relative shrink-0 flex items-center justify-center h-6 min-w-[26px] px-1.5 rounded-md text-[10px] font-extrabold tracking-wide transition-colors ${
             ex.group_id
               ? 'bg-[#1a5c3a] text-white'
               : 'bg-gray-100 text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a]'
