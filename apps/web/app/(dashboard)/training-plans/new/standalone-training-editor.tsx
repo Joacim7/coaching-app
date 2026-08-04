@@ -634,133 +634,144 @@ function SessionExerciseRow({
   const thumb = exerciseThumbnail({ thumbnail_url: ex.thumbnail_url ?? libMatch?.thumbnail_url, video_url: videoUrl })
 
   return (
-    <div className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-100 group hover:border-[#6ecfb0] transition-colors">
-      <div className="relative z-20 shrink-0">
-        <button
-          onClick={() => (pickerOpen ? onClosePicker() : onOpenPicker())}
-          title={ex.group_id ? 'Endre supersett' : 'Lag supersett med andre øvelser'}
-          className={`flex items-center justify-center h-6 min-w-[26px] px-1.5 rounded-md text-[10px] font-extrabold tracking-wide transition-colors ${
-            ex.group_id
-              ? 'bg-[#1a5c3a] text-white'
-              : 'bg-gray-100 text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a]'
-          }`}
-        >
-          SS
-        </button>
-        {pickerOpen && (
-          <SupersetPicker
-            ex={ex}
-            sessionExercises={sessionExercises}
-            onToggleMember={onToggleSupersetMember}
-            onClose={onClosePicker}
-          />
-        )}
-      </div>
-      <div className="flex flex-col shrink-0">
-        <button
-          onClick={onMoveUp}
-          disabled={!onMoveUp}
-          title="Flytt opp"
-          className="w-5 h-4 flex items-center justify-center text-gray-300 hover:text-[#1a5c3a] disabled:opacity-20 disabled:hover:text-gray-300 transition-colors"
-        >
-          <ChevronUp className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={onMoveDown}
-          disabled={!onMoveDown}
-          title="Flytt ned"
-          className="w-5 h-4 flex items-center justify-center text-gray-300 hover:text-[#1a5c3a] disabled:opacity-20 disabled:hover:text-gray-300 transition-colors"
-        >
-          <ChevronDown className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      <div className="relative w-10 h-10 rounded-lg bg-gradient-to-br from-[#ebf5ef] to-[#cdeee3] flex items-center justify-center shrink-0 overflow-hidden group/thumb">
-        {thumb
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={thumb} alt={ex.name} className="w-full h-full object-cover" />
-          : <Dumbbell className="w-4 h-4 text-[#6ecfb0]" />
-        }
-        {videoUrl && (
-          <a
-            href={videoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Se video"
-            className="absolute inset-0 flex items-center justify-center bg-gray-900/0 hover:bg-gray-900/30 transition-colors"
+    <div className="p-3 bg-white rounded-xl border border-gray-100 group hover:border-[#6ecfb0] transition-colors">
+      {/* Top row: identity + ordering/superset controls */}
+      <div className="flex items-center gap-2">
+        <div className="relative z-20 shrink-0">
+          <button
+            onClick={() => (pickerOpen ? onClosePicker() : onOpenPicker())}
+            title={ex.group_id ? 'Endre supersett' : 'Lag supersett med andre øvelser'}
+            className={`flex items-center justify-center h-6 min-w-[26px] px-1.5 rounded-md text-[10px] font-extrabold tracking-wide transition-colors ${
+              ex.group_id
+                ? 'bg-[#1a5c3a] text-white'
+                : 'bg-gray-100 text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a]'
+            }`}
           >
-            <Video className="w-3.5 h-3.5 text-white opacity-0 group-hover/thumb:opacity-100 transition-opacity drop-shadow" />
-          </a>
-        )}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <input
-          value={ex.name}
-          onChange={e => onChange('name', e.target.value)}
-          placeholder="Øvelsesnavn..."
-          className="w-full text-sm font-semibold text-gray-800 bg-transparent focus:outline-none placeholder:text-gray-300"
-        />
-        <div className="flex items-center gap-1">
-          {groupLabel && (
-            <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0 rounded-full bg-[#1a5c3a] text-white">
-              {groupLabel}
-            </span>
-          )}
-          {primaryMuscle && (
-            <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0 rounded-full ${colorClass}`}>
-              {primaryMuscle}
-            </span>
+            SS
+          </button>
+          {pickerOpen && (
+            <SupersetPicker
+              ex={ex}
+              sessionExercises={sessionExercises}
+              onToggleMember={onToggleSupersetMember}
+              onClose={onClosePicker}
+            />
           )}
         </div>
+        <div className="flex flex-col shrink-0">
+          <button
+            onClick={onMoveUp}
+            disabled={!onMoveUp}
+            title="Flytt opp"
+            className="w-5 h-4 flex items-center justify-center text-gray-300 hover:text-[#1a5c3a] disabled:opacity-20 disabled:hover:text-gray-300 transition-colors"
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={onMoveDown}
+            disabled={!onMoveDown}
+            title="Flytt ned"
+            className="w-5 h-4 flex items-center justify-center text-gray-300 hover:text-[#1a5c3a] disabled:opacity-20 disabled:hover:text-gray-300 transition-colors"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="relative w-10 h-10 rounded-lg bg-gradient-to-br from-[#ebf5ef] to-[#cdeee3] flex items-center justify-center shrink-0 overflow-hidden group/thumb">
+          {thumb
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={thumb} alt={ex.name} className="w-full h-full object-cover" />
+            : <Dumbbell className="w-4 h-4 text-[#6ecfb0]" />
+          }
+          {videoUrl && (
+            <a
+              href={videoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Se video"
+              className="absolute inset-0 flex items-center justify-center bg-gray-900/0 hover:bg-gray-900/30 transition-colors"
+            >
+              <Video className="w-3.5 h-3.5 text-white opacity-0 group-hover/thumb:opacity-100 transition-opacity drop-shadow" />
+            </a>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <input
+            value={ex.name}
+            onChange={e => onChange('name', e.target.value)}
+            placeholder="Øvelsesnavn..."
+            className="w-full text-sm font-semibold text-gray-800 bg-transparent focus:outline-none placeholder:text-gray-300"
+          />
+          {(groupLabel || primaryMuscle) && (
+            <div className="flex items-center gap-1 mt-0.5">
+              {groupLabel && (
+                <span className="inline-block text-[10px] font-bold px-1.5 py-0 rounded-full bg-[#1a5c3a] text-white">
+                  {groupLabel}
+                </span>
+              )}
+              {primaryMuscle && (
+                <span className={`inline-block text-[10px] font-semibold px-1.5 py-0 rounded-full ${colorClass}`}>
+                  {primaryMuscle}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <button onClick={onRemove} className="shrink-0 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all">
+          <Trash2 className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* Sett */}
-      <div className="text-center">
-        <p className="text-[10px] text-gray-400 mb-0.5">Sett</p>
-        <div className="flex items-center gap-1">
-          <button onClick={() => onChange('sets', Math.max(1, ex.sets - 1))} className="w-5 h-5 rounded bg-gray-100 text-gray-500 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] text-xs flex items-center justify-center">−</button>
-          <span className="w-5 text-center text-sm font-bold text-gray-700">{ex.sets}</span>
-          <button onClick={() => onChange('sets', ex.sets + 1)} className="w-5 h-5 rounded bg-gray-100 text-gray-500 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] text-xs flex items-center justify-center">+</button>
+      {/* Bottom row: training parameters */}
+      <div className="flex items-center flex-wrap gap-3 mt-3 pt-3 border-t border-gray-50">
+        {/* Sett */}
+        <div className="text-center shrink-0">
+          <p className="text-[10px] text-gray-400 mb-0.5">Sett</p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => onChange('sets', Math.max(1, ex.sets - 1))} className="w-5 h-5 rounded bg-gray-100 text-gray-500 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] text-xs flex items-center justify-center">−</button>
+            <span className="w-5 text-center text-sm font-bold text-gray-700">{ex.sets}</span>
+            <button onClick={() => onChange('sets', ex.sets + 1)} className="w-5 h-5 rounded bg-gray-100 text-gray-500 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] text-xs flex items-center justify-center">+</button>
+          </div>
+        </div>
+
+        {/* Reps */}
+        <div className="text-center shrink-0">
+          <p className="text-[10px] text-gray-400 mb-0.5">Reps</p>
+          <input value={ex.reps} onChange={e => onChange('reps', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="8–10" />
+        </div>
+
+        {/* Vekt */}
+        <div className="text-center shrink-0">
+          <p className="text-[10px] text-gray-400 mb-0.5">Vekt</p>
+          <input value={ex.weight} onChange={e => onChange('weight', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="kg" />
+        </div>
+
+        {/* Pause */}
+        <div className="text-center shrink-0">
+          <p className="text-[10px] text-gray-400 mb-0.5">Pause</p>
+          <input value={ex.rest} onChange={e => onChange('rest', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="60s" />
+        </div>
+
+        {/* RIR */}
+        <div className="text-center shrink-0">
+          <p className="text-[10px] text-gray-400 mb-0.5">RIR</p>
+          <input value={ex.rir ?? ''} onChange={e => onChange('rir', e.target.value)} className="w-12 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="2" />
+        </div>
+
+        {/* Tempo */}
+        <div className="text-center shrink-0">
+          <p className="text-[10px] text-gray-400 mb-0.5">Tempo</p>
+          <input value={ex.tempo ?? ''} onChange={e => onChange('tempo', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="30X1" />
+        </div>
+
+        {/* Notes */}
+        <div className="text-left flex-1 min-w-[140px]">
+          <p className="text-[10px] text-gray-400 mb-0.5">Notater</p>
+          <input value={ex.notes} onChange={e => onChange('notes', e.target.value)} placeholder="Notater..." className="w-full text-xs text-gray-600 border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0] placeholder:text-gray-300" />
         </div>
       </div>
-
-      {/* Reps */}
-      <div className="text-center">
-        <p className="text-[10px] text-gray-400 mb-0.5">Reps</p>
-        <input value={ex.reps} onChange={e => onChange('reps', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="8–10" />
-      </div>
-
-      {/* Vekt */}
-      <div className="text-center">
-        <p className="text-[10px] text-gray-400 mb-0.5">Vekt</p>
-        <input value={ex.weight} onChange={e => onChange('weight', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="kg" />
-      </div>
-
-      {/* Pause */}
-      <div className="text-center">
-        <p className="text-[10px] text-gray-400 mb-0.5">Pause</p>
-        <input value={ex.rest} onChange={e => onChange('rest', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="60s" />
-      </div>
-
-      {/* RIR */}
-      <div className="text-center">
-        <p className="text-[10px] text-gray-400 mb-0.5">RIR</p>
-        <input value={ex.rir ?? ''} onChange={e => onChange('rir', e.target.value)} className="w-12 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="2" />
-      </div>
-
-      {/* Tempo */}
-      <div className="text-center">
-        <p className="text-[10px] text-gray-400 mb-0.5">Tempo</p>
-        <input value={ex.tempo ?? ''} onChange={e => onChange('tempo', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="30X1" />
-      </div>
-
-      {/* Notes */}
-      <input value={ex.notes} onChange={e => onChange('notes', e.target.value)} placeholder="Notater..." className="w-20 text-xs text-gray-500 border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0] placeholder:text-gray-300" />
-
-      <button onClick={onRemove} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all">
-        <Trash2 className="w-4 h-4" />
-      </button>
     </div>
   )
 }
