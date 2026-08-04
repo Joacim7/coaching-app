@@ -150,6 +150,47 @@ function withGroupCleanup(list: SessionExercise[]): SessionExercise[] {
   return list.map(e => (e.group_id && (counts.get(e.group_id) ?? 0) < 2) ? { ...e, group_id: undefined } : e)
 }
 
+// Supersets render as a contiguous block, so once exercises are linked they
+// need to sit next to each other in the list — this moves every member of
+// `groupId` together, inserted where the earliest member used to sit.
+function reorderGroupContiguous(list: SessionExercise[], groupId: string): SessionExercise[] {
+  const members = list.filter(e => e.group_id === groupId)
+  if (members.length < 2) return list
+  const firstIdx = list.findIndex(e => e.group_id === groupId)
+  const others = list.filter(e => e.group_id !== groupId)
+  const insertAt = list.slice(0, firstIdx).filter(e => e.group_id !== groupId).length
+  const result = [...others]
+  result.splice(insertAt, 0, ...members)
+  return result
+}
+
+// Recomputes exId's superset membership so it matches `partnerIds` exactly:
+// exercises added to partnerIds join exId's group (leaving whatever group
+// they were in before), exercises removed leave it. Reuses exId's existing
+// group_id when it has one so the group's identity/letter stays stable.
+function applySupersetSelection(
+  exercises: SessionExercise[],
+  exId: string,
+  partnerIds: Set<string>
+): SessionExercise[] {
+  const cur = exercises.find(e => e.id === exId)
+  if (!cur) return exercises
+
+  const oldGroupId = cur.group_id
+  const memberIds = new Set([exId, ...partnerIds])
+  const groupId = memberIds.size >= 2 ? (oldGroupId ?? crypto.randomUUID()) : undefined
+
+  let next = exercises.map(e => {
+    if (memberIds.has(e.id)) return { ...e, group_id: groupId }
+    if (oldGroupId && e.group_id === oldGroupId) return { ...e, group_id: undefined }
+    return e
+  })
+
+  next = withGroupCleanup(next)
+  if (groupId) next = reorderGroupContiguous(next, groupId)
+  return next
+}
+
 type ExerciseBlock =
   | { type: 'single'; ex: SessionExercise }
   | { type: 'group'; label: string; exs: SessionExercise[] }
@@ -503,6 +544,57 @@ function ExerciseCard({ ex, onAdd, onDragStart }: {
 
 // ── SessionExerciseRow ────────────────────────────────────────────────────────
 
+function SupersetPicker({
+  ex,
+  sessionExercises,
+  onToggleMember,
+  onClose,
+}: {
+  ex: SessionExercise
+  sessionExercises: SessionExercise[]
+  onToggleMember: (otherId: string) => void
+  onClose: () => void
+}) {
+  const others = sessionExercises.filter(e => e.id !== ex.id)
+  return (
+    <>
+      <div className="fixed inset-0 z-10" onClick={onClose} />
+      <div className="absolute z-20 top-full left-0 mt-1 w-64 bg-white rounded-xl border border-gray-200 shadow-lg p-2">
+        <p className="px-2 py-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Supersett med</p>
+        {others.length === 0 ? (
+          <p className="px-2 py-2 text-sm text-gray-400">Legg til flere øvelser i økten først.</p>
+        ) : (
+          <div className="max-h-52 overflow-y-auto">
+            {others.map(o => {
+              const checked = !!ex.group_id && o.group_id === ex.group_id
+              return (
+                <label
+                  key={o.id}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#ebf5ef] cursor-pointer text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => onToggleMember(o.id)}
+                    className="accent-[#1a5c3a]"
+                  />
+                  <span className="truncate text-gray-700">{o.name || 'Uten navn'}</span>
+                </label>
+              )
+            })}
+          </div>
+        )}
+        <button
+          onClick={onClose}
+          className="mt-1 w-full text-center text-xs font-semibold text-[#1a5c3a] hover:underline py-1"
+        >
+          Ferdig
+        </button>
+      </div>
+    </>
+  )
+}
+
 function SessionExerciseRow({
   ex,
   exerciseLibrary,
@@ -511,8 +603,11 @@ function SessionExerciseRow({
   onMoveUp,
   onMoveDown,
   groupLabel,
-  isLinkedToPrev,
-  onToggleLink,
+  sessionExercises,
+  pickerOpen,
+  onOpenPicker,
+  onClosePicker,
+  onToggleSupersetMember,
 }: {
   ex: SessionExercise
   exerciseLibrary: ExerciseRow[]
@@ -521,8 +616,11 @@ function SessionExerciseRow({
   onMoveUp?: () => void
   onMoveDown?: () => void
   groupLabel?: string
-  isLinkedToPrev?: boolean
-  onToggleLink?: () => void
+  sessionExercises: SessionExercise[]
+  pickerOpen: boolean
+  onOpenPicker: () => void
+  onClosePicker: () => void
+  onToggleSupersetMember: (otherId: string) => void
 }) {
   const primaryMuscle = ex.muscle_groups?.[0]
   const colorClass = primaryMuscle ? (MUSCLE_COLORS[primaryMuscle] ?? 'bg-gray-100 text-gray-500') : 'bg-gray-100 text-gray-500'
@@ -537,19 +635,27 @@ function SessionExerciseRow({
 
   return (
     <div className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-100 group hover:border-[#6ecfb0] transition-colors">
-      {onToggleLink && (
+      <div className="relative z-20 shrink-0">
         <button
-          onClick={onToggleLink}
-          title={isLinkedToPrev ? 'Fjern fra supersett' : 'Koble sammen med forrige øvelse (supersett)'}
-          className={`w-5 h-5 flex items-center justify-center rounded-md shrink-0 transition-colors ${
-            isLinkedToPrev
+          onClick={() => (pickerOpen ? onClosePicker() : onOpenPicker())}
+          title={ex.group_id ? 'Endre supersett' : 'Lag supersett med andre øvelser'}
+          className={`flex items-center justify-center h-6 min-w-[26px] px-1.5 rounded-md text-[10px] font-extrabold tracking-wide transition-colors ${
+            ex.group_id
               ? 'bg-[#1a5c3a] text-white'
-              : 'text-gray-300 hover:text-[#1a5c3a] hover:bg-[#ebf5ef]'
+              : 'bg-gray-100 text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a]'
           }`}
         >
-          <Link2 className="w-3 h-3" />
+          SS
         </button>
-      )}
+        {pickerOpen && (
+          <SupersetPicker
+            ex={ex}
+            sessionExercises={sessionExercises}
+            onToggleMember={onToggleSupersetMember}
+            onClose={onClosePicker}
+          />
+        )}
+      </div>
       <div className="flex flex-col shrink-0">
         <button
           onClick={onMoveUp}
@@ -696,6 +802,7 @@ export default function StandaloneTrainingPlanEditor({
 
   const [showTypeModal, setShowTypeModal]   = useState(false)
   const [showCardioModal, setShowCardioModal] = useState(false)
+  const [supersetPickerFor, setSupersetPickerFor] = useState<string | null>(null)
 
   const [assignOpen, setAssignOpen]         = useState(false)
   const [selectedClientId, setSelectedClientId] = useState('')
@@ -805,28 +912,22 @@ export default function StandaloneTrainingPlanEditor({
     )
   }, [])
 
-  // Links (or unlinks) an exercise with the one directly above it into a
-  // superset. Toggling an already-linked exercise breaks it out of the
-  // group; linking joins the previous exercise's group (or starts a new
-  // one if it isn't in a group yet).
-  const toggleSuperset = useCallback((dayNum: number, exId: string) => {
+  // Toggles a single exercise in/out of exId's superset — used by the "SS"
+  // picker, where the coach checks/unchecks individual exercises to build
+  // the group rather than only linking to the exercise directly above.
+  const toggleSupersetMember = useCallback((dayNum: number, exId: string, otherId: string) => {
     setSessions(prev =>
       prev.map(s => {
         if (s.day_of_week !== dayNum) return s
-        const idx = s.exercises.findIndex(e => e.id === exId)
-        if (idx <= 0) return s
-        const cur = s.exercises[idx]
-        const prevEx = s.exercises[idx - 1]
-        let next: SessionExercise[]
-        if (cur.group_id && cur.group_id === prevEx.group_id) {
-          next = s.exercises.map(e => e.id === exId ? { ...e, group_id: undefined } : e)
-        } else {
-          const groupId = prevEx.group_id ?? crypto.randomUUID()
-          next = s.exercises.map(e =>
-            (e.id === exId || e.id === prevEx.id) ? { ...e, group_id: groupId } : e
-          )
-        }
-        return { ...s, exercises: withGroupCleanup(next) }
+        const cur = s.exercises.find(e => e.id === exId)
+        if (!cur) return s
+        const isCurrentMember = !!cur.group_id && s.exercises.find(e => e.id === otherId)?.group_id === cur.group_id
+        const partnerIds = new Set(
+          s.exercises.filter(e => e.id !== exId && cur.group_id && e.group_id === cur.group_id).map(e => e.id)
+        )
+        if (isCurrentMember) partnerIds.delete(otherId)
+        else partnerIds.add(otherId)
+        return { ...s, exercises: applySupersetSelection(s.exercises, exId, partnerIds) }
       })
     )
   }, [])
@@ -1210,8 +1311,11 @@ export default function StandaloneTrainingPlanEditor({
                             ex={ex}
                             exerciseLibrary={exercises}
                             groupLabel={groupLabel}
-                            isLinkedToPrev={!!ex.group_id && i > 0 && activeSession.exercises[i - 1].group_id === ex.group_id}
-                            onToggleLink={i > 0 ? () => toggleSuperset(activeSession.day_of_week, ex.id) : undefined}
+                            sessionExercises={activeSession.exercises}
+                            pickerOpen={supersetPickerFor === ex.id}
+                            onOpenPicker={() => setSupersetPickerFor(ex.id)}
+                            onClosePicker={() => setSupersetPickerFor(null)}
+                            onToggleSupersetMember={otherId => toggleSupersetMember(activeSession.day_of_week, ex.id, otherId)}
                             onChange={(field, value) => updateExercise(activeSession.day_of_week, ex.id, field, value)}
                             onRemove={() => removeExercise(activeSession.day_of_week, ex.id)}
                             onMoveUp={i > 0 ? () => moveExercise(activeSession.day_of_week, ex.id, -1) : undefined}
