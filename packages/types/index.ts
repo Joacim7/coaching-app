@@ -33,6 +33,7 @@ export interface Exercise {
   tempo?: string
   notes: string
   video_url?: string | null
+  group_id?: string | null // shared id links exercises into a superset
 }
 
 export interface TrainingSession {

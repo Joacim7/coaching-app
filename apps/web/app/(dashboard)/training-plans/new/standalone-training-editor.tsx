@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import {
-  Plus, Trash2, Save, ChevronLeft, ChevronUp, ChevronDown, UserPlus, X, Search, Dumbbell, Activity, Pencil, Video,
+  Plus, Trash2, Save, ChevronLeft, ChevronUp, ChevronDown, UserPlus, X, Search, Dumbbell, Activity, Pencil, Video, Link2,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { ExerciseRow } from '@/app/(dashboard)/exercise-library/exercise-form-modal'
@@ -29,6 +29,7 @@ type SessionExercise = {
   thumbnail_url?: string | null
   video_url?: string | null
   muscle_groups?: string[]
+  group_id?: string | null // shared id links exercises into a superset
 }
 
 type CardioConfig = {
@@ -136,6 +137,50 @@ function newSession(dayNum: number, type: SessionType = 'styrke'): Session {
     exercises: [],
     cardio_config: null,
   }
+}
+
+// A superset only makes sense with 2+ linked exercises — if a mutation
+// (remove/reorder) leaves a group with a single member, dissolve it instead
+// of leaving an orphaned group_id around.
+function withGroupCleanup(list: SessionExercise[]): SessionExercise[] {
+  const counts = new Map<string, number>()
+  for (const e of list) {
+    if (e.group_id) counts.set(e.group_id, (counts.get(e.group_id) ?? 0) + 1)
+  }
+  return list.map(e => (e.group_id && (counts.get(e.group_id) ?? 0) < 2) ? { ...e, group_id: undefined } : e)
+}
+
+type ExerciseBlock =
+  | { type: 'single'; ex: SessionExercise }
+  | { type: 'group'; label: string; exs: SessionExercise[] }
+
+// Groups contiguous runs of exercises sharing a group_id into "superset"
+// blocks for rendering, assigning each distinct group a display letter in
+// order of first appearance.
+function buildExerciseBlocks(exercises: SessionExercise[]): ExerciseBlock[] {
+  const blocks: ExerciseBlock[] = []
+  const labelFor = new Map<string, string>()
+  let i = 0
+  while (i < exercises.length) {
+    const ex = exercises[i]
+    if (ex.group_id) {
+      const groupExs = [ex]
+      let j = i + 1
+      while (j < exercises.length && exercises[j].group_id === ex.group_id) {
+        groupExs.push(exercises[j])
+        j++
+      }
+      if (!labelFor.has(ex.group_id)) {
+        labelFor.set(ex.group_id, String.fromCharCode(65 + labelFor.size % 26))
+      }
+      blocks.push({ type: 'group', label: labelFor.get(ex.group_id)!, exs: groupExs })
+      i = j
+    } else {
+      blocks.push({ type: 'single', ex })
+      i++
+    }
+  }
+  return blocks
 }
 
 function exerciseMatchesMuscle(ex: ExerciseRow, filter: string): boolean {
@@ -465,6 +510,9 @@ function SessionExerciseRow({
   onRemove,
   onMoveUp,
   onMoveDown,
+  groupLabel,
+  isLinkedToPrev,
+  onToggleLink,
 }: {
   ex: SessionExercise
   exerciseLibrary: ExerciseRow[]
@@ -472,6 +520,9 @@ function SessionExerciseRow({
   onRemove: () => void
   onMoveUp?: () => void
   onMoveDown?: () => void
+  groupLabel?: string
+  isLinkedToPrev?: boolean
+  onToggleLink?: () => void
 }) {
   const primaryMuscle = ex.muscle_groups?.[0]
   const colorClass = primaryMuscle ? (MUSCLE_COLORS[primaryMuscle] ?? 'bg-gray-100 text-gray-500') : 'bg-gray-100 text-gray-500'
@@ -486,6 +537,19 @@ function SessionExerciseRow({
 
   return (
     <div className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-100 group hover:border-[#6ecfb0] transition-colors">
+      {onToggleLink && (
+        <button
+          onClick={onToggleLink}
+          title={isLinkedToPrev ? 'Fjern fra supersett' : 'Koble sammen med forrige øvelse (supersett)'}
+          className={`w-5 h-5 flex items-center justify-center rounded-md shrink-0 transition-colors ${
+            isLinkedToPrev
+              ? 'bg-[#1a5c3a] text-white'
+              : 'text-gray-300 hover:text-[#1a5c3a] hover:bg-[#ebf5ef]'
+          }`}
+        >
+          <Link2 className="w-3 h-3" />
+        </button>
+      )}
       <div className="flex flex-col shrink-0">
         <button
           onClick={onMoveUp}
@@ -531,11 +595,18 @@ function SessionExerciseRow({
           placeholder="Øvelsesnavn..."
           className="w-full text-sm font-semibold text-gray-800 bg-transparent focus:outline-none placeholder:text-gray-300"
         />
-        {primaryMuscle && (
-          <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0 rounded-full ${colorClass}`}>
-            {primaryMuscle}
-          </span>
-        )}
+        <div className="flex items-center gap-1">
+          {groupLabel && (
+            <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0 rounded-full bg-[#1a5c3a] text-white">
+              {groupLabel}
+            </span>
+          )}
+          {primaryMuscle && (
+            <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0 rounded-full ${colorClass}`}>
+              {primaryMuscle}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Sett */}
@@ -710,12 +781,15 @@ export default function StandaloneTrainingPlanEditor({
     setSessions(prev =>
       prev.map(s =>
         s.day_of_week === dayNum
-          ? { ...s, exercises: s.exercises.filter(e => e.id !== exId) }
+          ? { ...s, exercises: withGroupCleanup(s.exercises.filter(e => e.id !== exId)) }
           : s
       )
     )
   }, [])
 
+  // Reordering can pull an exercise out of its superset (it's no longer
+  // adjacent to its group), so drop its link first — the group is cleaned
+  // up afterwards if that leaves it with a single member.
   const moveExercise = useCallback((dayNum: number, exId: string, direction: -1 | 1) => {
     setSessions(prev =>
       prev.map(s => {
@@ -723,9 +797,36 @@ export default function StandaloneTrainingPlanEditor({
         const idx = s.exercises.findIndex(e => e.id === exId)
         const newIdx = idx + direction
         if (idx === -1 || newIdx < 0 || newIdx >= s.exercises.length) return s
-        const next = [...s.exercises]
+        const cleared = s.exercises.map(e => e.id === exId ? { ...e, group_id: undefined } : e)
+        const next = [...cleared]
         ;[next[idx], next[newIdx]] = [next[newIdx], next[idx]]
-        return { ...s, exercises: next }
+        return { ...s, exercises: withGroupCleanup(next) }
+      })
+    )
+  }, [])
+
+  // Links (or unlinks) an exercise with the one directly above it into a
+  // superset. Toggling an already-linked exercise breaks it out of the
+  // group; linking joins the previous exercise's group (or starts a new
+  // one if it isn't in a group yet).
+  const toggleSuperset = useCallback((dayNum: number, exId: string) => {
+    setSessions(prev =>
+      prev.map(s => {
+        if (s.day_of_week !== dayNum) return s
+        const idx = s.exercises.findIndex(e => e.id === exId)
+        if (idx <= 0) return s
+        const cur = s.exercises[idx]
+        const prevEx = s.exercises[idx - 1]
+        let next: SessionExercise[]
+        if (cur.group_id && cur.group_id === prevEx.group_id) {
+          next = s.exercises.map(e => e.id === exId ? { ...e, group_id: undefined } : e)
+        } else {
+          const groupId = prevEx.group_id ?? crypto.randomUUID()
+          next = s.exercises.map(e =>
+            (e.id === exId || e.id === prevEx.id) ? { ...e, group_id: groupId } : e
+          )
+        }
+        return { ...s, exercises: withGroupCleanup(next) }
       })
     )
   }, [])
@@ -1100,17 +1201,42 @@ export default function StandaloneTrainingPlanEditor({
                 {/* ── Styrkeøkt ── */}
                 {activeSession.type === 'styrke' && (
                   <>
-                    {activeSession.exercises.map((ex, i) => (
-                      <SessionExerciseRow
-                        key={ex.id}
-                        ex={ex}
-                        exerciseLibrary={exercises}
-                        onChange={(field, value) => updateExercise(activeSession.day_of_week, ex.id, field, value)}
-                        onRemove={() => removeExercise(activeSession.day_of_week, ex.id)}
-                        onMoveUp={i > 0 ? () => moveExercise(activeSession.day_of_week, ex.id, -1) : undefined}
-                        onMoveDown={i < activeSession.exercises.length - 1 ? () => moveExercise(activeSession.day_of_week, ex.id, 1) : undefined}
-                      />
-                    ))}
+                    {buildExerciseBlocks(activeSession.exercises).map(block => {
+                      const renderRow = (ex: SessionExercise, groupLabel?: string) => {
+                        const i = activeSession.exercises.findIndex(e => e.id === ex.id)
+                        return (
+                          <SessionExerciseRow
+                            key={ex.id}
+                            ex={ex}
+                            exerciseLibrary={exercises}
+                            groupLabel={groupLabel}
+                            isLinkedToPrev={!!ex.group_id && i > 0 && activeSession.exercises[i - 1].group_id === ex.group_id}
+                            onToggleLink={i > 0 ? () => toggleSuperset(activeSession.day_of_week, ex.id) : undefined}
+                            onChange={(field, value) => updateExercise(activeSession.day_of_week, ex.id, field, value)}
+                            onRemove={() => removeExercise(activeSession.day_of_week, ex.id)}
+                            onMoveUp={i > 0 ? () => moveExercise(activeSession.day_of_week, ex.id, -1) : undefined}
+                            onMoveDown={i < activeSession.exercises.length - 1 ? () => moveExercise(activeSession.day_of_week, ex.id, 1) : undefined}
+                          />
+                        )
+                      }
+
+                      if (block.type === 'single') return renderRow(block.ex)
+
+                      return (
+                        <div
+                          key={block.exs[0].id}
+                          className="rounded-xl border-2 border-[#6ecfb0] bg-[#ebf5ef]/40 p-2 space-y-2"
+                        >
+                          <div className="flex items-center gap-1.5 px-1">
+                            <Link2 className="w-3.5 h-3.5 text-[#1a5c3a]" />
+                            <span className="text-xs font-bold text-[#1a5c3a] uppercase tracking-wide">
+                              Supersett {block.label}
+                            </span>
+                          </div>
+                          {block.exs.map((ex, gi) => renderRow(ex, `${block.label}${gi + 1}`))}
+                        </div>
+                      )
+                    })}
                     <div
                       onDragOver={e => { e.preventDefault(); setDropTarget(true) }}
                       onDragLeave={() => setDropTarget(false)}
