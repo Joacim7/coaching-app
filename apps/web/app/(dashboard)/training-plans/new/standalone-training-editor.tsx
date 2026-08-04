@@ -544,6 +544,9 @@ function ExerciseCard({ ex, onAdd, onDragStart }: {
 
 // ── SessionExerciseRow ────────────────────────────────────────────────────────
 
+// Anchored to the whole exercise card (not the small "SS" trigger button),
+// with a visible gap and its own border/shadow, so it reads as a clearly
+// separate floating panel instead of visually fusing with the button.
 function SupersetPicker({
   ex,
   sessionExercises,
@@ -558,13 +561,15 @@ function SupersetPicker({
   const others = sessionExercises.filter(e => e.id !== ex.id)
   return (
     <>
-      <div className="fixed inset-0 z-10" onClick={onClose} />
-      <div className="absolute z-20 top-full left-0 mt-1 w-64 bg-white rounded-xl border border-gray-200 shadow-lg p-2">
-        <p className="px-2 py-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Supersett med</p>
+      <div className="fixed inset-0 z-20" onClick={onClose} />
+      <div className="absolute z-30 top-full left-0 mt-2 w-72 bg-white rounded-xl border-2 border-[#6ecfb0] shadow-xl p-2">
+        <p className="px-2 py-1.5 text-xs font-bold text-[#1a5c3a]">
+          Supersett med {ex.name ? `«${ex.name}»` : 'denne øvelsen'}
+        </p>
         {others.length === 0 ? (
           <p className="px-2 py-2 text-sm text-gray-400">Legg til flere øvelser i økten først.</p>
         ) : (
-          <div className="max-h-52 overflow-y-auto">
+          <div className="max-h-52 overflow-y-auto border-t border-gray-100 mt-1 pt-1">
             {others.map(o => {
               const checked = !!ex.group_id && o.group_id === ex.group_id
               return (
@@ -634,30 +639,20 @@ function SessionExerciseRow({
   const thumb = exerciseThumbnail({ thumbnail_url: ex.thumbnail_url ?? libMatch?.thumbnail_url, video_url: videoUrl })
 
   return (
-    <div className="p-3 bg-white rounded-xl border border-gray-100 group hover:border-[#6ecfb0] transition-colors">
+    <div className="relative p-3 bg-white rounded-xl border border-gray-100 group hover:border-[#6ecfb0] transition-colors">
       {/* Top row: identity + ordering/superset controls */}
       <div className="flex items-center gap-2">
-        <div className="relative z-20 shrink-0">
-          <button
-            onClick={() => (pickerOpen ? onClosePicker() : onOpenPicker())}
-            title={ex.group_id ? 'Endre supersett' : 'Lag supersett med andre øvelser'}
-            className={`flex items-center justify-center h-6 min-w-[26px] px-1.5 rounded-md text-[10px] font-extrabold tracking-wide transition-colors ${
-              ex.group_id
-                ? 'bg-[#1a5c3a] text-white'
-                : 'bg-gray-100 text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a]'
-            }`}
-          >
-            SS
-          </button>
-          {pickerOpen && (
-            <SupersetPicker
-              ex={ex}
-              sessionExercises={sessionExercises}
-              onToggleMember={onToggleSupersetMember}
-              onClose={onClosePicker}
-            />
-          )}
-        </div>
+        <button
+          onClick={() => (pickerOpen ? onClosePicker() : onOpenPicker())}
+          title={ex.group_id ? 'Endre supersett' : 'Lag supersett med andre øvelser'}
+          className={`relative z-40 shrink-0 flex items-center justify-center h-6 min-w-[26px] px-1.5 rounded-md text-[10px] font-extrabold tracking-wide transition-colors ${
+            ex.group_id
+              ? 'bg-[#1a5c3a] text-white'
+              : 'bg-gray-100 text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a]'
+          }`}
+        >
+          SS
+        </button>
         <div className="flex flex-col shrink-0">
           <button
             onClick={onMoveUp}
@@ -772,6 +767,15 @@ function SessionExerciseRow({
           <input value={ex.notes} onChange={e => onChange('notes', e.target.value)} placeholder="Notater..." className="w-full text-xs text-gray-600 border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0] placeholder:text-gray-300" />
         </div>
       </div>
+
+      {pickerOpen && (
+        <SupersetPicker
+          ex={ex}
+          sessionExercises={sessionExercises}
+          onToggleMember={onToggleSupersetMember}
+          onClose={onClosePicker}
+        />
+      )}
     </div>
   )
 }
