@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import NextLink from 'next/link'
 import {
   Building2, Users, UserPlus, FileText, BarChart2, Shield,
   Upload, Trash2, Loader2, Download, File, Plus, X, Mail,
@@ -840,7 +841,16 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
                           <div className="w-7 h-7 rounded-lg bg-[#ebf5ef] flex items-center justify-center text-[#2d8653] flex-shrink-0">
                             {TYPE_CONFIG[activeType].icon}
                           </div>
-                          <span className="font-medium text-gray-900">{item.name}</span>
+                          {activeType === 'meal_plan' ? (
+                            <NextLink
+                              href={`/meal-plans/${item.resourceId}`}
+                              className="font-medium text-gray-900 hover:text-[#2d8653] hover:underline transition-colors"
+                            >
+                              {item.name}
+                            </NextLink>
+                          ) : (
+                            <span className="font-medium text-gray-900">{item.name}</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-3.5 text-gray-500">{item.meta}</td>

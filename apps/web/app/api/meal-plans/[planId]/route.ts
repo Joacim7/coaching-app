@@ -28,11 +28,13 @@ export async function POST(req: Request, { params }: Ctx) {
   const { action } = await req.json()
   if (action !== 'duplicate') return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
 
+  // No coach_id restriction here — this also needs to work for an org-shared
+  // plan the caller doesn't own (RLS still governs what's actually readable),
+  // so a coach can duplicate a shared meal plan into their own library.
   const { data: original } = await supabase
     .from('meal_plans')
     .select('*')
     .eq('id', planId)
-    .eq('coach_id', user.id)
     .single()
 
   if (!original) return NextResponse.json({ error: 'Not found' }, { status: 404 })
