@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -546,15 +546,45 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleSaveRef = useRef(handleSave)
   useEffect(() => { handleSaveRef.current = handleSave })
+
+  // Serializes save calls: if a change fires while a previous save is
+  // still in flight (slow network), queue exactly one more run right
+  // after it finishes instead of letting two overlapping saves race and
+  // have an older, slower one overwrite a newer one with stale data.
+  const saveInFlightRef = useRef<Promise<void> | null>(null)
+  const saveQueuedRef = useRef(false)
+  const runSave = useCallback(function runSaveImpl() {
+    if (saveInFlightRef.current) { saveQueuedRef.current = true; return }
+    const run = handleSaveRef.current()
+    saveInFlightRef.current = run.finally(() => {
+      saveInFlightRef.current = null
+      if (saveQueuedRef.current) { saveQueuedRef.current = false; runSaveImpl() }
+    })
+  }, [])
+
   const isFirstRenderRef = useRef(true)
   useEffect(() => {
     if (isFirstRenderRef.current) { isFirstRenderRef.current = false; return }
     if (view !== 'edit') return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => { handleSaveRef.current() }, 2500)
+    saveTimerRef.current = setTimeout(() => { saveTimerRef.current = null; runSave() }, 2500)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, protein, carbs, fat, meals])
+  }, [title, protein, carbs, fat, meals, runSave])
+
+  // Flushes a still-pending debounced save immediately when the coach
+  // navigates away (e.g. to a different client), instead of the effect
+  // above silently cancelling it on unmount — previously, any edit made
+  // in the last ~2.5s before leaving the page was never persisted.
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+        runSave()
+      }
+    }
+  }, [runSave])
 
   async function handleGenerate() {
     setGenerating(true)

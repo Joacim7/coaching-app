@@ -1205,6 +1205,9 @@ export default function StandaloneTrainingPlanEditor({
 
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+      // Keeps Next's router cache from serving a stale (pre-edit) version
+      // of this page — or the plans list — on the next visit.
+      router.refresh()
     } catch (err) {
       console.error('Save error:', JSON.stringify(err), err)
     } finally {
@@ -1223,13 +1226,45 @@ export default function StandaloneTrainingPlanEditor({
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleSaveRef = useRef(handleSave)
   useEffect(() => { handleSaveRef.current = handleSave })
+
+  // Serializes save calls: if a change fires while a previous save is
+  // still in flight (slow network), queue exactly one more run right
+  // after it finishes instead of letting two overlapping saves race —
+  // the DELETE-then-INSERT in handleSave isn't atomic, so an older,
+  // slower save completing after a newer one could otherwise silently
+  // overwrite it with stale data.
+  const saveInFlightRef = useRef<Promise<void> | null>(null)
+  const saveQueuedRef = useRef(false)
+  const runSave = useCallback(function runSaveImpl() {
+    if (saveInFlightRef.current) { saveQueuedRef.current = true; return }
+    const run = handleSaveRef.current()
+    saveInFlightRef.current = run.finally(() => {
+      saveInFlightRef.current = null
+      if (saveQueuedRef.current) { saveQueuedRef.current = false; runSaveImpl() }
+    })
+  }, [])
+
   const isFirstRenderRef = useRef(true)
   useEffect(() => {
     if (isFirstRenderRef.current) { isFirstRenderRef.current = false; return }
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => { handleSaveRef.current() }, 2500)
+    saveTimerRef.current = setTimeout(() => { saveTimerRef.current = null; runSave() }, 2500)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-  }, [title, isDraft, sessions])
+  }, [title, isDraft, sessions, runSave])
+
+  // Flushes a still-pending debounced save immediately when the coach
+  // navigates away, instead of the effect above silently cancelling it on
+  // unmount — previously, any edit made in the last ~2.5s before leaving
+  // the page was never persisted.
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+        runSave()
+      }
+    }
+  }, [runSave])
 
   // ── Save as template (always creates a new plan) ──────────────────────────
 
