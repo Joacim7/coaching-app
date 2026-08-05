@@ -1006,19 +1006,23 @@ async function fetchFromLibrary(supabase: any, coachIds: string[], mealType: str
   console.log(`[fetchFromLibrary] CALLED — mealType="${mealType}" coachIds=${JSON.stringify(coachIds)} target=${target.calories}kcal want=${count}`)
 
   try {
+    // Standard (seeded) recipes are visible to every coach regardless of
+    // org (see migration 065), combined with the org-wide set.
+    const coachOrStandard = `coach_id.in.(${coachIds.join(',')}),is_standard.eq.true`
+
     // Diagnostic: count ALL recipes visible to this org (or just this coach,
     // if not in one) so we know if the issue is "no recipes in DB" vs
     // "recipes exist but meal_type doesn't match"
     const { count: totalCount } = await supabase
       .from('recipes')
       .select('id', { count: 'exact', head: true })
-      .in('coach_id', coachIds)
+      .or(coachOrStandard)
     console.log(`[fetchFromLibrary] "${mealType}": org has ${totalCount ?? '?'} total recipes in DB`)
 
     const { data, error } = await supabase
       .from('recipes')
       .select('id,title,instructions,image_url,calories_per_serving,protein_per_serving,carbs_per_serving,fat_per_serving,ingredients,meal_type')
-      .in('coach_id', coachIds)
+      .or(coachOrStandard)
       .ilike('meal_type', mealType)
       .limit(100)
 
@@ -1034,7 +1038,7 @@ async function fetchFromLibrary(supabase: any, coachIds: string[], mealType: str
       const { data: allTypes } = await supabase
         .from('recipes')
         .select('meal_type')
-        .in('coach_id', coachIds)
+        .or(coachOrStandard)
         .limit(200)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const distinct = [...new Set((allTypes ?? []).map((r: any) => r.meal_type))]

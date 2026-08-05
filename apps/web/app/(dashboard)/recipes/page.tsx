@@ -23,10 +23,12 @@ export default async function RecipesPage() {
     if (orgMates?.length) coachIds = orgMates.map(m => m.user_id)
   }
 
+  // Standard (seeded) recipes are visible to every coach regardless of org
+  // (see migration 065) — combined with the org-wide visibility above.
   const { data, error } = await supabase
     .from('recipes')
     .select('*')
-    .in('coach_id', coachIds)
+    .or(`coach_id.in.(${coachIds.join(',')}),is_standard.eq.true`)
     .order('created_at', { ascending: false })
 
   if (error) {

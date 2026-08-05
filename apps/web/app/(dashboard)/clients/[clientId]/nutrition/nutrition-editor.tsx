@@ -357,10 +357,12 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
       if (orgMates?.length) coachIds = orgMates.map(m => m.user_id)
     }
 
+    // Standard (seeded) recipes are visible to every coach regardless of
+    // org (see migration 065), combined with the org-wide set above.
     const { data } = await supabase
       .from('recipes')
       .select('id,title,instructions,image_url,meal_type,calories_per_serving,protein_per_serving,carbs_per_serving,fat_per_serving,ingredients')
-      .in('coach_id', coachIds)
+      .or(`coach_id.in.(${coachIds.join(',')}),is_standard.eq.true`)
       .ilike('meal_type', mealName)
       .order('title', { ascending: true })
     setLibraryRecipes((data ?? []) as LibraryRecipe[])
