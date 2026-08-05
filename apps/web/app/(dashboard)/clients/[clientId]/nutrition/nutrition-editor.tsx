@@ -534,17 +534,23 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
     setTimeout(() => setTemplateSaved(false), 2000)
   }
 
-  // Auto-save: debounce 1.5s after any meals change when editing an existing plan
+  // Auto-save: debounce ~2.5s after any change to title/macros/meals, when
+  // editing an already-saved plan. Scoped to existing plans only — auto-
+  // saving a brand-new one would silently insert a row before the coach
+  // finishes setting it up, so that still needs an explicit "Lagre" click.
+  // The Lagre button's own label doubles as the auto-save indicator
+  // ("Lagrer..." / "Lagret ✓") since it's driven by the same saving/saved
+  // state either way.
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleSaveRef = useRef(handleSave)
-  handleSaveRef.current = handleSave
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { handleSaveRef.current = handleSave })
   useEffect(() => {
-    if (!editingPlan?.id || meals.length === 0) return
+    if (!editingPlan?.id) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => { handleSaveRef.current() }, 1500)
+    saveTimerRef.current = setTimeout(() => { handleSaveRef.current() }, 2500)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-  }, [meals]) // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, protein, carbs, fat, meals])
 
   async function handleGenerate() {
     setGenerating(true)
@@ -1030,7 +1036,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
 
           <Button onClick={handleSave} disabled={saving}>
             <Save className="w-4 h-4" />
-            {saved ? 'Lagret!' : saving ? 'Lagrer...' : 'Lagre'}
+            {saved ? 'Lagret ✓' : saving ? 'Lagrer...' : 'Lagre'}
           </Button>
         </div>
       </div>

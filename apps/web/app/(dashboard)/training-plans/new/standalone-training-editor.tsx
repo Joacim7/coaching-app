@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import {
-  Plus, Trash2, Save, ChevronLeft, ChevronUp, ChevronDown, UserPlus, X, Search, Dumbbell, Activity, Pencil, Video, Link2,
+  Plus, Trash2, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, UserPlus, X, Search, Dumbbell, Activity, Pencil, Video, Link2, Flame, Snowflake,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { ExerciseRow } from '@/app/(dashboard)/exercise-library/exercise-form-modal'
@@ -14,6 +14,29 @@ import { exerciseThumbnail } from '@/lib/video-thumbnail'
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type SessionType = 'styrke' | 'cardio'
+
+// Named sub-sections within a single styrke day (e.g. "Oppvarming" then
+// "Styrke" then "Cardio" then "Nedkjøling"). Stored as a plain tag on each
+// exercise rather than a nested structure, so the persisted `exercises`
+// array stays flat and mobile (which just renders that array in order)
+// keeps working unchanged — sections are a web-editor-only grouping layer.
+type SubSectionType = 'oppvarming' | 'styrke' | 'cardio' | 'nedkjøling'
+
+const SUBSECTION_TYPES: SubSectionType[] = ['oppvarming', 'styrke', 'cardio', 'nedkjøling']
+
+const SUBSECTION_LABELS: Record<SubSectionType, string> = {
+  oppvarming: 'Oppvarming',
+  styrke: 'Styrke',
+  cardio: 'Cardio',
+  nedkjøling: 'Nedkjøling',
+}
+
+const SUBSECTION_ICONS: Record<SubSectionType, React.ReactNode> = {
+  oppvarming: <Flame className="w-3.5 h-3.5" />,
+  styrke: <Dumbbell className="w-3.5 h-3.5" />,
+  cardio: <Activity className="w-3.5 h-3.5" />,
+  nedkjøling: <Snowflake className="w-3.5 h-3.5" />,
+}
 
 type SessionExercise = {
   id: string
@@ -30,6 +53,7 @@ type SessionExercise = {
   video_url?: string | null
   muscle_groups?: string[]
   group_id?: string | null // shared id links exercises into a superset
+  section?: SubSectionType | null // which sub-section this exercise belongs to, if any
 }
 
 type CardioConfig = {
@@ -48,6 +72,12 @@ type Session = {
   type: SessionType
   exercises: SessionExercise[]
   cardio_config: CardioConfig | null
+  // Ordered list of active named sub-sections for this day. Derived from
+  // exercises' `section` tags on load (see the initial state below) — an
+  // empty sub-section with no exercises yet only survives for the rest of
+  // the current editing session, not a reload, since there's nothing to
+  // tag it with in storage. [] = flat/legacy mode (no sub-section headers).
+  sections: SubSectionType[]
 }
 
 interface Props {
@@ -136,6 +166,7 @@ function newSession(dayNum: number, type: SessionType = 'styrke'): Session {
     type,
     exercises: [],
     cardio_config: null,
+    sections: [],
   }
 }
 
@@ -558,7 +589,9 @@ function SupersetPicker({
   onToggleMember: (otherId: string) => void
   onClose: () => void
 }) {
-  const others = sessionExercises.filter(e => e.id !== ex.id)
+  // Same-section only — linking across e.g. Oppvarming and Styrke would be
+  // an unusual superset and complicates keeping sub-sections coherent.
+  const others = sessionExercises.filter(e => e.id !== ex.id && e.section === ex.section)
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
@@ -780,6 +813,46 @@ function SessionExerciseRow({
   )
 }
 
+// ── SubSectionAdder ───────────────────────────────────────────────────────────
+
+function SubSectionAdder({ existing, onAdd }: {
+  existing: SubSectionType[]
+  onAdd: (type: SubSectionType) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const available = SUBSECTION_TYPES.filter(t => !existing.includes(t))
+  if (available.length === 0) return null
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-[#1a5c3a] hover:bg-[#ebf5ef] border border-dashed border-gray-200 hover:border-[#6ecfb0] transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+        Legg til økt
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute z-20 top-full left-0 mt-1 w-48 bg-white rounded-xl border border-gray-200 shadow-lg p-1.5">
+            {available.map(t => (
+              <button
+                key={t}
+                onClick={() => { onAdd(t); setOpen(false) }}
+                className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] transition-colors"
+              >
+                {SUBSECTION_ICONS[t]}
+                {SUBSECTION_LABELS[t]}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Main editor ───────────────────────────────────────────────────────────────
 
 export default function StandaloneTrainingPlanEditor({
@@ -801,13 +874,21 @@ export default function StandaloneTrainingPlanEditor({
         const isCardio = s.session_type === 'cardio'
         const firstEx = Array.isArray(s.exercises) && s.exercises.length > 0 ? s.exercises[0] : null
         const hasCardioConfig = firstEx && typeof firstEx === 'object' && 'activity_type' in (firstEx as object)
+        const loadedExercises = isCardio ? [] : (s.exercises as SessionExercise[])
+        // Ordered-unique list of section tags found among the exercises,
+        // in order of first appearance — best-effort reconstruction of the
+        // sub-section layout the coach last had.
+        const sections = Array.from(new Set(
+          loadedExercises.map(e => e.section).filter((t): t is SubSectionType => !!t)
+        ))
         return {
           id: s.id,
           day_of_week: s.day_of_week,
           title: s.title,
           type: isCardio ? 'cardio' : 'styrke',
-          exercises: isCardio ? [] : (s.exercises as SessionExercise[]),
+          exercises: loadedExercises,
           cardio_config: isCardio && hasCardioConfig ? (firstEx as CardioConfig) : null,
+          sections,
         }
       })
   )
@@ -826,7 +907,9 @@ export default function StandaloneTrainingPlanEditor({
   const [libSearch, setLibSearch]   = useState('')
   const [libTab, setLibTab]         = useState<'alle' | 'standard' | 'mine'>('alle')
   const [musclePill, setMusclePill] = useState('Alle')
-  const [dropTarget, setDropTarget] = useState(false)
+  // Which drop zone is currently hovered during a drag — 'unsectioned' or a
+  // SubSectionType — since a styrke day can now have several drop zones.
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
   const dragExRef = useRef<ExerciseRow | null>(null)
 
   // ── Library filtering ────────────────────────────────────────────────────
@@ -864,6 +947,7 @@ export default function StandaloneTrainingPlanEditor({
       type: 'cardio',
       exercises: [],
       cardio_config: config,
+      sections: [],
     }
     setSessions(prev => [...prev, s].sort((a, b) => a.day_of_week - b.day_of_week))
     setActiveDay(nextDay)
@@ -875,15 +959,72 @@ export default function StandaloneTrainingPlanEditor({
     setActiveDay(prev => prev === dayNum ? null : prev)
   }, [])
 
+  // Reorders session tabs by swapping day_of_week with the adjacent session
+  // in sorted order (mirrors the exercise up/down pattern) — a session's
+  // own title/exercises move with it, only its position changes.
+  const moveSession = useCallback((dayNum: number, direction: -1 | 1) => {
+    let otherDay: number | null = null
+    setSessions(prev => {
+      const sorted = [...prev].sort((a, b) => a.day_of_week - b.day_of_week)
+      const idx = sorted.findIndex(s => s.day_of_week === dayNum)
+      const swapIdx = idx + direction
+      if (idx === -1 || swapIdx < 0 || swapIdx >= sorted.length) return prev
+      otherDay = sorted[swapIdx].day_of_week
+      // Keep the `sessions` array itself sorted by day_of_week (every other
+      // mutation preserves that invariant) so tab order and index-based
+      // boundary checks stay correct.
+      return prev
+        .map(s => {
+          if (s.day_of_week === dayNum) return { ...s, day_of_week: otherDay! }
+          if (s.day_of_week === otherDay) return { ...s, day_of_week: dayNum }
+          return s
+        })
+        .sort((a, b) => a.day_of_week - b.day_of_week)
+    })
+    setActiveDay(prevActive => {
+      if (otherDay == null) return prevActive
+      if (prevActive === dayNum) return otherDay
+      if (prevActive === otherDay) return dayNum
+      return prevActive
+    })
+  }, [])
+
   const updateSession = useCallback((dayNum: number, field: 'title', value: string) => {
     setSessions(prev => prev.map(s => s.day_of_week === dayNum ? { ...s, [field]: value } : s))
   }, [])
 
-  const addExerciseToSession = useCallback((dayNum: number, from?: ExerciseRow) => {
+  const addExerciseToSession = useCallback((dayNum: number, from?: ExerciseRow, section?: SubSectionType) => {
     setSessions(prev =>
       prev.map(s =>
         s.day_of_week === dayNum
-          ? { ...s, exercises: [...s.exercises, newExercise(from)] }
+          ? { ...s, exercises: [...s.exercises, { ...newExercise(from), section }] }
+          : s
+      )
+    )
+  }, [])
+
+  // Adds a named sub-section header to a day (no-op if it's already there).
+  const addSubSection = useCallback((dayNum: number, type: SubSectionType) => {
+    setSessions(prev =>
+      prev.map(s =>
+        s.day_of_week === dayNum && !s.sections.includes(type)
+          ? { ...s, sections: [...s.sections, type] }
+          : s
+      )
+    )
+  }, [])
+
+  // Removing a sub-section un-tags its exercises (back to the unsectioned
+  // group) rather than deleting them.
+  const removeSubSection = useCallback((dayNum: number, type: SubSectionType) => {
+    setSessions(prev =>
+      prev.map(s =>
+        s.day_of_week === dayNum
+          ? {
+              ...s,
+              sections: s.sections.filter(t => t !== type),
+              exercises: s.exercises.map(e => e.section === type ? { ...e, section: undefined } : e),
+            }
           : s
       )
     )
@@ -912,16 +1053,26 @@ export default function StandaloneTrainingPlanEditor({
   // Reordering can pull an exercise out of its superset (it's no longer
   // adjacent to its group), so drop its link first — the group is cleaned
   // up afterwards if that leaves it with a single member.
+  //
+  // Section-aware: swaps with the nearest exercise (in the given direction)
+  // that shares the same `section` tag, skipping over any other sections'
+  // exercises interleaved between them — so "move up/down" stays within the
+  // sub-section it's in rather than crossing into a neighbouring one.
   const moveExercise = useCallback((dayNum: number, exId: string, direction: -1 | 1) => {
     setSessions(prev =>
       prev.map(s => {
         if (s.day_of_week !== dayNum) return s
         const idx = s.exercises.findIndex(e => e.id === exId)
-        const newIdx = idx + direction
-        if (idx === -1 || newIdx < 0 || newIdx >= s.exercises.length) return s
+        if (idx === -1) return s
+        const section = s.exercises[idx].section
+        let swapIdx = -1
+        for (let i = idx + direction; i >= 0 && i < s.exercises.length; i += direction) {
+          if (s.exercises[i].section === section) { swapIdx = i; break }
+        }
+        if (swapIdx === -1) return s
         const cleared = s.exercises.map(e => e.id === exId ? { ...e, group_id: undefined } : e)
         const next = [...cleared]
-        ;[next[idx], next[newIdx]] = [next[newIdx], next[idx]]
+        ;[next[idx], next[swapIdx]] = [next[swapIdx], next[idx]]
         return { ...s, exercises: withGroupCleanup(next) }
       })
     )
@@ -963,13 +1114,19 @@ export default function StandaloneTrainingPlanEditor({
     dragExRef.current = ex
   }
 
-  function handleDropzoneDrop(e: React.DragEvent) {
+  // Reads the target section off the drop zone's own data-section attribute
+  // rather than closing over it per-zone — so the same stable handler can be
+  // passed to every zone's onDrop without wrapping it in a fresh per-render
+  // arrow function (which the refs lint rule flags, since this reads a ref
+  // as a defensive fallback below).
+  function handleDropzoneDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault()
-    setDropTarget(false)
+    setDropTarget(null)
     if (activeDay == null) return
+    const section = (e.currentTarget.dataset.section || undefined) as SubSectionType | undefined
     const exId = e.dataTransfer.getData('exercise_id')
     const ex = (exId ? exercises.find(x => x.id === exId) : null) ?? dragExRef.current
-    if (ex) addExerciseToSession(activeDay, ex)
+    if (ex) addExerciseToSession(activeDay, ex, section)
     dragExRef.current = null
   }
 
@@ -1032,6 +1189,24 @@ export default function StandaloneTrainingPlanEditor({
       setSaving(false)
     }
   }
+
+  // Auto-save: debounce ~2.5s after any change to the title, draft toggle
+  // or sessions. Scoped to plans that already have an id — auto-saving a
+  // brand-new plan would silently insert a row and redirect the URL while
+  // the coach is still typing the title, so those still need an explicit
+  // "Lagre" click to create the plan first. The existing Lagre button's
+  // label ("Lagrer..." / "Lagret ✓") doubles as the auto-save indicator
+  // since it's driven by the same saving/saved state either way.
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleSaveRef = useRef(handleSave)
+  useEffect(() => { handleSaveRef.current = handleSave })
+  useEffect(() => {
+    if (!initialPlan?.id) return
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => { handleSaveRef.current() }, 2500)
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, isDraft, sessions])
 
   // ── Save as template (always creates a new plan) ──────────────────────────
 
@@ -1235,14 +1410,22 @@ export default function StandaloneTrainingPlanEditor({
 
           {/* Session tabs */}
           <div className="flex items-center gap-1 px-4 py-3 border-b border-gray-100 overflow-x-auto scrollbar-hide shrink-0">
-            {sessions.map(s => {
+            {sessions.map((s, tabIdx) => {
               const count = s.type === 'cardio' ? (s.cardio_config ? 1 : 0) : s.exercises.length
               const isActive = activeDay === s.day_of_week
               return (
                 <div key={s.day_of_week} className="flex items-center gap-0 shrink-0">
                   <button
+                    onClick={() => moveSession(s.day_of_week, -1)}
+                    disabled={tabIdx === 0}
+                    title="Flytt tidligere"
+                    className="w-4 h-7 flex items-center justify-center text-gray-300 hover:text-[#1a5c3a] disabled:opacity-0 disabled:pointer-events-none transition-colors"
+                  >
+                    <ChevronLeft className="w-3 h-3" />
+                  </button>
+                  <button
                     onClick={() => setActiveDay(s.day_of_week)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-l-lg text-sm font-semibold transition-colors ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold transition-colors ${
                       isActive ? 'bg-[#1a5c3a] text-white' : 'bg-gray-100 text-gray-600 hover:bg-[#ebf5ef] hover:text-[#1a5c3a]'
                     }`}
                   >
@@ -1252,6 +1435,14 @@ export default function StandaloneTrainingPlanEditor({
                     }
                     {s.title}
                     <span className={`text-[10px] ${isActive ? 'text-[#6ecfb0]' : 'text-gray-400'}`}>{count}</span>
+                  </button>
+                  <button
+                    onClick={() => moveSession(s.day_of_week, 1)}
+                    disabled={tabIdx === sessions.length - 1}
+                    title="Flytt senere"
+                    className="w-4 h-7 flex items-center justify-center text-gray-300 hover:text-[#1a5c3a] disabled:opacity-0 disabled:pointer-events-none transition-colors"
+                  >
+                    <ChevronRight className="w-3 h-3" />
                   </button>
                   <button
                     onClick={() => removeSession(s.day_of_week)}
@@ -1315,68 +1506,113 @@ export default function StandaloneTrainingPlanEditor({
                 </div>
 
                 {/* ── Styrkeøkt ── */}
-                {activeSession.type === 'styrke' && (
-                  <>
-                    {buildExerciseBlocks(activeSession.exercises).map(block => {
-                      const renderRow = (ex: SessionExercise, groupLabel?: string) => {
-                        const i = activeSession.exercises.findIndex(e => e.id === ex.id)
-                        return (
-                          <SessionExerciseRow
-                            key={ex.id}
-                            ex={ex}
-                            exerciseLibrary={exercises}
-                            groupLabel={groupLabel}
-                            sessionExercises={activeSession.exercises}
-                            pickerOpen={supersetPickerFor === ex.id}
-                            onOpenPicker={() => setSupersetPickerFor(ex.id)}
-                            onClosePicker={() => setSupersetPickerFor(null)}
-                            onToggleSupersetMember={otherId => toggleSupersetMember(activeSession.day_of_week, ex.id, otherId)}
-                            onChange={(field, value) => updateExercise(activeSession.day_of_week, ex.id, field, value)}
-                            onRemove={() => removeExercise(activeSession.day_of_week, ex.id)}
-                            onMoveUp={i > 0 ? () => moveExercise(activeSession.day_of_week, ex.id, -1) : undefined}
-                            onMoveDown={i < activeSession.exercises.length - 1 ? () => moveExercise(activeSession.day_of_week, ex.id, 1) : undefined}
-                          />
-                        )
-                      }
+                {activeSession.type === 'styrke' && (() => {
+                  const dayNum = activeSession.day_of_week
 
-                      if (block.type === 'single') return renderRow(block.ex)
+                  // Renders one section's worth of exercises (unsectioned
+                  // when `secType` is undefined) — its own superset
+                  // grouping, drop zone and manual-add button, with
+                  // move-up/down bounded to this section's own local range.
+                  const renderExerciseSection = (secType: SubSectionType | undefined) => {
+                    const sectionExercises = activeSession.exercises.filter(e => (e.section ?? undefined) === secType)
+                    const zoneKey = secType ?? 'unsectioned'
 
+                    const renderRow = (ex: SessionExercise, groupLabel?: string) => {
+                      const localIdx = sectionExercises.findIndex(e => e.id === ex.id)
                       return (
-                        <div
-                          key={block.exs[0].id}
-                          className="rounded-xl border-2 border-[#6ecfb0] bg-[#ebf5ef]/40 p-2 space-y-2"
-                        >
-                          <div className="flex items-center gap-1.5 px-1">
-                            <Link2 className="w-3.5 h-3.5 text-[#1a5c3a]" />
-                            <span className="text-xs font-bold text-[#1a5c3a] uppercase tracking-wide">
-                              Supersett {block.label}
-                            </span>
-                          </div>
-                          {block.exs.map((ex, gi) => renderRow(ex, `${block.label}${gi + 1}`))}
-                        </div>
+                        <SessionExerciseRow
+                          key={ex.id}
+                          ex={ex}
+                          exerciseLibrary={exercises}
+                          groupLabel={groupLabel}
+                          sessionExercises={activeSession.exercises}
+                          pickerOpen={supersetPickerFor === ex.id}
+                          onOpenPicker={() => setSupersetPickerFor(ex.id)}
+                          onClosePicker={() => setSupersetPickerFor(null)}
+                          onToggleSupersetMember={otherId => toggleSupersetMember(dayNum, ex.id, otherId)}
+                          onChange={(field, value) => updateExercise(dayNum, ex.id, field, value)}
+                          onRemove={() => removeExercise(dayNum, ex.id)}
+                          onMoveUp={localIdx > 0 ? () => moveExercise(dayNum, ex.id, -1) : undefined}
+                          onMoveDown={localIdx < sectionExercises.length - 1 ? () => moveExercise(dayNum, ex.id, 1) : undefined}
+                        />
                       )
-                    })}
-                    <div
-                      onDragOver={e => { e.preventDefault(); setDropTarget(true) }}
-                      onDragLeave={() => setDropTarget(false)}
-                      onDrop={handleDropzoneDrop}
-                      className={`mt-3 rounded-xl border-2 border-dashed p-5 text-center text-sm transition-colors ${
-                        dropTarget
-                          ? 'border-[#2d8653] bg-[#ebf5ef] text-[#1a5c3a]'
-                          : 'border-gray-200 text-gray-400 hover:border-[#6ecfb0] hover:text-[#2d8653]'
-                      }`}
-                    >
-                      {dropTarget ? '✓ Slipp for å legge til' : 'Dra øvelser hit fra biblioteket'}
-                    </div>
-                    <button
-                      onClick={() => addExerciseToSession(activeSession.day_of_week)}
-                      className="flex items-center gap-2 mt-1 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-[#1a5c3a] hover:bg-[#ebf5ef] transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Legg til øvelse manuelt
-                    </button>
-                  </>
-                )}
+                    }
+
+                    return (
+                      <div className="space-y-2">
+                        {buildExerciseBlocks(sectionExercises).map(block => {
+                          if (block.type === 'single') return renderRow(block.ex)
+                          return (
+                            <div
+                              key={block.exs[0].id}
+                              className="rounded-xl border-2 border-[#6ecfb0] bg-[#ebf5ef]/40 p-2 space-y-2"
+                            >
+                              <div className="flex items-center gap-1.5 px-1">
+                                <Link2 className="w-3.5 h-3.5 text-[#1a5c3a]" />
+                                <span className="text-xs font-bold text-[#1a5c3a] uppercase tracking-wide">
+                                  Supersett {block.label}
+                                </span>
+                              </div>
+                              {block.exs.map((ex, gi) => renderRow(ex, `${block.label}${gi + 1}`))}
+                            </div>
+                          )
+                        })}
+                        <div
+                          data-section={secType ?? ''}
+                          onDragOver={e => { e.preventDefault(); setDropTarget(zoneKey) }}
+                          onDragLeave={() => setDropTarget(null)}
+                          onDrop={handleDropzoneDrop}
+                          className={`mt-3 rounded-xl border-2 border-dashed p-4 text-center text-sm transition-colors ${
+                            dropTarget === zoneKey
+                              ? 'border-[#2d8653] bg-[#ebf5ef] text-[#1a5c3a]'
+                              : 'border-gray-200 text-gray-400 hover:border-[#6ecfb0] hover:text-[#2d8653]'
+                          }`}
+                        >
+                          {dropTarget === zoneKey ? '✓ Slipp for å legge til' : 'Dra øvelser hit fra biblioteket'}
+                        </div>
+                        <button
+                          onClick={() => addExerciseToSession(dayNum, undefined, secType)}
+                          className="flex items-center gap-2 mt-1 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-[#1a5c3a] hover:bg-[#ebf5ef] transition-colors"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Legg til øvelse manuelt
+                        </button>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <>
+                      {renderExerciseSection(undefined)}
+
+                      {activeSession.sections.map(secType => (
+                        <div key={secType} className="mt-5 pt-4 border-t-2 border-dashed border-gray-100">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="flex items-center gap-1.5 text-sm font-bold text-gray-700">
+                              <span className="text-[#2d8653]">{SUBSECTION_ICONS[secType]}</span>
+                              {SUBSECTION_LABELS[secType]}
+                            </h4>
+                            <button
+                              onClick={() => removeSubSection(dayNum, secType)}
+                              title="Fjern seksjon"
+                              className="text-gray-300 hover:text-red-400 transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          {renderExerciseSection(secType)}
+                        </div>
+                      ))}
+
+                      <div className="mt-4">
+                        <SubSectionAdder
+                          existing={activeSession.sections}
+                          onAdd={type => addSubSection(dayNum, type)}
+                        />
+                      </div>
+                    </>
+                  )
+                })()}
 
                 {/* ── Cardio-økt ── */}
                 {activeSession.type === 'cardio' && (
