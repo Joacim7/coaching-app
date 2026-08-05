@@ -72,12 +72,16 @@ type Session = {
   type: SessionType
   exercises: SessionExercise[]
   cardio_config: CardioConfig | null
-  // Ordered list of active named sub-sections for this day. Derived from
+  // Ordered display slots for this day — `null` is the default/unsectioned
+  // group of exercises (always present exactly once, no header of its own)
+  // and everything else is a named sub-section. Keeping the unsectioned
+  // group IN this array (instead of always rendering it first) is what
+  // lets a named section like "Oppvarming" move above it. Derived from
   // exercises' `section` tags on load (see the initial state below) — an
   // empty sub-section with no exercises yet only survives for the rest of
   // the current editing session, not a reload, since there's nothing to
-  // tag it with in storage. [] = flat/legacy mode (no sub-section headers).
-  sections: SubSectionType[]
+  // tag it with in storage.
+  sections: (SubSectionType | null)[]
 }
 
 interface Props {
@@ -166,7 +170,7 @@ function newSession(dayNum: number, type: SessionType = 'styrke'): Session {
     type,
     exercises: [],
     cardio_config: null,
-    sections: [],
+    sections: [null],
   }
 }
 
@@ -875,12 +879,14 @@ export default function StandaloneTrainingPlanEditor({
         const firstEx = Array.isArray(s.exercises) && s.exercises.length > 0 ? s.exercises[0] : null
         const hasCardioConfig = firstEx && typeof firstEx === 'object' && 'activity_type' in (firstEx as object)
         const loadedExercises = isCardio ? [] : (s.exercises as SessionExercise[])
-        // Ordered-unique list of section tags found among the exercises,
-        // in order of first appearance — best-effort reconstruction of the
+        // Ordered-unique list of section tags found among the exercises, in
+        // order of first appearance, with the unsectioned group (`null`)
+        // placed first by default — best-effort reconstruction of the
         // sub-section layout the coach last had.
-        const sections = Array.from(new Set(
+        const namedSections = Array.from(new Set(
           loadedExercises.map(e => e.section).filter((t): t is SubSectionType => !!t)
         ))
+        const sections: (SubSectionType | null)[] = [null, ...namedSections]
         return {
           id: s.id,
           day_of_week: s.day_of_week,
@@ -947,7 +953,7 @@ export default function StandaloneTrainingPlanEditor({
       type: 'cardio',
       exercises: [],
       cardio_config: config,
-      sections: [],
+      sections: [null],
     }
     setSessions(prev => [...prev, s].sort((a, b) => a.day_of_week - b.day_of_week))
     setActiveDay(nextDay)
@@ -1601,48 +1607,57 @@ export default function StandaloneTrainingPlanEditor({
 
                   return (
                     <>
-                      {renderExerciseSection(undefined)}
-
-                      {activeSession.sections.map((secType, secIdx) => (
-                        <div key={secType} className="mt-5 pt-4 border-t-2 border-dashed border-gray-100">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="flex items-center gap-1.5 text-sm font-bold text-gray-700">
-                              <span className="text-[#2d8653]">{SUBSECTION_ICONS[secType]}</span>
-                              {SUBSECTION_LABELS[secType]}
-                            </h4>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => moveSubSection(dayNum, secType, -1)}
-                                disabled={secIdx === 0}
-                                title="Flytt seksjon opp"
-                                className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] disabled:opacity-20 disabled:pointer-events-none transition-colors"
-                              >
-                                <ChevronUp className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => moveSubSection(dayNum, secType, 1)}
-                                disabled={secIdx === activeSession.sections.length - 1}
-                                title="Flytt seksjon ned"
-                                className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] disabled:opacity-20 disabled:pointer-events-none transition-colors"
-                              >
-                                <ChevronDown className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => removeSubSection(dayNum, secType)}
-                                title="Fjern seksjon"
-                                className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:bg-red-50 hover:text-red-400 transition-colors"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
+                      {activeSession.sections.map((secType, secIdx) => {
+                        // The unsectioned group has no header/controls of
+                        // its own — it's just wherever it sits in the
+                        // order — but it's still a real slot so a named
+                        // section's up/down buttons can swap past it
+                        // (that's what lets e.g. "Oppvarming" move above
+                        // pre-existing untagged exercises).
+                        if (secType === null) {
+                          return <div key="unsectioned">{renderExerciseSection(undefined)}</div>
+                        }
+                        return (
+                          <div key={secType} className="mt-5 pt-4 border-t-2 border-dashed border-gray-100">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="flex items-center gap-1.5 text-sm font-bold text-gray-700">
+                                <span className="text-[#2d8653]">{SUBSECTION_ICONS[secType]}</span>
+                                {SUBSECTION_LABELS[secType]}
+                              </h4>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => moveSubSection(dayNum, secType, -1)}
+                                  disabled={secIdx === 0}
+                                  title="Flytt seksjon opp"
+                                  className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                                >
+                                  <ChevronUp className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => moveSubSection(dayNum, secType, 1)}
+                                  disabled={secIdx === activeSession.sections.length - 1}
+                                  title="Flytt seksjon ned"
+                                  className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                                >
+                                  <ChevronDown className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => removeSubSection(dayNum, secType)}
+                                  title="Fjern seksjon"
+                                  className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:bg-red-50 hover:text-red-400 transition-colors"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
+                            {renderExerciseSection(secType)}
                           </div>
-                          {renderExerciseSection(secType)}
-                        </div>
-                      ))}
+                        )
+                      })}
 
                       <div className="mt-4">
                         <SubSectionAdder
-                          existing={activeSession.sections}
+                          existing={activeSession.sections.filter((t): t is SubSectionType => t !== null)}
                           onAdd={type => addSubSection(dayNum, type)}
                         />
                       </div>
