@@ -37,6 +37,7 @@ export interface RecipeData {
 interface Props {
   initial?: RecipeData
   readOnly?: boolean
+  isStandard?: boolean
 }
 
 // ── Unit conversion ───────────────────────────────────────────────────────────
@@ -128,7 +129,7 @@ function computeTotals(ingredients: RecipeIngredient[], servings: number) {
 
 // ── Editor ────────────────────────────────────────────────────────────────────
 
-export function RecipeEditor({ initial, readOnly = false }: Props) {
+export function RecipeEditor({ initial, readOnly = false, isStandard = false }: Props) {
   const router = useRouter()
   const isEdit = !!initial?.id
 
@@ -293,7 +294,9 @@ export function RecipeEditor({ initial, readOnly = false }: Props) {
 
       {readOnly && (
         <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-100 text-sm text-amber-700">
-          Denne oppskriften er delt av en annen coach i organisasjonen din — kun eieren kan redigere den.
+          {isStandard
+            ? 'Dette er en standard-oppskrift fra det delte biblioteket — den kan ikke redigeres.'
+            : 'Denne oppskriften er delt av en annen coach i organisasjonen din — kun eieren kan redigere den.'}
         </div>
       )}
 

@@ -36,6 +36,11 @@ export default async function EditRecipePage({
   }
 
   const readOnly = data.coach_id !== user!.id
+  // A coach not in any org can only ever see a recipe they don't own via
+  // the standard library (is_standard) — org-sharing RLS wouldn't grant
+  // access otherwise — so this distinguishes the two for the read-only
+  // banner's wording instead of always blaming "your organization".
+  const isStandard = !!data.is_standard
 
-  return <RecipeEditor initial={recipe} readOnly={readOnly} />
+  return <RecipeEditor initial={recipe} readOnly={readOnly} isStandard={isStandard} />
 }
