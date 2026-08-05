@@ -887,14 +887,18 @@ export default function StandaloneTrainingPlanEditor({
         const firstEx = Array.isArray(s.exercises) && s.exercises.length > 0 ? s.exercises[0] : null
         const hasCardioConfig = firstEx && typeof firstEx === 'object' && 'activity_type' in (firstEx as object)
         const loadedExercises = isCardio ? [] : (s.exercises as SessionExercise[])
-        // Ordered-unique list of section tags found among the exercises, in
-        // order of first appearance, with the unsectioned group (`null`)
-        // placed first by default — best-effort reconstruction of the
-        // sub-section layout the coach last had.
-        const namedSections = Array.from(new Set(
-          loadedExercises.map(e => e.section).filter((t): t is SubSectionType => !!t)
-        ))
-        const sections: (SubSectionType | null)[] = [null, ...namedSections]
+        // Ordered-unique list of section slots (including the unsectioned
+        // group as `null`) in order of first appearance in the saved
+        // exercises array. moveSubSection physically reorders that array to
+        // match the display order (see below), so this correctly
+        // reconstructs whatever order the coach last set — e.g. Oppvarming
+        // moved above Styrke stays above Styrke after a reload.
+        const sections: (SubSectionType | null)[] = []
+        for (const ex of loadedExercises) {
+          const key = ex.section ?? null
+          if (!sections.includes(key)) sections.push(key)
+        }
+        if (!sections.includes(null)) sections.push(null)
         return {
           id: s.id,
           day_of_week: s.day_of_week,
@@ -1045,7 +1049,13 @@ export default function StandaloneTrainingPlanEditor({
   }, [])
 
   // Reorders the sub-section headers themselves (e.g. move Oppvarming above
-  // Styrke) — only the display order changes, exercises stay tagged as-is.
+  // Styrke). Also physically reorders the underlying exercises array to
+  // match — the section order isn't stored separately, it's reconstructed
+  // on load from which section's exercises appear first in that array (see
+  // the initial state above), so without this the reorder would look right
+  // in the current session but silently revert on the next save+reload.
+  // This is also what makes the client-facing app show the same order,
+  // since it just renders that array in order too.
   const moveSubSection = useCallback((dayNum: number, type: SubSectionType, direction: -1 | 1) => {
     setSessions(prev =>
       prev.map(s => {
@@ -1053,9 +1063,18 @@ export default function StandaloneTrainingPlanEditor({
         const idx = s.sections.indexOf(type)
         const newIdx = idx + direction
         if (idx === -1 || newIdx < 0 || newIdx >= s.sections.length) return s
-        const next = [...s.sections]
-        ;[next[idx], next[newIdx]] = [next[newIdx], next[idx]]
-        return { ...s, sections: next }
+        const nextSections = [...s.sections]
+        ;[nextSections[idx], nextSections[newIdx]] = [nextSections[newIdx], nextSections[idx]]
+
+        const bySection = new Map<SubSectionType | null, SessionExercise[]>()
+        for (const ex of s.exercises) {
+          const key = ex.section ?? null
+          if (!bySection.has(key)) bySection.set(key, [])
+          bySection.get(key)!.push(ex)
+        }
+        const nextExercises = nextSections.flatMap(key => bySection.get(key) ?? [])
+
+        return { ...s, sections: nextSections, exercises: nextExercises }
       })
     )
   }, [])
