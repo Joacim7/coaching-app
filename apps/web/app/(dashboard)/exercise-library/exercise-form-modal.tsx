@@ -64,13 +64,12 @@ type FormState = {
   primary_muscles: string[]
   equipment: string[]
   video_url: string
-  thumbnail_url: string
 }
 
 function emptyForm(): FormState {
   return {
     name: '', description: '', instructions: '',
-    categories: [], muscle_groups: [], primary_muscles: [], equipment: [], video_url: '', thumbnail_url: '',
+    categories: [], muscle_groups: [], primary_muscles: [], equipment: [], video_url: '',
   }
 }
 
@@ -84,7 +83,6 @@ function fromExercise(ex: ExerciseRow, mode: FormMode): FormState {
     primary_muscles: ex.primary_muscles ?? [],
     equipment:       ex.equipment       ?? [],
     video_url:       ex.video_url       ?? '',
-    thumbnail_url:   ex.thumbnail_url   ?? '',
   }
 }
 
@@ -120,39 +118,42 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [uploadingThumb, setUploadingThumb] = useState(false)
-  const [thumbUploadError, setThumbUploadError] = useState('')
+  const [uploadingVideo, setUploadingVideo] = useState(false)
+  const [videoUploadError, setVideoUploadError] = useState('')
 
   function set<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm(f => ({ ...f, [k]: v }))
   }
 
-  async function handleThumbnailUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  // Uploads straight into the same `video_url` field the "paste a link"
+  // input above uses — no separate URL field for the upload path, so
+  // there's only ever one place to look for the exercise's video.
+  async function handleVideoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = '' // allow re-selecting the same file later
     if (!file) return
 
-    setThumbUploadError('')
-    setUploadingThumb(true)
+    setVideoUploadError('')
+    setUploadingVideo(true)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Ikke innlogget')
 
-      const ext  = file.name.split('.').pop() || 'jpg'
+      const ext  = file.name.split('.').pop() || 'mp4'
       const path = `${user.id}/${crypto.randomUUID()}.${ext}`
 
       const { error: uploadErr } = await supabase.storage
-        .from('exercise-images')
+        .from('exercise-videos')
         .upload(path, file, { contentType: file.type, upsert: false })
       if (uploadErr) throw uploadErr
 
-      const { data: pub } = supabase.storage.from('exercise-images').getPublicUrl(path)
-      set('thumbnail_url', pub.publicUrl)
+      const { data: pub } = supabase.storage.from('exercise-videos').getPublicUrl(path)
+      set('video_url', pub.publicUrl)
     } catch (err) {
-      setThumbUploadError(err instanceof Error ? err.message : 'Kunne ikke laste opp bilde')
+      setVideoUploadError(err instanceof Error ? err.message : 'Kunne ikke laste opp video')
     } finally {
-      setUploadingThumb(false)
+      setUploadingVideo(false)
     }
   }
 
@@ -173,9 +174,7 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
       primary_muscles: form.primary_muscles,
       equipment:       form.equipment,
       video_url:       trimmedVideoUrl || null,
-      // A manually uploaded/pasted thumbnail wins; otherwise fall back to
-      // the auto-derived YouTube thumbnail like before.
-      thumbnail_url:   form.thumbnail_url.trim() || youTubeThumbnail(trimmedVideoUrl),
+      thumbnail_url:   youTubeThumbnail(trimmedVideoUrl),
     }
 
     let res: Response
@@ -353,16 +352,32 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
               />
             </div>
 
-            {/* ── Video URL ───────────────────────────────────── */}
+            {/* ── Video ─────────────────────────────────────────── */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Videolenke (valgfri)</label>
-              <input
-                type="url"
-                placeholder="https://youtube.com/..."
-                value={form.video_url}
-                onChange={e => set('video_url', e.target.value)}
-                className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-              />
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Video (valgfri)</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="url"
+                  placeholder="https://youtube.com/..."
+                  value={form.video_url}
+                  onChange={e => set('video_url', e.target.value)}
+                  className="flex-1 h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                />
+                <label className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors flex-shrink-0">
+                  {uploadingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {uploadingVideo ? 'Laster opp...' : 'Last opp video'}
+                  <input
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    onChange={handleVideoUpload}
+                    disabled={uploadingVideo}
+                  />
+                </label>
+              </div>
+
+              {videoUploadError && <p className="text-xs text-red-600 mt-1.5">{videoUploadError}</p>}
+
               {(() => {
                 const preview = youTubeThumbnail(form.video_url.trim())
                 return preview && (
@@ -383,43 +398,17 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
                   </a>
                 )
               })()}
-            </div>
-
-            {/* ── Thumbnail ───────────────────────────────────── */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Miniatyrbilde (valgfritt)</label>
-              <p className="text-[10px] text-gray-400 mb-2">Brukes i stedet for video-thumbnailet over, hvis satt</p>
-
-              <div className="flex items-center gap-3">
-                <label className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
-                  {uploadingThumb ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  {uploadingThumb ? 'Laster opp...' : 'Last opp bilde'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleThumbnailUpload}
-                    disabled={uploadingThumb}
-                  />
-                </label>
-                {form.thumbnail_url && (
-                  <div className="relative w-9 h-9 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={form.thumbnail_url} alt="Forhåndsvisning" className="w-full h-full object-cover" />
-                  </div>
-                )}
-              </div>
-
-              {thumbUploadError && <p className="text-xs text-red-600 mt-1">{thumbUploadError}</p>}
-
-              <p className="text-[10px] text-gray-400 mt-2 mb-1">Eller lim inn URL</p>
-              <input
-                type="url"
-                placeholder="https://..."
-                value={form.thumbnail_url}
-                onChange={e => set('thumbnail_url', e.target.value)}
-                className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-              />
+              {form.video_url.trim() && !youTubeThumbnail(form.video_url.trim()) && (
+                <a
+                  href={form.video_url.trim()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-[#2d8653] hover:underline"
+                >
+                  <Video className="w-3.5 h-3.5" />
+                  Se opplastet video
+                </a>
+              )}
             </div>
 
             {error && (
