@@ -34,6 +34,7 @@ export interface Exercise {
   notes: string
   video_url?: string | null
   group_id?: string | null // shared id links exercises into a superset
+  section?: 'oppvarming' | 'styrke' | 'cardio' | 'nedkjøling' | null
 }
 
 export interface TrainingSession {

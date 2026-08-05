@@ -379,17 +379,26 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
               {videoUploadError && <p className="text-xs text-red-600 mt-1.5">{videoUploadError}</p>}
 
               {(() => {
-                const preview = youTubeThumbnail(form.video_url.trim())
-                return preview && (
+                const url = form.video_url.trim()
+                if (!url) return null
+                const preview = youTubeThumbnail(url)
+                return (
                   <a
-                    href={form.video_url.trim()}
+                    href={url}
                     target="_blank"
                     rel="noopener noreferrer"
                     title="Se video"
                     className="relative mt-2 block w-40 aspect-video rounded-lg overflow-hidden bg-gray-100 group/preview"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={preview} alt="Video-forhåndsvisning" className="w-full h-full object-cover" />
+                    {preview ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={preview} alt="Video-forhåndsvisning" className="w-full h-full object-cover" />
+                    ) : (
+                      // No YouTube thumbnail — a directly uploaded video file,
+                      // so show its first frame natively instead of a plain
+                      // "se video" link/button.
+                      <video src={url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                    )}
                     <div className="absolute inset-0 flex items-center justify-center bg-gray-900/20 group-hover/preview:bg-gray-900/40 transition-colors">
                       <div className="w-8 h-8 rounded-full bg-white/90 shadow-md flex items-center justify-center group-hover/preview:scale-110 transition-transform">
                         <Video className="w-3.5 h-3.5 text-gray-700 translate-x-0.5" />
@@ -398,17 +407,6 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
                   </a>
                 )
               })()}
-              {form.video_url.trim() && !youTubeThumbnail(form.video_url.trim()) && (
-                <a
-                  href={form.video_url.trim()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-[#2d8653] hover:underline"
-                >
-                  <Video className="w-3.5 h-3.5" />
-                  Se opplastet video
-                </a>
-              )}
             </div>
 
             {error && (

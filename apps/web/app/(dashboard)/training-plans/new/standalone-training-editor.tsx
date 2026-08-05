@@ -531,6 +531,10 @@ function ExerciseCard({ ex, onAdd, onDragStart }: {
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumb} alt={ex.name} className="w-full h-full object-cover" />
+        ) : ex.video_url ? (
+          // No YouTube/stored thumbnail — this is a directly uploaded video
+          // file, so show its first frame natively instead of a bare icon.
+          <video src={ex.video_url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
         ) : (
           <Dumbbell className="w-8 h-8 text-[#6ecfb0]" />
         )}
@@ -713,7 +717,11 @@ function SessionExerciseRow({
           {thumb
             // eslint-disable-next-line @next/next/no-img-element
             ? <img src={thumb} alt={ex.name} className="w-full h-full object-cover" />
-            : <Dumbbell className="w-4 h-4 text-[#6ecfb0]" />
+            : videoUrl
+              // No YouTube/stored thumbnail — a directly uploaded video file,
+              // so show its first frame natively instead of a bare icon.
+              ? <video src={videoUrl} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+              : <Dumbbell className="w-4 h-4 text-[#6ecfb0]" />
           }
           {videoUrl && (
             <a
