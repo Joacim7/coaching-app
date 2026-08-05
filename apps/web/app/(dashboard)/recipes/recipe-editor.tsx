@@ -35,6 +35,7 @@ export interface RecipeData {
 
 interface Props {
   initial?: RecipeData
+  readOnly?: boolean
 }
 
 // ── Unit conversion ───────────────────────────────────────────────────────────
@@ -126,7 +127,7 @@ function computeTotals(ingredients: RecipeIngredient[], servings: number) {
 
 // ── Editor ────────────────────────────────────────────────────────────────────
 
-export function RecipeEditor({ initial }: Props) {
+export function RecipeEditor({ initial, readOnly = false }: Props) {
   const router = useRouter()
   const isEdit = !!initial?.id
 
@@ -257,6 +258,14 @@ export function RecipeEditor({ initial }: Props) {
           {isEdit ? 'Rediger oppskrift' : 'Ny oppskrift'}
         </h1>
       </div>
+
+      {readOnly && (
+        <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-100 text-sm text-amber-700">
+          Denne oppskriften er delt av en annen coach i organisasjonen din — kun eieren kan redigere den.
+        </div>
+      )}
+
+      <fieldset disabled={readOnly} className="space-y-6">
 
       {/* Basic info */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
@@ -423,32 +432,38 @@ export function RecipeEditor({ initial }: Props) {
         />
       </div>
 
+      </fieldset>
+
       {/* Actions */}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {!readOnly && (
+        <>
+          {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className="flex items-center justify-between pb-8">
-        <div>
-          {isEdit && (
+          <div className="flex items-center justify-between pb-8">
+            <div>
+              {isEdit && (
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex items-center gap-2 h-9 px-4 rounded-xl text-red-600 border border-red-200 hover:bg-red-50 text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {deleting ? 'Sletter...' : 'Slett oppskrift'}
+                </button>
+              )}
+            </div>
+
             <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="flex items-center gap-2 h-9 px-4 rounded-xl text-red-600 border border-red-200 hover:bg-red-50 text-sm font-medium transition-colors disabled:opacity-50"
+              onClick={handleSave}
+              disabled={saving || !title.trim()}
+              className="flex items-center gap-2 h-9 px-5 rounded-xl bg-[#2d8653] text-white text-sm font-semibold hover:bg-[#2d8653] disabled:opacity-50 transition-colors"
             >
-              <Trash2 className="w-4 h-4" />
-              {deleting ? 'Sletter...' : 'Slett oppskrift'}
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {saving ? 'Lagrer...' : (isEdit ? 'Lagre endringer' : 'Opprett oppskrift')}
             </button>
-          )}
-        </div>
-
-        <button
-          onClick={handleSave}
-          disabled={saving || !title.trim()}
-          className="flex items-center gap-2 h-9 px-5 rounded-xl bg-[#2d8653] text-white text-sm font-semibold hover:bg-[#2d8653] disabled:opacity-50 transition-colors"
-        >
-          {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-          {saving ? 'Lagrer...' : (isEdit ? 'Lagre endringer' : 'Opprett oppskrift')}
-        </button>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

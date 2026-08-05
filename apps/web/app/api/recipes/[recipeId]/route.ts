@@ -10,11 +10,12 @@ export async function GET(_req: Request, { params }: Ctx) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Recipes are visible org-wide (see migration 055) — RLS enforces that,
+  // this route only enforces auth. Mutations below stay owner-only.
   const { data, error } = await supabase
     .from('recipes')
     .select('*')
     .eq('id', recipeId)
-    .eq('coach_id', user.id)
     .single()
 
   if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })

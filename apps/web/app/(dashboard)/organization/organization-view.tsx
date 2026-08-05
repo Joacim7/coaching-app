@@ -5,7 +5,7 @@ import {
   Building2, Users, UserPlus, FileText, BarChart2, Shield,
   Upload, Trash2, Loader2, Download, File, Plus, X, Mail,
   Clock, CheckCircle2, XCircle, Dumbbell, ChefHat, ClipboardList, Activity,
-  Share2, Link,
+  Share2, Link, Utensils,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -436,7 +436,7 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
 
 // ── Delte ressurser tab ───────────────────────────────────────────────────────
 
-type ResourceType = 'checkin_template' | 'training_plan' | 'exercise' | 'recipe'
+type ResourceType = 'checkin_template' | 'training_plan' | 'meal_plan' | 'exercise' | 'recipe'
 
 interface SharedItem {
   shareId:    string
@@ -451,6 +451,7 @@ interface PickerItem { id: string; name: string }
 const TYPE_CONFIG: Record<ResourceType, { label: string; metaLabel: string; icon: React.ReactNode }> = {
   checkin_template: { label: 'Check-in maler', metaLabel: 'Spørsmål',  icon: <ClipboardList className="w-4 h-4" /> },
   training_plan:    { label: 'Treningsplaner', metaLabel: 'Økter',     icon: <Dumbbell      className="w-4 h-4" /> },
+  meal_plan:        { label: 'Matplaner',      metaLabel: 'Måltider',  icon: <Utensils      className="w-4 h-4" /> },
   exercise:         { label: 'Øvelser',        metaLabel: 'Muskler',   icon: <Activity      className="w-4 h-4" /> },
   recipe:           { label: 'Oppskrifter',    metaLabel: 'Porsjoner', icon: <ChefHat       className="w-4 h-4" /> },
 }
@@ -461,7 +462,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
 
   const [activeType, setActiveType]     = useState<ResourceType>('checkin_template')
   const [shared, setShared]             = useState<Record<ResourceType, SharedItem[]>>({
-    checkin_template: [], training_plan: [], exercise: [], recipe: [],
+    checkin_template: [], training_plan: [], meal_plan: [], exercise: [], recipe: [],
   })
   const [loading, setLoading]           = useState(true)
   const [pickerOpen, setPickerOpen]     = useState(false)
@@ -524,9 +525,16 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
             const q = Array.isArray(r.questions) ? r.questions.length : 0
             infoMap[r.id] = { name: r.name, meta: `${q} spørsmål` }
           })),
+
+        byType.meal_plan?.length && supabase
+          .from('meal_plans').select('id,title,meals').in('id', byType.meal_plan)
+          .then(({ data }) => data?.forEach(r => {
+            const m = Array.isArray(r.meals) ? r.meals.length : 0
+            infoMap[r.id] = { name: r.title, meta: `${m} måltider` }
+          })),
       ])
 
-      const result: Record<ResourceType, SharedItem[]> = { checkin_template: [], training_plan: [], exercise: [], recipe: [] }
+      const result: Record<ResourceType, SharedItem[]> = { checkin_template: [], training_plan: [], meal_plan: [], exercise: [], recipe: [] }
       for (const r of rows) {
         if (r.resource_type in result) {
           const info = infoMap[r.resource_id]
@@ -573,6 +581,9 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
       items = (data ?? []).filter(r => !alreadyShared.has(r.id)).map(r => ({ id: r.id, name: r.name }))
     } else if (activeType === 'training_plan') {
       const { data } = await supabase.from('training_plans').select('id,title').is('client_id', null)
+      items = (data ?? []).filter(r => !alreadyShared.has(r.id)).map(r => ({ id: r.id, name: r.title }))
+    } else if (activeType === 'meal_plan') {
+      const { data } = await supabase.from('meal_plans').select('id,title').is('client_id', null)
       items = (data ?? []).filter(r => !alreadyShared.has(r.id)).map(r => ({ id: r.id, name: r.title }))
     } else {
       const { data } = await supabase.from('checkin_templates').select('id,name')

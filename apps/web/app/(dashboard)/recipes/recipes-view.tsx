@@ -230,8 +230,16 @@ export function RecipesView({ recipes, loadError }: { recipes: RecipeRow[]; load
                   alt={recipe.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   onError={e => {
-                    console.error('[recipes-view] image failed to load:', (e.target as HTMLImageElement).src)
-                    ;(e.target as HTMLImageElement).style.display = 'none'
+                    // A transient failure on the stored/generated image_url (cold
+                    // storage, ad-blocker, flaky network) used to just blank the
+                    // tile permanently. Fall back to the deterministic placeholder
+                    // instead so the coach always sees *something* — only give up
+                    // if the placeholder itself also fails.
+                    const img = e.target as HTMLImageElement
+                    console.error('[recipes-view] image failed to load:', img.src)
+                    const fallback = recipeImageUrl((recipe.ingredients as { name: string }[]).map(i => i.name))
+                    if (img.src === fallback) { img.style.display = 'none'; return }
+                    img.src = fallback
                   }}
                 />
                 <button

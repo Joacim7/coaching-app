@@ -12,11 +12,15 @@ export default async function EditRecipePage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  // Recipes are visible org-wide (see migration 055), so a coach can open
+  // any org-mate's recipe here too — not just their own. RLS enforces the
+  // actual visibility; editing/deleting stays owner-only (see the PUT/DELETE
+  // handlers in /api/recipes/[recipeId]), so the editor renders read-only
+  // for anything the viewer doesn't own.
   const { data } = await supabase
     .from('recipes')
     .select('*')
     .eq('id', recipeId)
-    .eq('coach_id', user!.id)
     .single()
 
   if (!data) notFound()
@@ -31,5 +35,7 @@ export default async function EditRecipePage({
     ingredients:  data.ingredients  ?? [],
   }
 
-  return <RecipeEditor initial={recipe} />
+  const readOnly = data.coach_id !== user!.id
+
+  return <RecipeEditor initial={recipe} readOnly={readOnly} />
 }
