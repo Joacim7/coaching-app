@@ -2,8 +2,9 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { FoodSearchInput } from '@/components/food-search-input'
-import { Trash2, ChevronLeft, Loader2 } from 'lucide-react'
+import { Trash2, ChevronLeft, Loader2, Upload } from 'lucide-react'
 import type { FoodSearchResult } from '@coaching/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -147,8 +148,39 @@ export function RecipeEditor({ initial, readOnly = false }: Props) {
   const [saving,       setSaving]       = useState(false)
   const [deleting,     setDeleting]     = useState(false)
   const [error,        setError]        = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [uploadError,    setUploadError]    = useState('')
 
   const totals = useMemo(() => computeTotals(ingredients, servings), [ingredients, servings])
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file later
+    if (!file) return
+
+    setUploadError('')
+    setUploadingImage(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Ikke innlogget')
+
+      const ext  = file.name.split('.').pop() || 'jpg'
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`
+
+      const { error: uploadErr } = await supabase.storage
+        .from('recipe-images')
+        .upload(path, file, { contentType: file.type, upsert: false })
+      if (uploadErr) throw uploadErr
+
+      const { data: pub } = supabase.storage.from('recipe-images').getPublicUrl(path)
+      setImageUrl(pub.publicUrl)
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Kunne ikke laste opp bilde')
+    } finally {
+      setUploadingImage(false)
+    }
+  }
 
   function addIngredient(food: FoodSearchResult) {
     const unit        = smartUnitFor(food.name)
@@ -320,8 +352,32 @@ export function RecipeEditor({ initial, readOnly = false }: Props) {
           </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-600">Bilde-URL</label>
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-gray-600">Bilde</label>
+
+          <div className="flex items-center gap-3">
+            <label className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
+              {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {uploadingImage ? 'Laster opp...' : 'Last opp bilde'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+                disabled={uploadingImage}
+              />
+            </label>
+            {imageUrl && (
+              <div className="relative w-9 h-9 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={imageUrl} alt="Forhåndsvisning" className="w-full h-full object-cover" />
+              </div>
+            )}
+          </div>
+
+          {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
+
+          <p className="text-xs text-gray-400 pt-1">Eller lim inn URL</p>
           <input
             value={imageUrl}
             onChange={e => setImageUrl(e.target.value)}
