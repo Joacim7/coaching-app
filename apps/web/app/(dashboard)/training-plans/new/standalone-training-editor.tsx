@@ -1030,6 +1030,22 @@ export default function StandaloneTrainingPlanEditor({
     )
   }, [])
 
+  // Reorders the sub-section headers themselves (e.g. move Oppvarming above
+  // Styrke) — only the display order changes, exercises stay tagged as-is.
+  const moveSubSection = useCallback((dayNum: number, type: SubSectionType, direction: -1 | 1) => {
+    setSessions(prev =>
+      prev.map(s => {
+        if (s.day_of_week !== dayNum) return s
+        const idx = s.sections.indexOf(type)
+        const newIdx = idx + direction
+        if (idx === -1 || newIdx < 0 || newIdx >= s.sections.length) return s
+        const next = [...s.sections]
+        ;[next[idx], next[newIdx]] = [next[newIdx], next[idx]]
+        return { ...s, sections: next }
+      })
+    )
+  }, [])
+
   const updateExercise = useCallback((dayNum: number, exId: string, field: keyof SessionExercise, value: string | number) => {
     setSessions(prev =>
       prev.map(s =>
@@ -1191,21 +1207,22 @@ export default function StandaloneTrainingPlanEditor({
   }
 
   // Auto-save: debounce ~2.5s after any change to the title, draft toggle
-  // or sessions. Scoped to plans that already have an id — auto-saving a
-  // brand-new plan would silently insert a row and redirect the URL while
-  // the coach is still typing the title, so those still need an explicit
-  // "Lagre" click to create the plan first. The existing Lagre button's
-  // label ("Lagrer..." / "Lagret ✓") doubles as the auto-save indicator
-  // since it's driven by the same saving/saved state either way.
+  // or sessions — including the very first change on a brand-new,
+  // not-yet-saved plan (handleSave already knows how to insert vs. update).
+  // Skips the initial mount so merely landing on "new plan" doesn't
+  // immediately create an empty row — only an actual change (adding a
+  // session, editing the title, ...) starts the debounce. The existing
+  // Lagre button's label ("Lagrer..." / "Lagret ✓") doubles as the
+  // auto-save indicator since it's driven by the same saving/saved state.
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleSaveRef = useRef(handleSave)
   useEffect(() => { handleSaveRef.current = handleSave })
+  const isFirstRenderRef = useRef(true)
   useEffect(() => {
-    if (!initialPlan?.id) return
+    if (isFirstRenderRef.current) { isFirstRenderRef.current = false; return }
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => { handleSaveRef.current() }, 2500)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, isDraft, sessions])
 
   // ── Save as template (always creates a new plan) ──────────────────────────
@@ -1414,18 +1431,18 @@ export default function StandaloneTrainingPlanEditor({
               const count = s.type === 'cardio' ? (s.cardio_config ? 1 : 0) : s.exercises.length
               const isActive = activeDay === s.day_of_week
               return (
-                <div key={s.day_of_week} className="flex items-center gap-0 shrink-0">
+                <div key={s.day_of_week} className="flex items-center gap-1 shrink-0 bg-gray-50 rounded-xl p-1">
                   <button
                     onClick={() => moveSession(s.day_of_week, -1)}
                     disabled={tabIdx === 0}
-                    title="Flytt tidligere"
-                    className="w-4 h-7 flex items-center justify-center text-gray-300 hover:text-[#1a5c3a] disabled:opacity-0 disabled:pointer-events-none transition-colors"
+                    title="Flytt økt tidligere"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 shadow-sm hover:bg-[#ebf5ef] hover:border-[#6ecfb0] hover:text-[#1a5c3a] disabled:opacity-0 disabled:pointer-events-none transition-all"
                   >
-                    <ChevronLeft className="w-3 h-3" />
+                    <ChevronLeft className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setActiveDay(s.day_of_week)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                       isActive ? 'bg-[#1a5c3a] text-white' : 'bg-gray-100 text-gray-600 hover:bg-[#ebf5ef] hover:text-[#1a5c3a]'
                     }`}
                   >
@@ -1439,14 +1456,15 @@ export default function StandaloneTrainingPlanEditor({
                   <button
                     onClick={() => moveSession(s.day_of_week, 1)}
                     disabled={tabIdx === sessions.length - 1}
-                    title="Flytt senere"
-                    className="w-4 h-7 flex items-center justify-center text-gray-300 hover:text-[#1a5c3a] disabled:opacity-0 disabled:pointer-events-none transition-colors"
+                    title="Flytt økt senere"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 shadow-sm hover:bg-[#ebf5ef] hover:border-[#6ecfb0] hover:text-[#1a5c3a] disabled:opacity-0 disabled:pointer-events-none transition-all"
                   >
-                    <ChevronRight className="w-3 h-3" />
+                    <ChevronRight className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => removeSession(s.day_of_week)}
-                    className={`px-1.5 py-1.5 rounded-r-lg text-xs transition-colors ${isActive ? 'bg-[#1a5c3a] text-[#6ecfb0] hover:text-white' : 'bg-gray-100 text-gray-300 hover:text-red-400 hover:bg-red-50'}`}
+                    title="Fjern økt"
+                    className="w-6 h-7 flex items-center justify-center rounded-lg text-xs text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                   >✕</button>
                 </div>
               )
@@ -1585,20 +1603,38 @@ export default function StandaloneTrainingPlanEditor({
                     <>
                       {renderExerciseSection(undefined)}
 
-                      {activeSession.sections.map(secType => (
+                      {activeSession.sections.map((secType, secIdx) => (
                         <div key={secType} className="mt-5 pt-4 border-t-2 border-dashed border-gray-100">
                           <div className="flex items-center justify-between mb-2">
                             <h4 className="flex items-center gap-1.5 text-sm font-bold text-gray-700">
                               <span className="text-[#2d8653]">{SUBSECTION_ICONS[secType]}</span>
                               {SUBSECTION_LABELS[secType]}
                             </h4>
-                            <button
-                              onClick={() => removeSubSection(dayNum, secType)}
-                              title="Fjern seksjon"
-                              className="text-gray-300 hover:text-red-400 transition-colors"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => moveSubSection(dayNum, secType, -1)}
+                                disabled={secIdx === 0}
+                                title="Flytt seksjon opp"
+                                className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                              >
+                                <ChevronUp className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => moveSubSection(dayNum, secType, 1)}
+                                disabled={secIdx === activeSession.sections.length - 1}
+                                title="Flytt seksjon ned"
+                                className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                              >
+                                <ChevronDown className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => removeSubSection(dayNum, secType)}
+                                title="Fjern seksjon"
+                                className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:bg-red-50 hover:text-red-400 transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                           {renderExerciseSection(secType)}
                         </div>

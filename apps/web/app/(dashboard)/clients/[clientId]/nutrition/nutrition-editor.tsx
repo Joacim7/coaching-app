@@ -534,18 +534,22 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
     setTimeout(() => setTemplateSaved(false), 2000)
   }
 
-  // Auto-save: debounce ~2.5s after any change to title/macros/meals, when
-  // editing an already-saved plan. Scoped to existing plans only — auto-
-  // saving a brand-new one would silently insert a row before the coach
-  // finishes setting it up, so that still needs an explicit "Lagre" click.
-  // The Lagre button's own label doubles as the auto-save indicator
-  // ("Lagrer..." / "Lagret ✓") since it's driven by the same saving/saved
-  // state either way.
+  // Auto-save: debounce ~2.5s after any change to title/macros/meals,
+  // including the very first change on a brand-new, not-yet-saved plan
+  // (handleSave already knows how to insert vs. update). Gated on
+  // view === 'edit' so it doesn't fire while merely on the "choose AI or
+  // manual" screen, and skips the initial mount so opening an existing plan
+  // (which sets these fields from its saved data) doesn't immediately
+  // re-save it — only an actual edit starts the debounce. The Lagre
+  // button's own label doubles as the auto-save indicator ("Lagrer..." /
+  // "Lagret ✓") since it's driven by the same saving/saved state.
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleSaveRef = useRef(handleSave)
   useEffect(() => { handleSaveRef.current = handleSave })
+  const isFirstRenderRef = useRef(true)
   useEffect(() => {
-    if (!editingPlan?.id) return
+    if (isFirstRenderRef.current) { isFirstRenderRef.current = false; return }
+    if (view !== 'edit') return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => { handleSaveRef.current() }, 2500)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
