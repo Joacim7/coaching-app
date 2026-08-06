@@ -1675,13 +1675,6 @@ export default function StandaloneTrainingPlanEditor({
                     )
                   }
 
-                  // Headers only earn their place once there's actually
-                  // something to tell apart — with a single named section
-                  // there's nothing to visually separate it from, so it
-                  // renders like the unsectioned group (no label/divider).
-                  const namedSectionCount = activeSession.sections.filter(t => t !== null).length
-                  const showHeaders = namedSectionCount >= 2
-
                   return (
                     <>
                       {activeSession.sections.map((secType, secIdx) => {
@@ -1693,9 +1686,6 @@ export default function StandaloneTrainingPlanEditor({
                         // pre-existing untagged exercises).
                         if (secType === null) {
                           return <div key="unsectioned">{renderExerciseSection(undefined)}</div>
-                        }
-                        if (!showHeaders) {
-                          return <div key={secType}>{renderExerciseSection(secType)}</div>
                         }
                         return (
                           <div key={secType} className="mt-5 pt-4 border-t-2 border-[#cdeee3]">
