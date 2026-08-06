@@ -847,7 +847,12 @@ function SubSectionAdder({ existing, onAdd }: {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 top-full left-0 mt-1 w-48 bg-white rounded-xl border border-gray-200 shadow-lg p-1.5">
+          {/* Opens upward — this button always sits at the very bottom of a
+              (potentially long, scrollable) section list, so a downward
+              menu can render below the visible scroll area and get clipped
+              by the pane's overflow-y-auto, making its items unclickable
+              even though the trigger button itself works fine. */}
+          <div className="absolute z-20 bottom-full left-0 mb-1 w-48 bg-white rounded-xl border border-gray-200 shadow-lg p-1.5">
             {available.map(t => (
               <button
                 key={t}
@@ -1023,19 +1028,13 @@ export default function StandaloneTrainingPlanEditor({
 
   // Adds a named sub-section header to a day (no-op if it's already there).
   const addSubSection = useCallback((dayNum: number, type: SubSectionType) => {
-    setSessions(prev => {
-      const next = prev.map(s =>
+    setSessions(prev =>
+      prev.map(s =>
         s.day_of_week === dayNum && !s.sections.includes(type)
           ? { ...s, sections: [...s.sections, type] }
           : s
       )
-      console.log('[DEBUG addSubSection]', {
-        dayNum, type,
-        sectionsBefore: prev.find(s => s.day_of_week === dayNum)?.sections,
-        sectionsAfter: next.find(s => s.day_of_week === dayNum)?.sections,
-      })
-      return next
-    })
+    )
   }, [])
 
   // Removing a sub-section un-tags its exercises (back to the unsectioned
@@ -1601,12 +1600,6 @@ export default function StandaloneTrainingPlanEditor({
                 {activeSession.type === 'styrke' && (() => {
                   const dayNum = activeSession.day_of_week
 
-                  console.log('[DEBUG render styrke session]', {
-                    dayNum,
-                    sections: activeSession.sections,
-                    exercises: activeSession.exercises.map(e => ({ id: e.id, name: e.name, section: e.section })),
-                  })
-
                   // Renders one section's worth of exercises (unsectioned
                   // when `sectionFilter` is undefined) — its own superset
                   // grouping, drop zone and manual-add button, with
@@ -1685,8 +1678,6 @@ export default function StandaloneTrainingPlanEditor({
                   return (
                     <>
                       {activeSession.sections.map((secType, secIdx) => {
-                        console.log('[DEBUG rendering section]', { secIdx, secType, isNull: secType === null })
-
                         // The unsectioned group has no header/controls of
                         // its own — it's just wherever it sits in the
                         // order — but it's still a real slot so a named
