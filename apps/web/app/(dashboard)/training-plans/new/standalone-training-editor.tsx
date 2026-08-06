@@ -1678,6 +1678,15 @@ export default function StandaloneTrainingPlanEditor({
                   return (
                     <>
                       {activeSession.sections.map((secType, secIdx) => {
+                        console.log('[DEBUG section header loop]', {
+                          secIdx,
+                          secType,
+                          secTypeJSON: JSON.stringify(secType),
+                          isNull: secType === null,
+                          willRenderHeader: secType !== null,
+                          fullSectionsArray: activeSession.sections,
+                        })
+
                         // The unsectioned group has no header/controls of
                         // its own — it's just wherever it sits in the
                         // order — but it's still a real slot so a named
