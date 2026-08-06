@@ -54,6 +54,10 @@ type SessionExercise = {
   muscle_groups?: string[]
   group_id?: string | null // shared id links exercises into a superset
   section?: SubSectionType | null // which sub-section this exercise belongs to, if any
+  // When set, this entry represents a Cardio sub-section's settings (from
+  // the "Legg til kardio" modal) rather than a trackable strength exercise —
+  // the section's content renders a config summary instead of exercise rows.
+  cardioConfig?: CardioConfig
 }
 
 type CardioConfig = {
@@ -448,11 +452,12 @@ function SessionTypeModal({ onSelectStrength, onSelectCardio, onClose }: {
 
 // ── CardioSessionModal ────────────────────────────────────────────────────────
 
-function CardioSessionModal({ onAdd, onClose }: {
+function CardioSessionModal({ initial, onAdd, onClose }: {
+  initial?: CardioConfig
   onAdd: (config: CardioConfig) => void
   onClose: () => void
 }) {
-  const [config, setConfig] = useState<CardioConfig>(defaultCardioConfig())
+  const [config, setConfig] = useState<CardioConfig>(initial ?? defaultCardioConfig())
 
   function update(updates: Partial<CardioConfig>) {
     setConfig(prev => ({ ...prev, ...updates }))
@@ -473,7 +478,7 @@ function CardioSessionModal({ onAdd, onClose }: {
             <div className="w-8 h-8 rounded-lg bg-[#ebf5ef] flex items-center justify-center">
               <Activity className="w-4 h-4 text-[#1a5c3a]" />
             </div>
-            <h2 className="text-lg font-bold text-gray-900">Legg til kardio</h2>
+            <h2 className="text-lg font-bold text-gray-900">{initial ? 'Rediger kardio' : 'Legg til kardio'}</h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-5 h-5" />
@@ -496,7 +501,7 @@ function CardioSessionModal({ onAdd, onClose }: {
             onClick={() => onAdd(config)}
             className="flex-1 h-10 rounded-lg bg-gradient-to-r from-[#1a5c3a] to-[#6ecfb0] text-white text-sm font-bold hover:opacity-90 transition-opacity"
           >
-            Legg til
+            {initial ? 'Lagre' : 'Legg til'}
           </button>
         </div>
       </div>
@@ -921,6 +926,11 @@ export default function StandaloneTrainingPlanEditor({
 
   const [showTypeModal, setShowTypeModal]   = useState(false)
   const [showCardioModal, setShowCardioModal] = useState(false)
+  // Day a Cardio *sub-section*'s "Legg til kardio" modal is open for (null
+  // when closed) — separate from showCardioModal above, which is for
+  // creating a whole cardio-type session, not a sub-section within a
+  // styrkeøkt.
+  const [cardioSubSectionDay, setCardioSubSectionDay] = useState<number | null>(null)
   const [supersetPickerFor, setSupersetPickerFor] = useState<string | null>(null)
 
   const [assignOpen, setAssignOpen]         = useState(false)
@@ -1037,8 +1047,35 @@ export default function StandaloneTrainingPlanEditor({
     )
   }, [])
 
+  // Saves (or updates) the Cardio sub-section's config — adds 'cardio' to
+  // sections if it isn't there yet, and replaces any previous cardioConfig
+  // entry with the new one (there's only ever at most one per day).
+  const saveCardioSubSection = useCallback((dayNum: number, config: CardioConfig) => {
+    setSessions(prev =>
+      prev.map(s => {
+        if (s.day_of_week !== dayNum) return s
+        const sections: (SubSectionType | null)[] = s.sections.includes('cardio') ? s.sections : [...s.sections, 'cardio']
+        const withoutOldCardio = s.exercises.filter(e => !(e.section === 'cardio' && e.cardioConfig))
+        const cardioEntry: SessionExercise = {
+          id: crypto.randomUUID(),
+          name: config.activity_type,
+          sets: 0,
+          reps: '',
+          weight: '',
+          rest: '',
+          notes: config.notes,
+          section: 'cardio',
+          cardioConfig: config,
+        }
+        return { ...s, sections, exercises: [...withoutOldCardio, cardioEntry] }
+      })
+    )
+  }, [])
+
   // Removing a sub-section un-tags its exercises (back to the unsectioned
-  // group) rather than deleting them.
+  // group) rather than deleting them — except Cardio, whose single
+  // cardioConfig entry isn't a real exercise and would just sit in the
+  // general pool as a blank, nameless row, so that one's discarded outright.
   const removeSubSection = useCallback((dayNum: number, type: SubSectionType) => {
     setSessions(prev =>
       prev.map(s =>
@@ -1046,7 +1083,9 @@ export default function StandaloneTrainingPlanEditor({
           ? {
               ...s,
               sections: s.sections.filter(t => t !== type),
-              exercises: s.exercises.map(e => e.section === type ? { ...e, section: undefined } : e),
+              exercises: type === 'cardio'
+                ? s.exercises.filter(e => !(e.section === 'cardio' && e.cardioConfig))
+                : s.exercises.map(e => e.section === type ? { ...e, section: undefined } : e),
             }
           : s
       )
@@ -1369,6 +1408,18 @@ export default function StandaloneTrainingPlanEditor({
         <CardioSessionModal
           onAdd={addCardioSession}
           onClose={() => setShowCardioModal(false)}
+        />
+      )}
+
+      {cardioSubSectionDay != null && (
+        <CardioSessionModal
+          initial={
+            sessions
+              .find(s => s.day_of_week === cardioSubSectionDay)
+              ?.exercises.find(e => e.section === 'cardio' && e.cardioConfig)?.cardioConfig
+          }
+          onAdd={config => { saveCardioSubSection(cardioSubSectionDay, config); setCardioSubSectionDay(null) }}
+          onClose={() => setCardioSubSectionDay(null)}
         />
       )}
 
@@ -1705,6 +1756,10 @@ export default function StandaloneTrainingPlanEditor({
                             </div>
                           )
                         }
+                        const cardioEntry = secType === 'cardio'
+                          ? activeSession.exercises.find(e => e.section === 'cardio' && e.cardioConfig)
+                          : undefined
+
                         return (
                           <div key={secType} className="mt-5 pt-4 border-t-2 border-[#cdeee3]">
                             <div className="flex items-center justify-between mb-2">
@@ -1738,7 +1793,44 @@ export default function StandaloneTrainingPlanEditor({
                                 </button>
                               </div>
                             </div>
-                            {renderExerciseSection(secType)}
+                            {secType === 'cardio' ? (
+                              cardioEntry?.cardioConfig ? (
+                                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 flex items-center justify-between gap-3">
+                                  <div className="text-sm text-gray-700 min-w-0">
+                                    <p className="font-semibold truncate">
+                                      {cardioEntry.cardioConfig.activity_type}
+                                      <span className="font-normal text-gray-400"> · {cardioEntry.cardioConfig.cardio_mode}</span>
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                      {[
+                                        cardioEntry.cardioConfig.duration_min && `${cardioEntry.cardioConfig.duration_min} min`,
+                                        cardioEntry.cardioConfig.distance_km && `${cardioEntry.cardioConfig.distance_km} km`,
+                                        cardioEntry.cardioConfig.heart_rate_zone,
+                                      ].filter(Boolean).join(' · ') || 'Ingen detaljer satt'}
+                                    </p>
+                                    {cardioEntry.cardioConfig.notes && (
+                                      <p className="text-xs text-gray-400 mt-1 truncate">{cardioEntry.cardioConfig.notes}</p>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => setCardioSubSectionDay(dayNum)}
+                                    className="shrink-0 h-8 px-3 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:border-[#6ecfb0] hover:text-[#1a5c3a] transition-colors"
+                                  >
+                                    Rediger
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setCardioSubSectionDay(dayNum)}
+                                  className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-dashed border-gray-200 text-sm font-medium text-gray-400 hover:border-[#6ecfb0] hover:text-[#1a5c3a] transition-colors"
+                                >
+                                  <Activity className="w-4 h-4" />
+                                  Legg til kardio-detaljer
+                                </button>
+                              )
+                            ) : (
+                              renderExerciseSection(secType)
+                            )}
                           </div>
                         )
                       })}
@@ -1746,7 +1838,13 @@ export default function StandaloneTrainingPlanEditor({
                       <div className="mt-4">
                         <SubSectionAdder
                           existing={activeSession.sections.filter((t): t is SubSectionType => t !== null)}
-                          onAdd={type => addSubSection(dayNum, type)}
+                          onAdd={type => {
+                            // Cardio needs its config up front (via the
+                            // same modal as a whole cardio-økt) rather than
+                            // starting as an empty exercise-row section.
+                            if (type === 'cardio') setCardioSubSectionDay(dayNum)
+                            else addSubSection(dayNum, type)
+                          }}
                         />
                       </div>
                     </>
