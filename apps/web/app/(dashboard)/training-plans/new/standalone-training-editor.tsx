@@ -1680,9 +1680,9 @@ export default function StandaloneTrainingPlanEditor({
                           return <div key="unsectioned">{renderExerciseSection(undefined)}</div>
                         }
                         return (
-                          <div key={secType} className="mt-5 pt-4 border-t-2 border-dashed border-gray-100">
+                          <div key={secType} className="mt-5 pt-4 border-t-2 border-[#cdeee3]">
                             <div className="flex items-center justify-between mb-2">
-                              <h4 className="flex items-center gap-1.5 text-sm font-bold text-gray-700">
+                              <h4 className="flex items-center gap-1.5 text-xs font-bold text-[#1a5c3a] uppercase tracking-wide">
                                 <span className="text-[#2d8653]">{SUBSECTION_ICONS[secType]}</span>
                                 {SUBSECTION_LABELS[secType]}
                               </h4>
