@@ -1685,25 +1685,7 @@ export default function StandaloneTrainingPlanEditor({
                         // (that's what lets e.g. "Oppvarming" move above
                         // pre-existing untagged exercises).
                         if (secType === null) {
-                          // Once named sections exist alongside it, the
-                          // unsectioned group needs its own label too —
-                          // otherwise it just looks like an orphaned,
-                          // unexplained block of exercises above the named
-                          // ones. No move/remove controls though: it isn't
-                          // a real removable section, just wherever
-                          // untagged exercises happen to sit.
-                          const hasNamedSections = activeSession.sections.some(t => t !== null)
-                          return (
-                            <div key="unsectioned">
-                              {hasNamedSections && (
-                                <h4 className="flex items-center gap-1.5 mb-2 text-xs font-bold text-[#1a5c3a] uppercase tracking-wide">
-                                  <Plus className="w-3.5 h-3.5 text-[#2d8653]" />
-                                  Generelt
-                                </h4>
-                              )}
-                              {renderExerciseSection(undefined)}
-                            </div>
-                          )
+                          return <div key="unsectioned">{renderExerciseSection(undefined)}</div>
                         }
                         return (
                           <div key={secType} className="mt-5 pt-4 border-t-2 border-[#cdeee3]">
