@@ -1023,13 +1023,19 @@ export default function StandaloneTrainingPlanEditor({
 
   // Adds a named sub-section header to a day (no-op if it's already there).
   const addSubSection = useCallback((dayNum: number, type: SubSectionType) => {
-    setSessions(prev =>
-      prev.map(s =>
+    setSessions(prev => {
+      const next = prev.map(s =>
         s.day_of_week === dayNum && !s.sections.includes(type)
           ? { ...s, sections: [...s.sections, type] }
           : s
       )
-    )
+      console.log('[DEBUG addSubSection]', {
+        dayNum, type,
+        sectionsBefore: prev.find(s => s.day_of_week === dayNum)?.sections,
+        sectionsAfter: next.find(s => s.day_of_week === dayNum)?.sections,
+      })
+      return next
+    })
   }, [])
 
   // Removing a sub-section un-tags its exercises (back to the unsectioned
@@ -1595,13 +1601,22 @@ export default function StandaloneTrainingPlanEditor({
                 {activeSession.type === 'styrke' && (() => {
                   const dayNum = activeSession.day_of_week
 
+                  console.log('[DEBUG render styrke session]', {
+                    dayNum,
+                    sections: activeSession.sections,
+                    exercises: activeSession.exercises.map(e => ({ id: e.id, name: e.name, section: e.section })),
+                  })
+
                   // Renders one section's worth of exercises (unsectioned
-                  // when `secType` is undefined) — its own superset
+                  // when `sectionFilter` is undefined) — its own superset
                   // grouping, drop zone and manual-add button, with
                   // move-up/down bounded to this section's own local range.
-                  const renderExerciseSection = (secType: SubSectionType | undefined) => {
-                    const sectionExercises = activeSession.exercises.filter(e => (e.section ?? undefined) === secType)
-                    const zoneKey = secType ?? 'unsectioned'
+                  // Named distinctly from the `secType` loop variable below
+                  // (which this is called with) purely to avoid shadowing —
+                  // both always carry the same value at any given call site.
+                  const renderExerciseSection = (sectionFilter: SubSectionType | undefined) => {
+                    const sectionExercises = activeSession.exercises.filter(e => (e.section ?? undefined) === sectionFilter)
+                    const zoneKey = sectionFilter ?? 'unsectioned'
 
                     const renderRow = (ex: SessionExercise, groupLabel?: string) => {
                       const localIdx = sectionExercises.findIndex(e => e.id === ex.id)
@@ -1644,7 +1659,7 @@ export default function StandaloneTrainingPlanEditor({
                           )
                         })}
                         <div
-                          data-section={secType ?? ''}
+                          data-section={sectionFilter ?? ''}
                           onDragOver={e => { e.preventDefault(); setDropTarget(zoneKey) }}
                           onDragLeave={() => setDropTarget(null)}
                           onDrop={handleDropzoneDrop}
@@ -1657,7 +1672,7 @@ export default function StandaloneTrainingPlanEditor({
                           {dropTarget === zoneKey ? '✓ Slipp for å legge til' : 'Dra øvelser hit fra biblioteket'}
                         </div>
                         <button
-                          onClick={() => addExerciseToSession(dayNum, undefined, secType)}
+                          onClick={() => addExerciseToSession(dayNum, undefined, sectionFilter)}
                           className="flex items-center gap-2 mt-1 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-[#1a5c3a] hover:bg-[#ebf5ef] transition-colors"
                         >
                           <Plus className="w-4 h-4" />
@@ -1670,6 +1685,8 @@ export default function StandaloneTrainingPlanEditor({
                   return (
                     <>
                       {activeSession.sections.map((secType, secIdx) => {
+                        console.log('[DEBUG rendering section]', { secIdx, secType, isNull: secType === null })
+
                         // The unsectioned group has no header/controls of
                         // its own — it's just wherever it sits in the
                         // order — but it's still a real slot so a named
