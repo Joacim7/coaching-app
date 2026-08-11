@@ -9,8 +9,9 @@ import {
   Dumbbell,
   UtensilsCrossed,
 } from 'lucide-react'
-import type { ClientPhase, ClientStatus, CheckinTemplate } from '@coaching/types'
+import type { ClientPhase, ClientStatus } from '@coaching/types'
 import { getDailyMetrics, averageRecentWeight } from '@/lib/client-metrics'
+import { getEffectiveOnboardingTemplate } from '@/lib/onboarding-template'
 import { PhaseTimeline } from './phase-timeline'
 import { type CheckinRow } from './recent-checkins'
 import { GoalPanel } from './goal-panel'
@@ -51,7 +52,7 @@ export default async function ClientOverviewPage({
   const profile = Array.isArray(rel.profile) ? rel.profile[0] : rel.profile
   const status = (rel.status ?? 'active') as ClientStatus
 
-  const [checkinRes, planRes, mealRes, phasesRes, workoutRes, goalRes, allPlansRes, allMealsRes, onboardingSubRes, onboardingTplRes, dailyMetrics] = await Promise.all([
+  const [checkinRes, planRes, mealRes, phasesRes, workoutRes, goalRes, allPlansRes, allMealsRes, onboardingSubRes, onboardingTpl, dailyMetrics] = await Promise.all([
     supabase
       .from('checkins')
       .select(`
@@ -112,14 +113,7 @@ export default async function ClientOverviewPage({
       .order('submitted_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from('checkin_templates')
-      .select('name, questions')
-      .eq('coach_id', user!.id)
-      .eq('type', 'onboarding')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    getEffectiveOnboardingTemplate(supabase, user!.id),
     getDailyMetrics(supabase, clientId),
   ])
 
@@ -142,7 +136,6 @@ export default async function ClientOverviewPage({
   const onboardingSubTpl = onboardingSub
     ? (Array.isArray(onboardingSub.template) ? onboardingSub.template[0] : onboardingSub.template)
     : null
-  const onboardingTpl  = onboardingTplRes.data as { name: string; questions: CheckinTemplate['questions'] } | null
   const onboardingTemplateName = onboardingSubTpl?.name ?? onboardingTpl?.name ?? null
   const onboardingQuestions    = onboardingSubTpl?.questions ?? onboardingTpl?.questions ?? []
   const onboardingSubmission   = onboardingSub

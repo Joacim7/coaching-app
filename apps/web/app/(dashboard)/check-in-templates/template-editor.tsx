@@ -14,6 +14,7 @@ import type { CheckinQuestion, CheckinTemplate, QuestionType } from '@coaching/t
 
 interface Props {
   initialTemplate?: CheckinTemplate
+  readOnly?: boolean
 }
 
 function newQuestion(): CheckinQuestion {
@@ -26,7 +27,7 @@ const questionTypeLabels: Record<QuestionType, string> = {
   yesno: 'Ja / Nei',
 }
 
-export default function TemplateEditor({ initialTemplate }: Props) {
+export default function TemplateEditor({ initialTemplate, readOnly = false }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [name, setName] = useState(initialTemplate?.name ?? '')
@@ -120,7 +121,13 @@ export default function TemplateEditor({ initialTemplate }: Props) {
         </h1>
       </div>
 
-      <div className="space-y-6">
+      {readOnly && (
+        <div className="mb-6 px-4 py-3 rounded-xl bg-amber-50 border border-amber-100 text-sm text-amber-700">
+          Denne malen er delt av en annen coach i organisasjonen din — kun eieren kan redigere den.
+        </div>
+      )}
+
+      <fieldset disabled={readOnly} className="space-y-6">
         <Card>
           <CardContent className="p-5 space-y-4">
             <div>
@@ -257,22 +264,27 @@ export default function TemplateEditor({ initialTemplate }: Props) {
           </div>
         </div>
 
-        {saveError && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-3 rounded-xl">
-            {saveError}
-          </p>
-        )}
+      </fieldset>
 
-        <div className="flex gap-3">
-          <Link href="/check-in-templates">
-            <Button variant="outline">Avbryt</Button>
-          </Link>
-          <Button onClick={handleSave} disabled={saving || !name.trim()}>
-            <Save className="w-4 h-4" />
-            {saving ? 'Lagrer...' : 'Lagre mal'}
-          </Button>
+      {!readOnly && (
+        <div className="space-y-6 mt-6">
+          {saveError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-3 rounded-xl">
+              {saveError}
+            </p>
+          )}
+
+          <div className="flex gap-3">
+            <Link href="/check-in-templates">
+              <Button variant="outline">Avbryt</Button>
+            </Link>
+            <Button onClick={handleSave} disabled={saving || !name.trim()}>
+              <Save className="w-4 h-4" />
+              {saving ? 'Lagrer...' : 'Lagre mal'}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
