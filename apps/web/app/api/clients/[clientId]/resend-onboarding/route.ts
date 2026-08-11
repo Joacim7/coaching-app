@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendOnboardingForm } from '@/lib/email'
-import type { CheckinTemplate } from '@coaching/types'
+import { getEffectiveOnboardingTemplate } from '@/lib/onboarding-template'
 
 export async function POST(
   _req: Request,
@@ -22,7 +22,7 @@ export async function POST(
 
   if (!rel) return NextResponse.json({ error: 'Fant ikke klient' }, { status: 404 })
 
-  const [{ data: profile }, { data: coachProfile }, { data: tplRaw }] = await Promise.all([
+  const [{ data: profile }, { data: coachProfile }, template] = await Promise.all([
     supabase
       .from('profiles')
       .select('full_name, email, onboarding_token')
@@ -33,17 +33,9 @@ export async function POST(
       .select('full_name')
       .eq('id', user.id)
       .single(),
-    supabase
-      .from('checkin_templates')
-      .select('*')
-      .eq('coach_id', user.id)
-      .eq('type', 'onboarding')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single(),
+    getEffectiveOnboardingTemplate(supabase, user.id),
   ])
 
-  const template = tplRaw as CheckinTemplate | null
   if (!template) {
     return NextResponse.json({ error: 'Ingen onboarding-skjema er satt opp' }, { status: 400 })
   }
