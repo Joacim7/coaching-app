@@ -8,7 +8,7 @@ import type { CheckinTemplate } from '@coaching/types'
 interface Props {
   token: string
   clientId: string
-  fullName: string
+  fullName: string | null
   email: string | null
   hasAccount: boolean
   template: CheckinTemplate | null
@@ -22,13 +22,18 @@ export default function OnboardingFlow({ token, clientId, fullName, email, hasAc
   // without one — this only happens for manually-added clients).
   const [step, setStep] = useState<Step>(hasAccount || !email ? 'form' : 'password')
 
+  // Coaches no longer type a placeholder name at invite time (the client
+  // sets their own real name in the password step), so full_name is null
+  // for a brand new client on their very first visit here.
+  const greeting = fullName ? `Hei, ${fullName}!` : 'Hei!'
+
   console.log('[onboarding-flow] mounted — token:', token, 'clientId:', clientId, 'email:', email, 'hasAccount:', hasAccount, 'hasTemplate:', !!template, 'initialStep:', hasAccount || !email ? 'form' : 'password')
 
   if (step === 'password' && email) {
     return (
       <>
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Hei, {fullName}!</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{greeting}</h1>
           <p className="text-gray-500 mt-1">Sett et passord for å komme i gang</p>
         </div>
         <PasswordSetupStep
@@ -52,7 +57,7 @@ export default function OnboardingFlow({ token, clientId, fullName, email, hasAc
   return (
     <>
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Hei, {fullName}!</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{greeting}</h1>
         <p className="text-gray-500 mt-1">Fyll ut skjemaet nedenfor for å komme i gang</p>
       </div>
       <OnboardingForm token={token} clientId={clientId} template={template} />

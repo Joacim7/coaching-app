@@ -16,7 +16,6 @@ export default function InviteClientDialog({
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -24,7 +23,6 @@ export default function InviteClientDialog({
   const [emailSent, setEmailSent] = useState(false)
 
   function reset() {
-    setFullName('')
     setEmail('')
     setError('')
     setSuccess(false)
@@ -39,7 +37,7 @@ export default function InviteClientDialog({
     const res = await fetch('/api/invite-client', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fullName, email: email.trim() || undefined, coachId }),
+      body: JSON.stringify({ email: email.trim(), coachId }),
     })
 
     const result = await res.json()
@@ -72,7 +70,7 @@ export default function InviteClientDialog({
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Legg til klient</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Opprett klienten manuelt — inviter til appen senere</p>
+                <p className="text-xs text-gray-400 mt-0.5">Send en invitasjon til klientens e-post</p>
               </div>
               <button
                 onClick={() => { setOpen(false); reset() }}
@@ -89,7 +87,7 @@ export default function InviteClientDialog({
                 </div>
                 <p className="font-semibold text-gray-900">Klient lagt til!</p>
                 <p className="text-gray-500 text-sm mt-1">
-                  {fullName} er nå synlig i klientlisten
+                  Klienten er nå synlig i klientlisten
                 </p>
                 {emailSent && (
                   <p className="text-[#2d8653] text-xs mt-2 bg-[#ebf5ef] px-3 py-1.5 rounded-lg">
@@ -100,26 +98,19 @@ export default function InviteClientDialog({
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <Label htmlFor="fullName">Fullt navn</Label>
-                  <Input
-                    id="fullName"
-                    value={fullName}
-                    onChange={e => setFullName(e.target.value)}
-                    placeholder="Ola Nordmann"
-                    required
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">E-post <span className="text-gray-400 font-normal">(valgfritt)</span></Label>
+                  <Label htmlFor="email">E-post</Label>
                   <Input
                     id="email"
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     placeholder="ola@eksempel.no"
+                    required
+                    autoFocus
                   />
-                  <p className="text-xs text-gray-400 mt-1">Brukes til å sende oppstartsskjema automatisk</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Brukes til å sende oppstartsskjema — klienten setter sitt eget navn der
+                  </p>
                 </div>
 
                 {error && (
@@ -135,7 +126,7 @@ export default function InviteClientDialog({
                   >
                     Avbryt
                   </Button>
-                  <Button type="submit" className="flex-1" disabled={loading || !fullName.trim()}>
+                  <Button type="submit" className="flex-1" disabled={loading || !email.trim()}>
                     {loading ? 'Legger til...' : 'Legg til klient'}
                   </Button>
                 </div>

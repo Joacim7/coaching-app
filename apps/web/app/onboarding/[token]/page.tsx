@@ -53,7 +53,7 @@ export default async function OnboardingPage({ params }: Props) {
           </div>
           <h1 className="text-xl font-bold text-gray-900 mb-2">Skjema allerede innsendt</h1>
           <p className="text-gray-500 text-sm">
-            Takk, {profile.full_name}! Vi har allerede mottatt svarene dine.
+            {profile.full_name ? `Takk, ${profile.full_name}! ` : 'Takk! '}Vi har allerede mottatt svarene dine.
           </p>
         </div>
       </div>

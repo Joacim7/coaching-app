@@ -5,12 +5,10 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 export async function sendWelcomeEmail({
   to,
-  clientName,
   coachName,
   onboardingToken,
 }: {
   to: string
-  clientName: string
   coachName: string
   onboardingToken: string
 }): Promise<{ ok: boolean; error?: string }> {
@@ -49,7 +47,7 @@ export async function sendWelcomeEmail({
         <tr>
           <td style="padding:36px 40px">
             <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6">
-              Hei ${clientName}!<br><br>
+              Hei!<br><br>
               ${coachName} har lagt deg til som klient i Nova Performance. Vi gleder oss til å følge deg
               på reisen mot målene dine!
             </p>
