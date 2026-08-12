@@ -9,8 +9,12 @@ export async function POST(
   console.log('[onboarding/set-password] POST received for token:', token)
 
   let password: string | undefined
+  let firstName: string | undefined
+  let lastName: string | undefined
   try {
-    ;({ password } = await req.json() as { password?: string })
+    ;({ password, firstName, lastName } = await req.json() as {
+      password?: string; firstName?: string; lastName?: string
+    })
   } catch (err) {
     console.error('[onboarding/set-password] failed to parse request body:', err)
     return NextResponse.json({ error: 'Ugyldig forespørsel' }, { status: 400 })
@@ -20,6 +24,14 @@ export async function POST(
     console.warn('[onboarding/set-password] rejecting — password missing or too short')
     return NextResponse.json({ error: 'Passordet må være minst 8 tegn' }, { status: 400 })
   }
+
+  firstName = firstName?.trim()
+  lastName  = lastName?.trim()
+  if (!firstName || !lastName) {
+    console.warn('[onboarding/set-password] rejecting — first/last name missing')
+    return NextResponse.json({ error: 'Fornavn og etternavn er påkrevd' }, { status: 400 })
+  }
+  const fullName = `${firstName} ${lastName}`
 
   let admin: ReturnType<typeof createAdminClient>
   try {
@@ -49,8 +61,12 @@ export async function POST(
   }
 
   // Idempotent — if the account already exists, just let the client move on
-  // to the next step instead of erroring out on a second visit/retry.
+  // to the next step instead of erroring out on a second visit/retry. Still
+  // save the real name here too, in case this is a retried request whose
+  // first attempt already flipped has_account before the client saw the
+  // response.
   if (profile.has_account) {
+    await admin.from('profiles').update({ full_name: fullName }).eq('id', profile.id)
     return NextResponse.json({ ok: true, alreadyExists: true })
   }
 
@@ -59,7 +75,7 @@ export async function POST(
     email:         profile.email,
     password,
     email_confirm: true,
-    user_metadata: { full_name: profile.full_name, role: 'client' },
+    user_metadata: { full_name: fullName, role: 'client' },
   })
 
   console.log('[onboarding/set-password] createUser result — error:', createErr?.message ?? null)
@@ -69,16 +85,20 @@ export async function POST(
     // treat as success rather than blocking the client.
     if (createErr.message.toLowerCase().includes('already been registered') ||
         createErr.message.toLowerCase().includes('already exists')) {
-      await admin.from('profiles').update({ has_account: true }).eq('id', profile.id)
+      await admin.from('profiles').update({ has_account: true, full_name: fullName }).eq('id', profile.id)
       return NextResponse.json({ ok: true, alreadyExists: true })
     }
     console.error('[onboarding/set-password] createUser failed:', createErr.message)
     return NextResponse.json({ error: createErr.message }, { status: 500 })
   }
 
+  // Replaces whatever placeholder name the coach typed at invite time (often
+  // just the client's email, entered as a shortcut) with the client's own
+  // real name — this is what makes the coach dashboard show a real name
+  // instead of an email address from this point on.
   const { error: updateErr } = await admin
     .from('profiles')
-    .update({ has_account: true })
+    .update({ has_account: true, full_name: fullName })
     .eq('id', profile.id)
 
   if (updateErr) {

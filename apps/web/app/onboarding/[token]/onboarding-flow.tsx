@@ -77,17 +77,21 @@ function PasswordSetupStep({
   // dispatching the input event React's onChange relies on, so a controlled
   // value prop can end up out of sync with (or fight) what's actually on
   // screen. Reading straight from the DOM at submit time sidesteps that.
-  const passwordRef = useRef<HTMLInputElement>(null)
-  const confirmRef  = useRef<HTMLInputElement>(null)
+  const firstNameRef = useRef<HTMLInputElement>(null)
+  const lastNameRef  = useRef<HTMLInputElement>(null)
+  const passwordRef  = useRef<HTMLInputElement>(null)
+  const confirmRef   = useRef<HTMLInputElement>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
 
-    const password = passwordRef.current?.value ?? ''
-    const confirm  = confirmRef.current?.value ?? ''
+    const firstName = firstNameRef.current?.value.trim() ?? ''
+    const lastName  = lastNameRef.current?.value.trim() ?? ''
+    const password  = passwordRef.current?.value ?? ''
+    const confirm   = confirmRef.current?.value ?? ''
 
-    if (!password || !confirm) return
+    if (!firstName || !lastName || !password || !confirm) return
 
     if (password.length < 8) {
       setError('Passordet må være minst 8 tegn')
@@ -104,7 +108,7 @@ function PasswordSetupStep({
       const res = await fetch(`/api/onboarding/${token}/set-password`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ password }),
+        body:    JSON.stringify({ password, firstName, lastName }),
       })
 
       const rawText = await res.text()
@@ -126,6 +130,34 @@ function PasswordSetupStep({
 
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+            Fornavn
+          </label>
+          <input
+            ref={firstNameRef}
+            type="text"
+            placeholder="Ola"
+            autoFocus
+            autoComplete="given-name"
+            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653] focus:border-transparent"
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+            Etternavn
+          </label>
+          <input
+            ref={lastNameRef}
+            type="text"
+            placeholder="Nordmann"
+            autoComplete="family-name"
+            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653] focus:border-transparent"
+          />
+        </div>
+      </div>
+
       <div>
         <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
           E-post
@@ -146,7 +178,6 @@ function PasswordSetupStep({
           ref={passwordRef}
           type="password"
           placeholder="Minst 8 tegn"
-          autoFocus
           autoComplete="new-password"
           className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653] focus:border-transparent"
         />
