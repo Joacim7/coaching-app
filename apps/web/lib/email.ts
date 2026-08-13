@@ -387,3 +387,81 @@ export async function sendCheckinReminder({
     return { ok: false, error: msg }
   }
 }
+
+// Fixed destination — this always goes to the team inbox, never the
+// requester. replyTo is set to the requester's own address so support can
+// just hit reply, without exposing that address as the visible From.
+const ACCOUNT_DELETION_INBOX = 'info@novaperformance.no'
+
+export async function sendAccountDeletionRequest({
+  email,
+}: {
+  email: string
+}): Promise<{ ok: boolean; error?: string }> {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    console.warn('[email] RESEND_API_KEY not set — skipping account deletion request for', email)
+    return { ok: true }
+  }
+
+  const requestedAt = new Date().toLocaleString('nb-NO', { dateStyle: 'long', timeStyle: 'short' })
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+        <tr>
+          <td style="background:#1a5c3a;padding:28px 36px">
+            <h1 style="margin:0;font-size:20px;font-weight:800;color:#fff">Forespørsel om sletting av konto</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 36px">
+            <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6">
+              En bruker har bedt om å få slettet kontoen og tilhørende data sin via
+              /slett-konto-siden.
+            </p>
+            <table cellpadding="0" cellspacing="0" style="width:100%;font-size:14px;color:#111827">
+              <tr>
+                <td style="padding:4px 0;color:#6b7280">E-post</td>
+                <td style="padding:4px 0;font-weight:600">${email}</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 0;color:#6b7280">Sendt</td>
+                <td style="padding:4px 0;font-weight:600">${requestedAt}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 36px 28px;background:#f9fafb;border-top:1px solid #f0f0f0;text-align:center">
+            <p style="margin:0;font-size:12px;color:#9ca3af">Sendt via Nova Performance</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+
+  try {
+    const { Resend } = await import('resend')
+    const resend = new Resend(apiKey)
+    const { error } = await resend.emails.send({
+      from:    FROM,
+      to:      ACCOUNT_DELETION_INBOX,
+      replyTo: email,
+      subject: `Forespørsel om sletting av konto — ${email}`,
+      html,
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[email] account deletion request failed:', msg)
+    return { ok: false, error: msg }
+  }
+}

@@ -59,8 +59,12 @@ export async function updateSession(request: NextRequest) {
     // authenticated user to know *who* is accepting.
     const isOrgInviteLookup = request.nextUrl.pathname.startsWith('/api/organization/invitations/')
       && request.nextUrl.pathname !== '/api/organization/invitations/accept'
+    // Account deletion page for Google Play's Data Safety requirement — must
+    // be reachable by anyone, including someone who can no longer log in.
+    const isAccountDeletionRoute = request.nextUrl.pathname.startsWith('/slett-konto')
+      || request.nextUrl.pathname.startsWith('/api/account-deletion')
     const isPublic = isAuthRoute || isInviteRoute || isOnboardingRoute || isStartRoute
-      || isOrgInviteLookup || request.nextUrl.pathname === '/'
+      || isOrgInviteLookup || isAccountDeletionRoute || request.nextUrl.pathname === '/'
 
     if (!user && !isPublic) {
       const url = request.nextUrl.clone()
