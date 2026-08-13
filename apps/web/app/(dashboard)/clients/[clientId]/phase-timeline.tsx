@@ -63,6 +63,173 @@ function emptyForm(): FormState {
 
 interface PlanOption { id: string; title: string }
 
+const inputCls  = 'w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653]'
+const selectCls = inputCls
+const labelCls  = 'block text-xs font-medium text-gray-700 mb-1'
+
+// Hoisted out of PhaseTimeline: defined inline in the parent's render body,
+// this was a fresh function/component identity on every PhaseTimeline
+// re-render — so React fully unmounted and remounted this whole form
+// (including the date <input>) on every keystroke or click anywhere in it,
+// which is what closed the native date picker on every interaction
+// regardless of the controlled/uncontrolled fix on the inputs themselves.
+function PhaseForm({
+  form, setForm, onSubmit, onCancel, submitLabel, error, saving,
+  availableTrainingPlans, availableMealPlans,
+}: {
+  form: FormState
+  setForm: (fn: (v: FormState) => FormState) => void
+  onSubmit: (e: React.FormEvent) => void
+  onCancel: () => void
+  submitLabel: string
+  error: string
+  saving: boolean
+  availableTrainingPlans: PlanOption[]
+  availableMealPlans: PlanOption[]
+}) {
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls}>Fasenavn *</label>
+          <input
+            type="text"
+            required
+            placeholder="f.eks. Vektnedgang"
+            value={form.name}
+            onChange={e => setForm(v => ({ ...v, name: e.target.value }))}
+            className={inputCls}
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Farge</label>
+          <div className="flex items-center gap-1.5 flex-wrap h-9">
+            {PRESET_COLORS.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setForm(v => ({ ...v, color: c }))}
+                className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 flex-shrink-0"
+                style={{ backgroundColor: c, borderColor: form.color === c ? '#1f2937' : 'transparent' }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>Fasetype</label>
+        <div className="flex flex-wrap gap-1.5">
+          {PHASE_TYPES.map(t => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setForm(v => ({ ...v, phase_type: v.phase_type === t.value ? '' : t.value }))}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                form.phase_type === t.value
+                  ? 'bg-[#2d8653] text-white border-[#2d8653]'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-[#2d8653] hover:text-[#2d8653]'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>Beskrivelse (valgfri)</label>
+        <textarea
+          value={form.description}
+          onChange={e => setForm(v => ({ ...v, description: e.target.value }))}
+          placeholder="Beskriv målet med denne fasen..."
+          rows={2}
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls}>Startdato *</label>
+          <input
+            type="date"
+            required
+            // Uncontrolled (defaultValue, not value): a controlled date
+            // input makes React re-set the DOM node's .value on every
+            // render, and Chrome dismisses its native calendar popup the
+            // moment that happens. Now that PhaseForm itself is a stable
+            // component (see hoist note above), this is what actually
+            // keeps the input's own DOM node alive across renders too.
+            defaultValue={form.start_date}
+            onChange={e => setForm(v => ({ ...v, start_date: e.target.value }))}
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Sluttdato (valgfri)</label>
+          <input
+            type="date"
+            defaultValue={form.end_date}
+            min={form.start_date}
+            onChange={e => setForm(v => ({ ...v, end_date: e.target.value }))}
+            className={inputCls}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls}>Treningsprogram</label>
+          <select
+            value={form.training_plan_id}
+            onChange={e => setForm(v => ({ ...v, training_plan_id: e.target.value }))}
+            className={selectCls}
+          >
+            <option value="">— Velg program —</option>
+            {availableTrainingPlans.map(p => (
+              <option key={p.id} value={p.id}>{p.title}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={labelCls}>Matplan</label>
+          <select
+            value={form.meal_plan_id}
+            onChange={e => setForm(v => ({ ...v, meal_plan_id: e.target.value }))}
+            className={selectCls}
+          >
+            <option value="">— Velg matplan —</option>
+            {availableMealPlans.map(p => (
+              <option key={p.id} value={p.id}>{p.title}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {error && <p className="text-xs text-red-600">{error}</p>}
+
+      <div className="flex items-center gap-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="h-8 px-4 rounded-lg bg-[#2d8653] text-white text-xs font-semibold hover:bg-[#1a5c3a] disabled:opacity-50 transition-colors flex items-center gap-1.5"
+        >
+          <Check className="w-3.5 h-3.5" />
+          {saving ? 'Lagrer…' : submitLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="h-8 px-3 rounded-lg text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+        >
+          Avbryt
+        </button>
+      </div>
+    </form>
+  )
+}
+
 interface Props {
   clientId: string
   clientSince: string
@@ -185,163 +352,6 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
     startTransition(() => router.refresh())
   }
 
-  const inputCls  = 'w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653]'
-  const selectCls = inputCls
-  const labelCls  = 'block text-xs font-medium text-gray-700 mb-1'
-
-  function PhaseForm({ form, setForm, onSubmit, onCancel, submitLabel }: {
-    form: FormState
-    setForm: (fn: (v: FormState) => FormState) => void
-    onSubmit: (e: React.FormEvent) => void
-    onCancel: () => void
-    submitLabel: string
-  }) {
-    return (
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>Fasenavn *</label>
-            <input
-              type="text"
-              required
-              placeholder="f.eks. Vektnedgang"
-              value={form.name}
-              onChange={e => setForm(v => ({ ...v, name: e.target.value }))}
-              className={inputCls}
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Farge</label>
-            <div className="flex items-center gap-1.5 flex-wrap h-9">
-              {PRESET_COLORS.map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setForm(v => ({ ...v, color: c }))}
-                  className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 flex-shrink-0"
-                  style={{ backgroundColor: c, borderColor: form.color === c ? '#1f2937' : 'transparent' }}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label className={labelCls}>Fasetype</label>
-          <div className="flex flex-wrap gap-1.5">
-            {PHASE_TYPES.map(t => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => setForm(v => ({ ...v, phase_type: v.phase_type === t.value ? '' : t.value }))}
-                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                  form.phase_type === t.value
-                    ? 'bg-[#2d8653] text-white border-[#2d8653]'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-[#2d8653] hover:text-[#2d8653]'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className={labelCls}>Beskrivelse (valgfri)</label>
-          <textarea
-            value={form.description}
-            onChange={e => setForm(v => ({ ...v, description: e.target.value }))}
-            placeholder="Beskriv målet med denne fasen..."
-            rows={2}
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>Startdato *</label>
-            <input
-              type="date"
-              required
-              // Uncontrolled (defaultValue, not value): a controlled date
-              // input makes React re-set the DOM node's .value on every
-              // render, and Chrome dismisses its native calendar popup the
-              // moment that happens — including from the month-navigation
-              // arrows themselves, since those already mutate the input's
-              // displayed value before a date is fully picked. That closed
-              // the picker on every arrow click. onChange still fires and
-              // updates form state normally; only the fight over .value is
-              // removed.
-              defaultValue={form.start_date}
-              onChange={e => setForm(v => ({ ...v, start_date: e.target.value }))}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Sluttdato (valgfri)</label>
-            <input
-              type="date"
-              defaultValue={form.end_date}
-              min={form.start_date}
-              onChange={e => setForm(v => ({ ...v, end_date: e.target.value }))}
-              className={inputCls}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>Treningsprogram</label>
-            <select
-              value={form.training_plan_id}
-              onChange={e => setForm(v => ({ ...v, training_plan_id: e.target.value }))}
-              className={selectCls}
-            >
-              <option value="">— Velg program —</option>
-              {availableTrainingPlans.map(p => (
-                <option key={p.id} value={p.id}>{p.title}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>Matplan</label>
-            <select
-              value={form.meal_plan_id}
-              onChange={e => setForm(v => ({ ...v, meal_plan_id: e.target.value }))}
-              className={selectCls}
-            >
-              <option value="">— Velg matplan —</option>
-              {availableMealPlans.map(p => (
-                <option key={p.id} value={p.id}>{p.title}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {error && <p className="text-xs text-red-600">{error}</p>}
-
-        <div className="flex items-center gap-2">
-          <button
-            type="submit"
-            disabled={saving}
-            className="h-8 px-4 rounded-lg bg-[#2d8653] text-white text-xs font-semibold hover:bg-[#1a5c3a] disabled:opacity-50 transition-colors flex items-center gap-1.5"
-          >
-            <Check className="w-3.5 h-3.5" />
-            {saving ? 'Lagrer…' : submitLabel}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="h-8 px-3 rounded-lg text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-          >
-            Avbryt
-          </button>
-        </div>
-      </form>
-    )
-  }
-
   return (
     <div className="border border-gray-100 rounded-2xl overflow-hidden">
       {/* Header */}
@@ -372,6 +382,10 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
             onSubmit={handleCreate}
             onCancel={() => { setShowCreateForm(false); setCreateForm(emptyForm()); setError('') }}
             submitLabel="Opprett fase"
+            error={error}
+            saving={saving}
+            availableTrainingPlans={availableTrainingPlans}
+            availableMealPlans={availableMealPlans}
           />
         </div>
       )}
@@ -444,6 +458,10 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
                         onSubmit={handleUpdate}
                         onCancel={cancelEdit}
                         submitLabel="Lagre endringer"
+                        error={error}
+                        saving={saving}
+                        availableTrainingPlans={availableTrainingPlans}
+                        availableMealPlans={availableMealPlans}
                       />
                     </div>
                   )
