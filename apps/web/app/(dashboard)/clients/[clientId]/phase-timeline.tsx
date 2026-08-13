@@ -264,7 +264,16 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
             <input
               type="date"
               required
-              value={form.start_date}
+              // Uncontrolled (defaultValue, not value): a controlled date
+              // input makes React re-set the DOM node's .value on every
+              // render, and Chrome dismisses its native calendar popup the
+              // moment that happens — including from the month-navigation
+              // arrows themselves, since those already mutate the input's
+              // displayed value before a date is fully picked. That closed
+              // the picker on every arrow click. onChange still fires and
+              // updates form state normally; only the fight over .value is
+              // removed.
+              defaultValue={form.start_date}
               onChange={e => setForm(v => ({ ...v, start_date: e.target.value }))}
               className={inputCls}
             />
@@ -273,7 +282,7 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
             <label className={labelCls}>Sluttdato (valgfri)</label>
             <input
               type="date"
-              value={form.end_date}
+              defaultValue={form.end_date}
               min={form.start_date}
               onChange={e => setForm(v => ({ ...v, end_date: e.target.value }))}
               className={inputCls}
