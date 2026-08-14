@@ -1267,7 +1267,11 @@ export default function StandaloneTrainingPlanEditor({
         if (error) throw error
       }
 
-      await supabase.from('training_sessions').delete().eq('training_plan_id', planId)
+      // Checked, not fire-and-forget: if this ever silently failed (RLS,
+      // network blip) the insert below would still run and add a second
+      // copy of every session on top of whatever's already there.
+      const { error: deleteError } = await supabase.from('training_sessions').delete().eq('training_plan_id', planId)
+      if (deleteError) throw deleteError
       if (sessions.length > 0) {
         const { error: insertError } = await supabase
           .from('training_sessions')
@@ -1516,7 +1520,14 @@ export default function StandaloneTrainingPlanEditor({
           {savedTemplate ? 'Mal lagret ✓' : 'Lagre som mal'}
         </button>
 
-        <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 h-9 px-4 text-sm font-bold rounded-lg bg-gradient-to-r from-[#1a5c3a] to-[#6ecfb0] text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
+        {/* runSave, not handleSave directly: the debounced auto-save and
+            this button both need to go through the same in-flight guard,
+            since handleSave's DELETE-then-INSERT of sessions isn't atomic —
+            calling handleSave directly here let a manual click race an
+            in-progress auto-save (neither one visible to the other's
+            saveInFlightRef), so both would DELETE then INSERT concurrently
+            and double every session. */}
+        <button onClick={runSave} disabled={saving} className="flex items-center gap-1.5 h-9 px-4 text-sm font-bold rounded-lg bg-gradient-to-r from-[#1a5c3a] to-[#6ecfb0] text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
           <Save className="w-4 h-4" />
           {saved ? 'Lagret ✓' : saving ? 'Lagrer...' : 'Lagre'}
         </button>
