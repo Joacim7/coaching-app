@@ -55,5 +55,11 @@ export async function POST(
     return NextResponse.json({ error: result.error ?? 'Kunne ikke sende e-post' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true })
+  const sentAt = new Date().toISOString()
+  await supabase
+    .from('profiles')
+    .update({ onboarding_email_sent_at: sentAt })
+    .eq('id', clientId)
+
+  return NextResponse.json({ ok: true, sentAt })
 }

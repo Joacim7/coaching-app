@@ -42,7 +42,7 @@ export default async function ClientOverviewPage({
 
   const { data: rel } = await supabase
     .from('coach_clients')
-    .select('status, created_at, profile:profiles!client_id(full_name, created_at)')
+    .select('status, created_at, profile:profiles!client_id(full_name, created_at, onboarding_email_sent_at)')
     .eq('coach_id', user!.id)
     .eq('client_id', clientId)
     .single()
@@ -451,6 +451,7 @@ export default async function ClientOverviewPage({
             templateName={onboardingTemplateName}
             templateQuestions={onboardingQuestions}
             submission={onboardingSubmission}
+            emailSentAt={profile?.onboarding_email_sent_at ?? null}
           />
 
           {/* Mål */}

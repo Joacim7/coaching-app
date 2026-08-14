@@ -16,6 +16,7 @@ interface Props {
   templateName: string | null
   templateQuestions: CheckinQuestion[]
   submission: OnboardingSubmissionInfo | null
+  emailSentAt: string | null
 }
 
 export function OnboardingPanel({
@@ -24,12 +25,18 @@ export function OnboardingPanel({
   templateName,
   templateQuestions,
   submission,
+  emailSentAt,
 }: Props) {
   const [showModal, setShowModal] = useState(false)
   const [sending, setSending] = useState(false)
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null)
+  // Starts from the server-rendered value, then updates optimistically the
+  // moment a (re)send succeeds — so the status badge below reflects it
+  // immediately instead of only after a full page reload.
+  const [sentAt, setSentAt] = useState(emailSentAt)
 
   const completed = submission !== null
+  const sent = sentAt !== null
 
   async function handleResend() {
     setSending(true)
@@ -37,11 +44,12 @@ export function OnboardingPanel({
     const res = await fetch(`/api/clients/${clientId}/resend-onboarding`, { method: 'POST' })
     const data = await res.json().catch(() => ({}))
     setSending(false)
-    setFeedback(
-      res.ok
-        ? { ok: true, message: 'Skjema sendt på nytt' }
-        : { ok: false, message: data.error ?? 'Kunne ikke sende skjema' }
-    )
+    if (res.ok) {
+      setSentAt(data.sentAt ?? new Date().toISOString())
+      setFeedback({ ok: true, message: 'Skjema sendt på nytt' })
+    } else {
+      setFeedback({ ok: false, message: data.error ?? 'Kunne ikke sende skjema' })
+    }
     setTimeout(() => setFeedback(null), 4000)
   }
 
@@ -59,11 +67,11 @@ export function OnboardingPanel({
           <span className="text-xs text-gray-500">Status</span>
           <span
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-              completed ? 'bg-[#ebf5ef] text-[#1a5c3a]' : 'bg-gray-100 text-gray-500'
+              completed ? 'bg-[#ebf5ef] text-[#1a5c3a]' : sent ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-500'
             }`}
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${completed ? 'bg-[#2d8653]' : 'bg-gray-300'}`} />
-            {completed ? 'Fullført' : 'Ikke sendt'}
+            <span className={`w-1.5 h-1.5 rounded-full ${completed ? 'bg-[#2d8653]' : sent ? 'bg-blue-500' : 'bg-gray-300'}`} />
+            {completed ? 'Fullført' : sent ? 'Sendt' : 'Ikke sendt'}
           </span>
         </div>
 

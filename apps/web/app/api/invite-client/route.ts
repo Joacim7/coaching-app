@@ -73,7 +73,12 @@ export async function POST(req: Request) {
     })
     console.log('[invite-client] sendWelcomeEmail result:', JSON.stringify(result))
     emailSent = result.ok
-    if (!result.ok) {
+    if (result.ok) {
+      await supabase
+        .from('profiles')
+        .update({ onboarding_email_sent_at: new Date().toISOString() })
+        .eq('id', clientId)
+    } else {
       console.error('[invite-client] email failed:', result.error)
     }
   } else {
