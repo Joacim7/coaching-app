@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Dumbbell, MoreVertical, UserPlus, Pencil, Copy, Trash2, X, CheckCircle2, Share2,
+  Dumbbell, MoreVertical, UserPlus, Pencil, Copy, Trash2, X, CheckCircle2, Share2, Search,
 } from 'lucide-react'
 
 type Tab = 'maler' | 'alle'
@@ -34,6 +34,7 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
   const [duplicating, setDuplicating] = useState<string | null>(null)
   const [assigningPlanId, setAssigningPlanId] = useState<string | null>(null)
   const [selectedClient, setSelectedClient] = useState('')
+  const [clientQuery, setClientQuery] = useState('')
   const [assigning, setAssigning] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
 
@@ -45,6 +46,13 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
   const maler    = useMemo(() => plans.filter(p => !p.client_id), [plans])
   const alle     = useMemo(() => plans.filter(p => !!p.client_id), [plans])
   const displayed = tab === 'maler' ? maler : alle
+
+  const selectedClientObj = clients.find(c => c.id === selectedClient)
+  const filteredClients = useMemo(() => {
+    const q = clientQuery.trim().toLowerCase()
+    if (!q) return clients
+    return clients.filter(c => c.name.toLowerCase().includes(q))
+  }, [clients, clientQuery])
 
   async function handleDelete(plan: PlanRow) {
     if (!confirm(`Slett "${plan.title}"? Dette kan ikke angres.`)) return
@@ -90,6 +98,7 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
     setAssigning(false)
     setAssigningPlanId(null)
     setSelectedClient('')
+    setClientQuery('')
     if (data.newPlanId) {
       router.push(`/training-plans/${data.newPlanId}`)
     } else {
@@ -198,18 +207,39 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
 
                     {/* Assign inline form */}
                     {isAssigning && (
-                      <div className="flex items-center gap-2 mt-3" onClick={e => e.stopPropagation()}>
-                        <select
-                          value={selectedClient}
-                          onChange={e => setSelectedClient(e.target.value)}
-                          className="h-8 text-xs border border-gray-200 rounded-lg px-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                          autoFocus
-                        >
-                          <option value="">Velg klient...</option>
-                          {clients.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
+                      <div className="flex items-start gap-2 mt-3" onClick={e => e.stopPropagation()}>
+                        <div className="relative">
+                          <div className="relative">
+                            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <input
+                              type="text"
+                              autoFocus
+                              value={selectedClientObj ? selectedClientObj.name : clientQuery}
+                              onChange={e => { setClientQuery(e.target.value); setSelectedClient('') }}
+                              onFocus={() => setSelectedClient('')}
+                              placeholder="Søk klient..."
+                              className="h-8 w-44 text-xs border border-gray-200 rounded-lg pl-7 pr-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                            />
+                          </div>
+                          {!selectedClient && (
+                            <div className="absolute z-20 mt-1 w-44 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                              {filteredClients.length === 0 ? (
+                                <p className="px-3 py-2 text-xs text-gray-400">Ingen treff</p>
+                              ) : (
+                                filteredClients.map(c => (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => { setSelectedClient(c.id); setClientQuery(c.name) }}
+                                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-green-50 transition-colors"
+                                  >
+                                    {c.name}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
                         <button
                           onClick={() => handleAssign(plan.id)}
                           disabled={!selectedClient || assigning}
@@ -218,7 +248,7 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
                           {assigning ? 'Bruker...' : 'Bekreft'}
                         </button>
                         <button
-                          onClick={() => { setAssigningPlanId(null); setSelectedClient('') }}
+                          onClick={() => { setAssigningPlanId(null); setSelectedClient(''); setClientQuery('') }}
                           className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -232,7 +262,7 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {isTemplate && (
                         <button
-                          onClick={() => { setAssigningPlanId(plan.id); setSelectedClient('') }}
+                          onClick={() => { setAssigningPlanId(plan.id); setSelectedClient(''); setClientQuery('') }}
                           className="h-8 px-3 rounded-lg border border-green-200 bg-green-50 text-green-700 text-xs font-semibold hover:bg-green-100 transition-colors flex items-center gap-1.5"
                         >
                           <UserPlus className="w-3.5 h-3.5" />

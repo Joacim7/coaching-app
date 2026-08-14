@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  UtensilsCrossed, MoreVertical, UserPlus, Pencil, Copy, Trash2, X, CheckCircle2,
+  UtensilsCrossed, MoreVertical, UserPlus, Pencil, Copy, Trash2, X, CheckCircle2, Search,
 } from 'lucide-react'
 
 type Tab = 'maler' | 'alle'
@@ -34,6 +34,7 @@ export function MealPlanList({ plans, clients }: Props) {
   const [duplicating, setDuplicating]   = useState<string | null>(null)
   const [assigningPlanId, setAssigning] = useState<string | null>(null)
   const [selectedClient, setSelected]   = useState('')
+  const [clientQuery, setClientQuery]   = useState('')
   const [assigning, setAssigningBusy]   = useState(false)
   const [toast, setToast]               = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
 
@@ -45,6 +46,13 @@ export function MealPlanList({ plans, clients }: Props) {
   const maler    = useMemo(() => plans.filter(p => p.is_template || !p.client_id), [plans])
   const alle     = useMemo(() => plans.filter(p => !p.is_template && !!p.client_id), [plans])
   const displayed = tab === 'maler' ? maler : alle
+
+  const selectedClientObj = clients.find(c => c.id === selectedClient)
+  const filteredClients = useMemo(() => {
+    const q = clientQuery.trim().toLowerCase()
+    if (!q) return clients
+    return clients.filter(c => c.name.toLowerCase().includes(q))
+  }, [clients, clientQuery])
 
   async function handleDelete(plan: MealPlanRow) {
     if (!confirm(`Slett "${plan.title}"? Dette kan ikke angres.`)) return
@@ -86,6 +94,7 @@ export function MealPlanList({ plans, clients }: Props) {
     setAssigningBusy(false)
     setAssigning(null)
     setSelected('')
+    setClientQuery('')
     if (data.newPlanId) { router.push(`/meal-plans/${data.newPlanId}`) }
     else                { showToast('Kunne ikke bruke mal', 'err') }
   }
@@ -191,18 +200,39 @@ export function MealPlanList({ plans, clients }: Props) {
 
                     {/* Assign inline form */}
                     {isAssigningThis && (
-                      <div className="flex items-center gap-2 mt-3" onClick={e => e.stopPropagation()}>
-                        <select
-                          value={selectedClient}
-                          onChange={e => setSelected(e.target.value)}
-                          className="h-8 text-xs border border-gray-200 rounded-lg px-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
-                          autoFocus
-                        >
-                          <option value="">Velg klient...</option>
-                          {clients.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
+                      <div className="flex items-start gap-2 mt-3" onClick={e => e.stopPropagation()}>
+                        <div className="relative">
+                          <div className="relative">
+                            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <input
+                              type="text"
+                              autoFocus
+                              value={selectedClientObj ? selectedClientObj.name : clientQuery}
+                              onChange={e => { setClientQuery(e.target.value); setSelected('') }}
+                              onFocus={() => setSelected('')}
+                              placeholder="Søk klient..."
+                              className="h-8 w-44 text-xs border border-gray-200 rounded-lg pl-7 pr-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
+                            />
+                          </div>
+                          {!selectedClient && (
+                            <div className="absolute z-20 mt-1 w-44 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                              {filteredClients.length === 0 ? (
+                                <p className="px-3 py-2 text-xs text-gray-400">Ingen treff</p>
+                              ) : (
+                                filteredClients.map(c => (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => { setSelected(c.id); setClientQuery(c.name) }}
+                                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#ebf5ef] transition-colors"
+                                  >
+                                    {c.name}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
                         <button
                           onClick={() => handleAssign(plan.id)}
                           disabled={!selectedClient || assigning}
@@ -211,7 +241,7 @@ export function MealPlanList({ plans, clients }: Props) {
                           {assigning ? 'Bruker...' : 'Bekreft'}
                         </button>
                         <button
-                          onClick={() => { setAssigning(null); setSelected('') }}
+                          onClick={() => { setAssigning(null); setSelected(''); setClientQuery('') }}
                           className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -225,7 +255,7 @@ export function MealPlanList({ plans, clients }: Props) {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {isTemplate && (
                         <button
-                          onClick={() => { setAssigning(plan.id); setSelected('') }}
+                          onClick={() => { setAssigning(plan.id); setSelected(''); setClientQuery('') }}
                           className="h-8 px-3 rounded-lg border border-[#cdeee3] bg-[#ebf5ef] text-[#1a5c3a] text-xs font-semibold hover:bg-[#cdeee3] transition-colors flex items-center gap-1.5"
                         >
                           <UserPlus className="w-3.5 h-3.5" />
