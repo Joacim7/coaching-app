@@ -394,7 +394,9 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
       <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-700">Ingredienser</h2>
-          <span className="text-xs text-gray-400">{ingredients.length} ingredienser</span>
+          {ingredients.length > 0 && (
+            <span className="text-xs text-gray-400">{ingredients.length} ingredienser</span>
+          )}
         </div>
 
         <FoodSearchInput onSelect={addIngredient} placeholder="Søk i Matvaretabellen..." />
