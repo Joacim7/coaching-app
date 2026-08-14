@@ -895,9 +895,14 @@ export default function StandaloneTrainingPlanEditor({
     (initialPlan?.sessions ?? [])
       .sort((a, b) => a.day_of_week - b.day_of_week)
       .map(s => {
-        const isCardio = s.session_type === 'cardio'
         const firstEx = Array.isArray(s.exercises) && s.exercises.length > 0 ? s.exercises[0] : null
         const hasCardioConfig = firstEx && typeof firstEx === 'object' && 'activity_type' in (firstEx as object)
+        // Falls back to the shape check, not just the DB column: every
+        // session saved before this fix has session_type stuck at 'styrke'
+        // regardless of its real type (buildSessionRows never wrote it) —
+        // this lets already-corrupted rows still load correctly.
+        const isCardio = s.session_type === 'cardio' || !!hasCardioConfig
+        console.log('[standalone-training-editor] load session', s.id, s.title, '— session_type:', s.session_type, 'hasCardioConfig:', hasCardioConfig, '→ isCardio:', isCardio)
         const loadedExercises = isCardio ? [] : (s.exercises as SessionExercise[])
         // Ordered-unique list of section slots (including the unsectioned
         // group as `null`) in order of first appearance in the saved
@@ -1233,6 +1238,15 @@ export default function StandaloneTrainingPlanEditor({
       training_plan_id: planId,
       day_of_week: s.day_of_week,
       title: s.title,
+      // Never wrote this before — training_sessions.session_type silently
+      // stayed at its column default ('styrke') for every session ever
+      // saved, cardio included. On the next load, isCardio (below) reads
+      // this same column and always got 'styrke' back, so the session
+      // reloaded as a strength session with the raw CardioConfig sitting
+      // in its exercises array — the "sets/reps instead of cardio fields"
+      // bug. Confirmed live: every one of the last 199 saved sessions had
+      // session_type = 'styrke', 16 of them unmistakably cardio.
+      session_type: s.type,
       exercises: s.type === 'cardio'
         ? (s.cardio_config ? [s.cardio_config] : [])
         : s.exercises,
