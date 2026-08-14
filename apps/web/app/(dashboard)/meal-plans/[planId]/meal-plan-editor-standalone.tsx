@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -321,6 +321,7 @@ export default function StandaloneMealPlanEditor({
   const [saved, setSaved] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState('')
+  const [assignQuery, setAssignQuery] = useState('')
   const [assigning, setAssigning] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -409,8 +410,17 @@ export default function StandaloneMealPlanEditor({
     } finally {
       setAssigning(false)
       setAssignOpen(false)
+      setAssignQuery('')
+      setSelectedClientId('')
     }
   }
+
+  const selectedAssignClient = clients.find(c => c.id === selectedClientId)
+  const filteredAssignClients = useMemo(() => {
+    const q = assignQuery.trim().toLowerCase()
+    if (!q) return clients
+    return clients.filter(c => c.name.toLowerCase().includes(q))
+  }, [clients, assignQuery])
 
   // ── Meal mutation helpers ──
 
@@ -526,19 +536,43 @@ export default function StandaloneMealPlanEditor({
         <div className="flex items-center gap-2">
           {!clientId && initialPlan?.id && (
             assignOpen ? (
-              <div className="flex items-center gap-2">
-                <select
-                  value={selectedClientId}
-                  onChange={e => setSelectedClientId(e.target.value)}
-                  className="h-9 text-sm border border-gray-300 rounded-md px-2 bg-white"
-                >
-                  <option value="">Velg klient...</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+              <div className="flex items-start gap-2">
+                <div className="relative">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      autoFocus
+                      value={selectedAssignClient ? selectedAssignClient.name : assignQuery}
+                      onChange={e => { setAssignQuery(e.target.value); setSelectedClientId('') }}
+                      onFocus={() => setSelectedClientId('')}
+                      placeholder="Søk klient..."
+                      className="h-9 w-48 text-sm border border-gray-300 rounded-md pl-7 pr-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#6ecfb0]"
+                    />
+                  </div>
+                  {!selectedClientId && (
+                    <div className="absolute z-20 mt-1 w-48 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-md shadow-lg">
+                      {filteredAssignClients.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-gray-400">Ingen treff</p>
+                      ) : (
+                        filteredAssignClients.map(c => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => { setSelectedClientId(c.id); setAssignQuery(c.name) }}
+                            className="w-full text-left px-3 py-1.5 text-sm hover:bg-[#ebf5ef] transition-colors"
+                          >
+                            {c.name}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
                 <Button size="sm" onClick={handleAssign} disabled={!selectedClientId || assigning}>
                   {assigning ? 'Tildeler...' : 'Tildel'}
                 </Button>
-                <button onClick={() => setAssignOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => { setAssignOpen(false); setAssignQuery(''); setSelectedClientId('') }} className="text-gray-400 hover:text-gray-600">
                   <X className="w-4 h-4" />
                 </button>
               </div>

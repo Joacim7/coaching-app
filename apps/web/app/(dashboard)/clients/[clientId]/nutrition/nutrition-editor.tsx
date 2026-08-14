@@ -30,12 +30,25 @@ type FoodLogEntry = {
   ingredients: { name: string; grams: number; calories: number; protein_g: number; carbs_g: number; fat_g: number }[]
 }
 
+type FavoriteMeal = {
+  id: string
+  name: string
+  meal_type: string
+  calories: number
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+  created_at: string
+  ingredients: { name: string; grams: number; calories: number; protein_g: number; carbs_g: number; fat_g: number }[]
+}
+
 interface Props {
   clientId: string
   clientName: string
   coachId: string
   initialPlans: MealPlan[]
   initialFoodLogs: FoodLogEntry[]
+  initialFavoriteMeals: FavoriteMeal[]
 }
 
 // ── Library recipe types (for replace modal) ──────────────────────────────────
@@ -306,7 +319,7 @@ function NutritionFoodRow({ food, mealIdx, altIdx, foodIdx, updateFood, removeFo
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function NutritionEditor({ clientId, clientName, coachId, initialPlans, initialFoodLogs }: Props) {
+export default function NutritionEditor({ clientId, clientName, coachId, initialPlans, initialFoodLogs, initialFavoriteMeals }: Props) {
   const supabase = createClient()
 
   // ── Top-level view state ──────────────────────────────────────────────────
@@ -318,6 +331,8 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [foodLogs,        setFoodLogs]        = useState<FoodLogEntry[]>(initialFoodLogs)
   const [selectedFoodLog, setSelectedFoodLog] = useState<FoodLogEntry | null>(null)
+  const [favoriteMeals] = useState<FavoriteMeal[]>(initialFavoriteMeals)
+  const [selectedFavorite, setSelectedFavorite] = useState<FavoriteMeal | null>(null)
 
   // ── Editor state ──────────────────────────────────────────────────────────
   const [title,    setTitle]   = useState('Ny matplan')
@@ -843,6 +858,43 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
           })()}
         </div>
 
+        {/* ── Favorittmåltider ─────────────────────────────────────────────── */}
+        <div className="mt-10 max-w-2xl">
+          <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">
+            Favorittmåltider
+          </h2>
+
+          {favoriteMeals.length === 0 ? (
+            <Card>
+              <CardContent className="py-10 text-center text-gray-400 text-sm">
+                Klienten har ikke lagret noen favorittmåltider ennå
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-1.5">
+              {favoriteMeals.map(fav => (
+                <button
+                  key={fav.id}
+                  onClick={() => setSelectedFavorite(fav)}
+                  className="w-full flex items-center gap-4 bg-white rounded-xl px-4 py-3 text-left hover:bg-[#ebf5ef] transition-colors border border-gray-100 hover:border-[#cdeee3]"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{fav.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5 capitalize">{fav.meal_type}</p>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0 text-xs text-gray-500">
+                    <span className="font-semibold text-gray-700">{fav.calories} kcal</span>
+                    <span className="text-[#2d8653]">{fav.protein_g}g P</span>
+                    <span className="text-yellow-600">{fav.carbs_g}g K</span>
+                    <span className="text-orange-500">{fav.fat_g}g F</span>
+                    <span className="text-gray-300">›</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
       {/* ── Food log detail modal ───────────────────────────────────────────── */}
       {selectedFoodLog && (
         <div
@@ -887,6 +939,68 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Ingredienser</p>
                   <div className="space-y-2">
                     {selectedFoodLog.ingredients.map((ing, i) => (
+                      <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{ing.name}</p>
+                          <p className="text-xs text-gray-400">{ing.grams}g</p>
+                        </div>
+                        <div className="text-right text-xs text-gray-500 space-y-0.5">
+                          <p className="font-semibold text-gray-700">{ing.calories} kcal</p>
+                          <p>P {ing.protein_g}g · K {ing.carbs_g}g · F {ing.fat_g}g</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-gray-400 text-center py-8">Ingen ingredienser registrert</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Favorite meal detail modal ──────────────────────────────────────── */}
+      {selectedFavorite && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          onClick={() => setSelectedFavorite(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
+            style={{ maxHeight: '80vh' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <p className="font-bold text-gray-900 text-base">{selectedFavorite.name}</p>
+                <p className="text-xs text-gray-400 mt-0.5 capitalize">{selectedFavorite.meal_type}</p>
+              </div>
+              <button onClick={() => setSelectedFavorite(null)} className="text-gray-400 hover:text-gray-600 mt-0.5">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-around px-5 py-3 bg-[#ebf5ef]">
+              {[
+                { label: 'kcal',    val: selectedFavorite.calories },
+                { label: 'Protein', val: `${selectedFavorite.protein_g}g` },
+                { label: 'Karbo',   val: `${selectedFavorite.carbs_g}g` },
+                { label: 'Fett',    val: `${selectedFavorite.fat_g}g` },
+              ].map(({ label, val }) => (
+                <div key={label} className="text-center">
+                  <p className="text-lg font-bold text-[#1a5c3a]">{val ?? '–'}</p>
+                  <p className="text-xs text-[#2d8653]">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {selectedFavorite.ingredients && selectedFavorite.ingredients.length > 0 ? (
+                <>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Ingredienser</p>
+                  <div className="space-y-2">
+                    {selectedFavorite.ingredients.map((ing, i) => (
                       <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                         <div>
                           <p className="text-sm font-medium text-gray-800">{ing.name}</p>

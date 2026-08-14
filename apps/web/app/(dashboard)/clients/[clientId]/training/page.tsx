@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Dumbbell, AlertTriangle, ChevronRight } from 'lucide-react'
+import { PlanDeleteButton } from './plan-delete-button'
 
 function fmtDate(d: string | null | undefined, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' }) {
   if (!d) return null
@@ -124,13 +125,16 @@ export default async function TrainingPage({
                       <p className="text-xs text-gray-400 mt-0.5">{dateLabel}</p>
                     </div>
                   </div>
-                  <Link
-                    href={`/clients/${clientId}/training/${plan.id}`}
-                    className="shrink-0 flex items-center gap-0.5 text-sm font-semibold text-[#1a5c3a] hover:text-[#2d8653] transition-colors"
-                  >
-                    Åpne plan
-                    <ChevronRight className="w-4 h-4" />
-                  </Link>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Link
+                      href={`/clients/${clientId}/training/${plan.id}`}
+                      className="flex items-center gap-0.5 text-sm font-semibold text-[#1a5c3a] hover:text-[#2d8653] transition-colors"
+                    >
+                      Åpne plan
+                      <ChevronRight className="w-4 h-4" />
+                    </Link>
+                    <PlanDeleteButton planId={plan.id} planTitle={plan.title} />
+                  </div>
                 </div>
               )
             })}

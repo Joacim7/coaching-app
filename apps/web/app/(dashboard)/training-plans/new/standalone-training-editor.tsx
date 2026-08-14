@@ -935,6 +935,7 @@ export default function StandaloneTrainingPlanEditor({
 
   const [assignOpen, setAssignOpen]         = useState(false)
   const [selectedClientId, setSelectedClientId] = useState('')
+  const [assignQuery, setAssignQuery]       = useState('')
   const [assigning, setAssigning]           = useState(false)
 
   const [libSearch, setLibSearch]   = useState('')
@@ -1386,8 +1387,17 @@ export default function StandaloneTrainingPlanEditor({
     } finally {
       setAssigning(false)
       setAssignOpen(false)
+      setAssignQuery('')
+      setSelectedClientId('')
     }
   }
+
+  const selectedAssignClient = clients.find(c => c.id === selectedClientId)
+  const filteredAssignClients = useMemo(() => {
+    const q = assignQuery.trim().toLowerCase()
+    if (!q) return clients
+    return clients.filter(c => c.name.toLowerCase().includes(q))
+  }, [clients, assignQuery])
 
   const activeSession = sessions.find(s => s.day_of_week === activeDay) ?? null
 
@@ -1455,19 +1465,43 @@ export default function StandaloneTrainingPlanEditor({
 
         {!clientId && initialPlan?.id && (
           assignOpen ? (
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedClientId}
-                onChange={e => setSelectedClientId(e.target.value)}
-                className="h-9 text-sm border border-gray-300 rounded-lg px-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#6ecfb0]"
-              >
-                <option value="">Velg klient...</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+            <div className="flex items-start gap-2">
+              <div className="relative">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    autoFocus
+                    value={selectedAssignClient ? selectedAssignClient.name : assignQuery}
+                    onChange={e => { setAssignQuery(e.target.value); setSelectedClientId('') }}
+                    onFocus={() => setSelectedClientId('')}
+                    placeholder="Søk klient..."
+                    className="h-9 w-48 text-sm border border-gray-300 rounded-lg pl-7 pr-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#6ecfb0]"
+                  />
+                </div>
+                {!selectedClientId && (
+                  <div className="absolute z-20 mt-1 w-48 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                    {filteredAssignClients.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-gray-400">Ingen treff</p>
+                    ) : (
+                      filteredAssignClients.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => { setSelectedClientId(c.id); setAssignQuery(c.name) }}
+                          className="w-full text-left px-3 py-1.5 text-sm hover:bg-[#ebf5ef] transition-colors"
+                        >
+                          {c.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
               <button onClick={handleAssign} disabled={!selectedClientId || assigning} className="h-9 px-3 text-sm font-semibold rounded-lg bg-[#1a5c3a] text-white hover:bg-[#2d8653] disabled:opacity-50">
                 {assigning ? 'Tildeler...' : 'Tildel'}
               </button>
-              <button onClick={() => setAssignOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              <button onClick={() => { setAssignOpen(false); setAssignQuery(''); setSelectedClientId('') }} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
             </div>
           ) : (
             <button onClick={() => setAssignOpen(true)} className="flex items-center gap-1.5 h-9 px-3 text-sm font-semibold rounded-lg border border-gray-200 hover:border-gray-300 text-gray-600">

@@ -406,7 +406,7 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
               {phases.map(p => {
                 const left  = pctLeft(p.start_date)
                 const width = pctWidth(p.start_date, p.end_date)
-                const isActive = !p.end_date || p.end_date >= tlEnd
+                const isActive = p.start_date <= tlEnd && (!p.end_date || p.end_date >= tlEnd)
                 return (
                   <div
                     key={p.id}
@@ -440,8 +440,9 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
             {/* Phase list */}
             <div className="space-y-1">
               {phases.map(p => {
-                const isActive  = !p.end_date || p.end_date >= tlEnd
-                const typeLabel = PHASE_TYPES.find(t => t.value === p.phase_type)?.label
+                const isUpcoming = p.start_date > tlEnd
+                const isActive   = !isUpcoming && (!p.end_date || p.end_date >= tlEnd)
+                const typeLabel  = PHASE_TYPES.find(t => t.value === p.phase_type)?.label
 
                 if (editingId === p.id) {
                   return (
@@ -482,6 +483,9 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
                           )}
                           {isActive && (
                             <span className="text-[9px] font-bold text-white bg-gray-700 px-1.5 py-0.5 rounded-full">NÅ</span>
+                          )}
+                          {isUpcoming && (
+                            <span className="text-[9px] font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-full">Kommende</span>
                           )}
                         </div>
                         {p.description && (

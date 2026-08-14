@@ -35,6 +35,14 @@ export default async function NutritionPage({
     .order('created_at', { ascending: false })
     .limit(60)
 
+  // Saved from the mobile app (see migration 068 for the RLS policy letting
+  // a coach read these — the table only ever had a client-owns-it policy).
+  const { data: favoriteMeals } = await supabase
+    .from('favorite_meals')
+    .select('id, name, meal_type, calories, protein_g, carbs_g, fat_g, created_at, ingredients')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+
   return (
     <NutritionEditor
       clientId={clientId}
@@ -42,6 +50,7 @@ export default async function NutritionPage({
       coachId={user!.id}
       initialPlans={(plans ?? []) as import('@coaching/types').MealPlan[]}
       initialFoodLogs={(foodLogs ?? []) as any[]}
+      initialFavoriteMeals={(favoriteMeals ?? []) as any[]}
     />
   )
 }
