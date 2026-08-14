@@ -20,6 +20,30 @@ export async function DELETE(
   return NextResponse.json({ ok: true })
 }
 
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ planId: string }> },
+) {
+  const { planId } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Ikke autorisert' }, { status: 401 })
+
+  const { is_active } = await req.json() as { is_active?: boolean }
+  if (typeof is_active !== 'boolean') {
+    return NextResponse.json({ error: 'Mangler is_active' }, { status: 400 })
+  }
+
+  const { error } = await supabase
+    .from('training_plans')
+    .update({ is_active })
+    .eq('id', planId)
+    .eq('coach_id', user.id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ planId: string }> },

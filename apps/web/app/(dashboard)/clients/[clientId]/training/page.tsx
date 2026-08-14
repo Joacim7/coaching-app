@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Dumbbell, AlertTriangle, ChevronRight } from 'lucide-react'
 import { PlanDeleteButton } from './plan-delete-button'
+import { PlanActivateButton } from './plan-activate-button'
 
 function fmtDate(d: string | null | undefined, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' }) {
   if (!d) return null
@@ -133,6 +134,7 @@ export default async function TrainingPage({
                       Åpne plan
                       <ChevronRight className="w-4 h-4" />
                     </Link>
+                    <PlanActivateButton planId={plan.id} isActive={plan.is_active} />
                     <PlanDeleteButton planId={plan.id} planTitle={plan.title} />
                   </div>
                 </div>
