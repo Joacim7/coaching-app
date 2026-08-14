@@ -888,6 +888,8 @@ export default function StandaloneTrainingPlanEditor({
   const [saving, setSaving]         = useState(false)
   const [saved, setSaved]           = useState(false)
   const [savedTemplate, setSavedTemplate] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting]     = useState(false)
 
   const [sessions, setSessions] = useState<Session[]>(
     (initialPlan?.sessions ?? [])
@@ -1239,10 +1241,20 @@ export default function StandaloneTrainingPlanEditor({
 
   // ── Save (current plan) ───────────────────────────────────────────────────
 
+  // Set the moment handleSave creates a plan; see the comment inside
+  // handleSave for why this exists alongside initialPlan?.id.
+  const createdPlanIdRef = useRef<string | null>(null)
+
   async function handleSave() {
     setSaving(true)
     try {
-      let planId = initialPlan?.id
+      // Falls back to a ref, not just the initialPlan prop: router.replace()
+      // below updates the URL but doesn't guarantee this component gets
+      // fresh props with the new plan's id before another save call runs
+      // (see createdPlanIdRef below) — without this, a second call still
+      // reading a stale null initialPlan?.id would take the create branch
+      // again and insert a second training_plans row.
+      let planId = initialPlan?.id ?? createdPlanIdRef.current
 
       if (!planId) {
         const { data, error } = await supabase
@@ -1258,6 +1270,7 @@ export default function StandaloneTrainingPlanEditor({
           .single()
         if (error) throw error
         planId = data.id
+        createdPlanIdRef.current = planId
         router.replace(clientId ? `/clients/${clientId}/training/${planId}` : `/training-plans/${planId}`)
       } else {
         const { error } = await supabase
@@ -1312,6 +1325,13 @@ export default function StandaloneTrainingPlanEditor({
   const saveInFlightRef = useRef<Promise<void> | null>(null)
   const saveQueuedRef = useRef(false)
   const runSave = useCallback(function runSaveImpl() {
+    // Cancel any independently-pending debounce timer before running —
+    // otherwise a save triggered some other way (e.g. the Lagre button)
+    // leaves that timer armed, and it fires a redundant save later with no
+    // further changes to justify it. For a not-yet-created plan that
+    // redundant call used to insert a second training_plans row, since
+    // nothing else would have cleared the timer for it.
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null }
     if (saveInFlightRef.current) { saveQueuedRef.current = true; return }
     const run = handleSaveRef.current()
     saveInFlightRef.current = run.finally(() => {
@@ -1374,6 +1394,23 @@ export default function StandaloneTrainingPlanEditor({
       console.error('Template save error:', JSON.stringify(err), err)
     } finally {
       setSaving(false)
+    }
+  }
+
+  // training_sessions has ON DELETE CASCADE on training_plan_id, so
+  // deleting the plan row is enough — no separate sessions cleanup needed.
+  async function handleDeletePlan() {
+    if (!initialPlan?.id) return
+    setDeleting(true)
+    try {
+      const { error } = await supabase.from('training_plans').delete().eq('id', initialPlan.id)
+      if (error) throw error
+      router.push(clientId ? `/clients/${clientId}/training` : '/training-plans')
+      router.refresh()
+    } catch (err) {
+      console.error('Delete plan error:', JSON.stringify(err), err)
+      setDeleting(false)
+      setConfirmDelete(false)
     }
   }
 
@@ -1511,6 +1548,32 @@ export default function StandaloneTrainingPlanEditor({
             <button onClick={() => setAssignOpen(true)} className="flex items-center gap-1.5 h-9 px-3 text-sm font-semibold rounded-lg border border-gray-200 hover:border-gray-300 text-gray-600">
               <UserPlus className="w-4 h-4" />
               Tildel
+            </button>
+          )
+        )}
+
+        {initialPlan?.id && (
+          confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-red-600">Slett denne planen?</span>
+              <button
+                onClick={handleDeletePlan}
+                disabled={deleting}
+                className="h-9 px-3 text-sm font-semibold rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+              >
+                {deleting ? 'Sletter...' : 'Ja, slett'}
+              </button>
+              <button onClick={() => setConfirmDelete(false)} className="h-9 px-3 text-sm text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
+                Avbryt
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-1.5 h-9 px-3 text-sm font-semibold rounded-lg border border-gray-200 hover:border-red-300 text-gray-400 hover:text-red-500 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Slett plan
             </button>
           )
         )}
