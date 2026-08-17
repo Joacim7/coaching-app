@@ -143,10 +143,17 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
       const ext  = file.name.split('.').pop() || 'mp4'
       const path = `${user.id}/${crypto.randomUUID()}.${ext}`
 
+      console.log('[exercise video upload] file:', file.name, '— size:', file.size, `bytes (${(file.size / 1024 / 1024).toFixed(1)} MB)`, '— type:', file.type, '— path:', path)
+
       const { error: uploadErr } = await supabase.storage
         .from('exercise-videos')
         .upload(path, file, { contentType: file.type, upsert: false })
-      if (uploadErr) throw uploadErr
+
+      if (uploadErr) {
+        console.error('[exercise video upload] error:', JSON.stringify(uploadErr), uploadErr)
+        throw uploadErr
+      }
+      console.log('[exercise video upload] success:', path)
 
       const { data: pub } = supabase.storage.from('exercise-videos').getPublicUrl(path)
       set('video_url', pub.publicUrl)
