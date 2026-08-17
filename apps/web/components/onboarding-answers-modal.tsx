@@ -54,7 +54,18 @@ export function OnboardingAnswersModal({
   onClose:      () => void
 }) {
   const questionMap = new Map(questions.map(q => [q.id, q]))
-  const entries = Object.entries(answers)
+  // Ordered by the template's own question order, not Object.entries'
+  // insertion order — that followed whatever order the client happened to
+  // answer them in while filling out the form, not the order the coach
+  // authored them in, which is what made e.g. question #1 in the template
+  // show up wherever the client answered it, including last. Any answer
+  // whose question no longer exists in the current template (edited/
+  // removed since the client submitted) still gets shown, just after the
+  // template-ordered ones, instead of silently dropped.
+  const entries: [string, unknown][] = [
+    ...questions.filter(q => q.id in answers).map(q => [q.id, answers[q.id]] as [string, unknown]),
+    ...Object.entries(answers).filter(([key]) => !questionMap.has(key)),
+  ]
 
   return (
     <div
