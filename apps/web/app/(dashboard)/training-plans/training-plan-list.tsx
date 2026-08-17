@@ -7,8 +7,6 @@ import {
   Dumbbell, MoreVertical, UserPlus, Pencil, Copy, Trash2, X, CheckCircle2, Share2, Search,
 } from 'lucide-react'
 
-type Tab = 'maler' | 'alle'
-
 export interface PlanRow {
   id: string
   title: string
@@ -28,7 +26,6 @@ interface Props {
 
 export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Props) {
   const router = useRouter()
-  const [tab, setTab] = useState<Tab>('maler')
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [duplicating, setDuplicating] = useState<string | null>(null)
@@ -43,9 +40,12 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
     setTimeout(() => setToast(null), 3000)
   }
 
-  const maler    = useMemo(() => plans.filter(p => !p.client_id), [plans])
-  const alle     = useMemo(() => plans.filter(p => !!p.client_id), [plans])
-  const displayed = tab === 'maler' ? maler : alle
+  // Only templates ever land here now — plans assigned to a specific
+  // client live on that client's own training tab instead, so there's no
+  // need for this page to also list every assigned plan across all
+  // clients. Still filtered defensively in case a non-template row ever
+  // reaches this component.
+  const displayed = useMemo(() => plans.filter(p => !p.client_id), [plans])
 
   const selectedClientObj = clients.find(c => c.id === selectedClient)
   const filteredClients = useMemo(() => {
@@ -118,45 +118,14 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-gray-200">
-        {([
-          { key: 'maler', label: 'Mine maler', count: maler.length },
-          { key: 'alle',  label: 'Alle planer', count: alle.length },
-        ] as const).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`relative px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap ${
-              tab === t.key
-                ? 'text-[#2d8653] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-[#2d8653]'
-                : 'text-gray-500 hover:text-gray-800'
-            }`}
-          >
-            {t.label}
-            <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
-              tab === t.key ? 'bg-[#cdeee3] text-[#1a5c3a]' : 'bg-gray-100 text-gray-500'
-            }`}>
-              {t.count}
-            </span>
-          </button>
-        ))}
-      </div>
-
       {/* Plan list */}
       {displayed.length === 0 ? (
         <div className="flex flex-col items-center justify-center bg-white rounded-2xl border border-gray-100 py-20">
           <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
             <Dumbbell className="w-6 h-6 text-gray-300" />
           </div>
-          <h3 className="text-base font-semibold text-gray-900 mb-1">
-            {tab === 'maler' ? 'Ingen maler ennå' : 'Ingen treningsplaner'}
-          </h3>
-          <p className="text-sm text-gray-400">
-            {tab === 'maler'
-              ? 'Opprett en mal for å gjenbruke den for flere klienter'
-              : 'Lag din første treningsplan'}
-          </p>
+          <h3 className="text-base font-semibold text-gray-900 mb-1">Ingen maler ennå</h3>
+          <p className="text-sm text-gray-400">Opprett en mal for å gjenbruke den for flere klienter</p>
         </div>
       ) : (
         <div className="space-y-2">

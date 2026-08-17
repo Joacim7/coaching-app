@@ -11,9 +11,13 @@ export default async function TrainingPlansPage() {
   const sharedIds = await getOrgSharedIds(supabase, user!.id, 'training_plan')
   const sharedSet = new Set(sharedIds)
 
+  // Templates only (client_id null) — plans assigned to a specific client
+  // live on that client's own training tab instead, so this page no
+  // longer needs to fetch or list every assigned plan across all clients.
   const base = supabase
     .from('training_plans')
-    .select('id, title, description, client_id, created_at, client:profiles!client_id(full_name)')
+    .select('id, title, description, client_id, created_at')
+    .is('client_id', null)
     .order('created_at', { ascending: false })
 
   const [{ data: plans }, { data: sessions }, { data: clientRels }] = await Promise.all([
@@ -42,13 +46,12 @@ export default async function TrainingPlansPage() {
   })
 
   const rows: PlanRow[] = (plans ?? []).map(plan => {
-    const client = Array.isArray(plan.client) ? plan.client[0] : plan.client
     return {
       id:            plan.id,
       title:         plan.title,
       description:   plan.description ?? null,
       client_id:     plan.client_id ?? null,
-      client_name:   client?.full_name ?? null,
+      client_name:   null,
       session_count: sessionCount[plan.id] ?? 0,
       created_at:    plan.created_at,
       is_org_shared: sharedSet.has(plan.id),
