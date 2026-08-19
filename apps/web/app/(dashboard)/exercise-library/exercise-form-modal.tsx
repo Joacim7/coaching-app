@@ -33,6 +33,7 @@ const CATEGORIES = ['Styrke', 'Hypertrofi', 'Kondisjon', 'Kroppsvekt', 'Mobilite
 const EQUIPMENT = [
   'Kroppsvekt', 'Stang', 'Hantel', 'Kabel', 'Maskin',
   'Kettlebell', 'Resistance band', 'Pull-up-stang', 'Dip-stasjon', 'Medisinball',
+  'Vektskive', 'Step-up boks', 'Stepkasse',
 ]
 
 const PRIMARY_MUSCLES = [
