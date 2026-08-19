@@ -37,17 +37,18 @@ export async function GET() {
   // Get all coach_clients for all org coaches
   const { data: relations } = await admin
     .from('coach_clients')
-    .select('id, coach_id, client_id, status, created_at, profiles:profiles!client_id(id, full_name)')
+    .select('id, coach_id, client_id, status, created_at, profiles:profiles!client_id(id, full_name, has_account)')
     .in('coach_id', coachIds)
     .order('created_at', { ascending: false })
 
   const rows = (relations ?? []).flatMap(rel => {
     const profile = Array.isArray(rel.profiles) ? rel.profiles[0] : rel.profiles
     if (!profile?.id) return []
+    const p = profile as { full_name: string | null; has_account: boolean | null }
     return [{
       id:        rel.id,
       profileId: profile.id,
-      name:      (profile as { full_name: string | null }).full_name ?? 'Ukjent',
+      name:      p.full_name ?? (p.has_account ? 'Ukjent' : 'Venter på registrering'),
       status:    rel.status ?? 'active',
       coachId:   rel.coach_id,
       coachName: coachNameMap.get(rel.coach_id) ?? 'Ukjent',
