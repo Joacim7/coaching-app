@@ -6,9 +6,10 @@ import {
   Building2, Users, UserPlus, FileText, BarChart2, Shield,
   Upload, Trash2, Loader2, Download, File, Plus, X, Mail,
   Clock, CheckCircle2, XCircle, Dumbbell, ChefHat, ClipboardList, Activity,
-  Share2, Link, Utensils,
+  Share2, Link, Utensils, Video,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { exerciseThumbnail } from '@/lib/video-thumbnail'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -440,12 +441,14 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
 type ResourceType = 'checkin_template' | 'training_plan' | 'meal_plan' | 'exercise' | 'recipe'
 
 interface SharedItem {
-  shareId:    string
-  resourceId: string
-  name:       string
-  meta:       string
-  sharedAt:   string
-  sharedBy:   string
+  shareId:      string
+  resourceId:   string
+  name:         string
+  meta:         string
+  sharedAt:     string
+  sharedBy:     string
+  thumbnailUrl?: string | null
+  videoUrl?:     string | null
 }
 interface PickerItem { id: string; name: string }
 
@@ -498,7 +501,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
       for (const r of rows) { byType[r.resource_type] ??= []; byType[r.resource_type].push(r.resource_id) }
 
       // Meta maps: id → { name, meta }
-      const infoMap: Record<string, { name: string; meta: string }> = {}
+      const infoMap: Record<string, { name: string; meta: string; thumbnailUrl?: string | null; videoUrl?: string | null }> = {}
 
       await Promise.all([
         byType.recipe?.length && supabase
@@ -506,10 +509,15 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
           .then(({ data }) => data?.forEach(r => { infoMap[r.id] = { name: r.title, meta: r.servings ? `${r.servings} porsjoner` : '—' } })),
 
         byType.exercise?.length && supabase
-          .from('exercises').select('id,name,muscle_groups').in('id', byType.exercise)
+          .from('exercises').select('id,name,muscle_groups,thumbnail_url,video_url').in('id', byType.exercise)
           .then(({ data }) => data?.forEach(r => {
             const groups: string[] = Array.isArray(r.muscle_groups) ? r.muscle_groups : []
-            infoMap[r.id] = { name: r.name, meta: groups.length ? groups.slice(0, 2).join(', ') + (groups.length > 2 ? ` +${groups.length - 2}` : '') : '—' }
+            infoMap[r.id] = {
+              name: r.name,
+              meta: groups.length ? groups.slice(0, 2).join(', ') + (groups.length > 2 ? ` +${groups.length - 2}` : '') : '—',
+              thumbnailUrl: r.thumbnail_url,
+              videoUrl: r.video_url,
+            }
           })),
 
         byType.training_plan?.length && (async () => {
@@ -540,12 +548,14 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
         if (r.resource_type in result) {
           const info = infoMap[r.resource_id]
           result[r.resource_type as ResourceType].push({
-            shareId:    r.id,
-            resourceId: r.resource_id,
-            name:       info?.name    ?? 'Ukjent',
-            meta:       info?.meta    ?? '—',
-            sharedAt:   r.created_at,
-            sharedBy:   r.shared_by,
+            shareId:      r.id,
+            resourceId:   r.resource_id,
+            name:         info?.name    ?? 'Ukjent',
+            meta:         info?.meta    ?? '—',
+            sharedAt:     r.created_at,
+            sharedBy:     r.shared_by,
+            thumbnailUrl: info?.thumbnailUrl,
+            videoUrl:     info?.videoUrl,
           })
         }
       }
@@ -834,13 +844,40 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
               <tbody className="divide-y divide-gray-50">
                 {currentItems.map(item => {
                   const canRemove = isAdmin || item.sharedBy === userId
+                  const thumb = activeType === 'exercise'
+                    ? exerciseThumbnail({ thumbnail_url: item.thumbnailUrl, video_url: item.videoUrl })
+                    : null
                   return (
                     <tr key={item.shareId} className="group hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-3.5">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-lg bg-[#ebf5ef] flex items-center justify-center text-[#2d8653] flex-shrink-0">
-                            {TYPE_CONFIG[activeType].icon}
-                          </div>
+                          {activeType === 'exercise' ? (
+                            <div className="relative w-10 h-10 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                              {thumb ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={thumb} alt={item.name} className="absolute inset-0 w-full h-full object-cover" />
+                              ) : item.videoUrl ? (
+                                <video src={item.videoUrl} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover" />
+                              ) : (
+                                <Activity className="w-4 h-4 text-[#2d8653]" />
+                              )}
+                              {item.videoUrl && (
+                                <a
+                                  href={item.videoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Se video"
+                                  className="absolute inset-0 flex items-center justify-center bg-gray-900/0 hover:bg-gray-900/30 transition-colors"
+                                >
+                                  <Video className="w-3.5 h-3.5 text-white drop-shadow" />
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="w-7 h-7 rounded-lg bg-[#ebf5ef] flex items-center justify-center text-[#2d8653] flex-shrink-0">
+                              {TYPE_CONFIG[activeType].icon}
+                            </div>
+                          )}
                           {activeType === 'meal_plan' ? (
                             <NextLink
                               href={`/meal-plans/${item.resourceId}`}
