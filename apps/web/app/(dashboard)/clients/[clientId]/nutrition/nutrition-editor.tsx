@@ -333,6 +333,8 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const [selectedFoodLog, setSelectedFoodLog] = useState<FoodLogEntry | null>(null)
   const [favoriteMeals] = useState<FavoriteMeal[]>(initialFavoriteMeals)
   const [selectedFavorite, setSelectedFavorite] = useState<FavoriteMeal | null>(null)
+  const [showLoggedMeals, setShowLoggedMeals] = useState(false)
+  const [showFavorites,   setShowFavorites]   = useState(false)
 
   // ── Editor state ──────────────────────────────────────────────────────────
   const [title,    setTitle]   = useState('Ny matplan')
@@ -795,12 +797,19 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
 
         {/* ── Loggede måltider ────────────────────────────────────────────── */}
         <div className="mt-10 max-w-2xl">
-          <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">
-            Loggede måltider
-          </h2>
+          <button
+            onClick={() => setShowLoggedMeals(v => !v)}
+            className="w-full flex items-center justify-between bg-white rounded-xl px-4 py-3.5 border border-gray-100 hover:border-[#cdeee3] hover:bg-[#ebf5ef] transition-colors"
+          >
+            <span className="text-sm font-bold text-gray-700">
+              Loggede måltider
+              <span className="ml-2 text-xs font-semibold text-gray-400">{foodLogs.length}</span>
+            </span>
+            {showLoggedMeals ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          </button>
 
-          {foodLogs.length === 0 ? (
-            <Card>
+          {!showLoggedMeals ? null : foodLogs.length === 0 ? (
+            <Card className="mt-3">
               <CardContent className="py-10 text-center text-gray-400 text-sm">
                 Ingen måltider logget ennå
               </CardContent>
@@ -814,7 +823,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
               byDate.get(date)!.push(entry)
             }
             return (
-              <div className="space-y-4">
+              <div className="space-y-4 mt-3">
                 {Array.from(byDate.entries()).map(([date, entries]) => {
                   const label = new Date(date).toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'short' })
                   const dayKcal = entries.reduce((s, e) => s + (e.calories ?? 0), 0)
@@ -860,18 +869,25 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
 
         {/* ── Favorittmåltider ─────────────────────────────────────────────── */}
         <div className="mt-10 max-w-2xl">
-          <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">
-            Favorittmåltider
-          </h2>
+          <button
+            onClick={() => setShowFavorites(v => !v)}
+            className="w-full flex items-center justify-between bg-white rounded-xl px-4 py-3.5 border border-gray-100 hover:border-[#cdeee3] hover:bg-[#ebf5ef] transition-colors"
+          >
+            <span className="text-sm font-bold text-gray-700">
+              Favorittmåltider
+              <span className="ml-2 text-xs font-semibold text-gray-400">{favoriteMeals.length}</span>
+            </span>
+            {showFavorites ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          </button>
 
-          {favoriteMeals.length === 0 ? (
-            <Card>
+          {!showFavorites ? null : favoriteMeals.length === 0 ? (
+            <Card className="mt-3">
               <CardContent className="py-10 text-center text-gray-400 text-sm">
                 Klienten har ikke lagret noen favorittmåltider ennå
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 mt-3">
               {favoriteMeals.map(fav => (
                 <button
                   key={fav.id}
