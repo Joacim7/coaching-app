@@ -1048,6 +1048,7 @@ function OrgClientsTab() {
   const [loading, setLoading]   = useState(true)
   const [search, setSearch]     = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('alle')
+  const [filterCoach, setFilterCoach] = useState<string>('alle')
   const [reassigning, setReassigning] = useState<string | null>(null)
   const [toast, setToast]       = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
 
@@ -1097,6 +1098,7 @@ function OrgClientsTab() {
     const q = search.trim().toLowerCase()
     if (q && !c.name.toLowerCase().includes(q) && !c.coachName.toLowerCase().includes(q)) return false
     if (filterStatus !== 'alle' && c.status !== filterStatus) return false
+    if (filterCoach !== 'alle' && c.coachId !== filterCoach) return false
     return true
   })
 
@@ -1160,6 +1162,16 @@ function OrgClientsTab() {
           <option value="onboarding">Onboarding</option>
           <option value="course">På kurs</option>
           <option value="followup">Oppfølging</option>
+        </select>
+        <select
+          value={filterCoach}
+          onChange={e => setFilterCoach(e.target.value)}
+          className="h-10 pl-3 pr-8 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2d8653] appearance-none"
+        >
+          <option value="alle">Alle coacher</option>
+          {coaches.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
         </select>
       </div>
 
