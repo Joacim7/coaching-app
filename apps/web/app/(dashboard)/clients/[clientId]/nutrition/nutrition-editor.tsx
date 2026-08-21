@@ -134,6 +134,10 @@ function newMeal(name: string, time: string): Meal {
   return { name, time, foods: [newFood()], alternatives: [{ foods: [newFood()] }] }
 }
 
+function emptyAlternative(): MealAlternative {
+  return { foods: [newFood()] }
+}
+
 function getAlts(meal: Meal): MealAlternative[] {
   if (meal.alternatives && meal.alternatives.length > 0) return meal.alternatives
   return [{ foods: meal.foods }]
@@ -654,6 +658,32 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
         return { ...m, alternatives: alts, foods: alts[0]?.foods ?? [] }
       })
     )
+  }
+
+  function addMealOfType(opt: { name: string; time: string }) {
+    const idx = meals.length
+    setMeals(prev => [...prev, newMeal(opt.name, opt.time)])
+    setExpandedMeal(idx)
+  }
+
+  function addAlternative(mealIdx: number) {
+    const newAltIdx = getAlts(meals[mealIdx]).length
+    setMeals(prev => prev.map((m, mi) => {
+      if (mi !== mealIdx) return m
+      const alts = [...getAlts(m), emptyAlternative()]
+      return { ...m, alternatives: alts, foods: alts[0]?.foods ?? [] }
+    }))
+    setActiveAlt(prev => ({ ...prev, [mealIdx]: newAltIdx }))
+  }
+
+  function removeAlternative(mealIdx: number, altIdx: number) {
+    setMeals(prev => prev.map((m, mi) => {
+      if (mi !== mealIdx) return m
+      const alts = getAlts(m).filter((_, ai) => ai !== altIdx)
+      if (alts.length === 0) alts.push(emptyAlternative())
+      return { ...m, alternatives: alts, foods: alts[0]?.foods ?? [] }
+    }))
+    setActiveAlt(prev => ({ ...prev, [mealIdx]: 0 }))
   }
 
   // ── LIST VIEW ─────────────────────────────────────────────────────────────
@@ -1903,13 +1933,14 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                     <PenLine className="w-12 h-12 mx-auto mb-3 text-gray-200" />
                     <p className="font-medium">Ingen måltider ennå</p>
                     <p className="text-sm mt-1">Legg til måltider og matvarer manuelt</p>
-                    <Button
-                      className="mt-4" variant="outline"
-                      onClick={() => { setMeals([newMeal('Frokost', '07:30')]); setExpandedMeal(0) }}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Legg til måltid
-                    </Button>
+                    <div className="flex flex-wrap gap-2 justify-center mt-4">
+                      {MEAL_OPTIONS.map(opt => (
+                        <Button key={opt.name} variant="outline" size="sm" onClick={() => addMealOfType(opt)}>
+                          <Plus className="w-3.5 h-3.5" />
+                          {opt.emoji} {opt.name}
+                        </Button>
+                      ))}
+                    </div>
                   </>
                 )}
               </CardContent>
@@ -2004,33 +2035,47 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                     {isExpanded && (
                       <CardContent className="pt-0 pb-5">
                         <div className="border-t border-gray-100 pt-4">
-                          {alts.length > 1 && (
-                            <div className="mb-4">
-                              <div className="flex items-center gap-1 flex-wrap">
-                                <span className="text-xs text-gray-500 mr-1">Alternativ:</span>
-                                {alts.map((a, ai) => (
-                                  <button
-                                    key={ai}
-                                    onClick={() => setActiveAlt(prev => ({ ...prev, [mealIdx]: ai }))}
-                                    title={(a as MealAlternative).name ?? `Alt ${ai + 1}`}
-                                    className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
-                                      ai === altIdx
-                                        ? 'bg-[#2d8653] text-white'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                    }`}
-                                  >
-                                    {ai + 1}
-                                  </button>
-                                ))}
-                              </div>
-                              {/* Show current alt name under the tabs */}
-                              {(curAlt as MealAlternative).name && (
-                                <p className="text-sm font-semibold text-gray-800 mt-2">
-                                  {(curAlt as MealAlternative).name}
-                                </p>
+                          <div className="mb-4">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-xs text-gray-500 mr-1">Alternativ:</span>
+                              {alts.map((a, ai) => (
+                                <button
+                                  key={ai}
+                                  onClick={() => setActiveAlt(prev => ({ ...prev, [mealIdx]: ai }))}
+                                  title={(a as MealAlternative).name ?? `Alt ${ai + 1}`}
+                                  className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
+                                    ai === altIdx
+                                      ? 'bg-[#2d8653] text-white'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {ai + 1}
+                                </button>
+                              ))}
+                              <button
+                                onClick={() => addAlternative(mealIdx)}
+                                title="Nytt alternativ"
+                                className="w-8 h-8 rounded-lg text-xs font-medium border border-dashed border-gray-300 text-gray-400 hover:text-[#2d8653] hover:border-[#2d8653] flex items-center justify-center"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                              {alts.length > 1 && (
+                                <button
+                                  onClick={() => removeAlternative(mealIdx, altIdx)}
+                                  title="Slett dette alternativet"
+                                  className="ml-1 text-gray-300 hover:text-red-500"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               )}
                             </div>
-                          )}
+                            {/* Show current alt name under the tabs */}
+                            {(curAlt as MealAlternative).name && (
+                              <p className="text-sm font-semibold text-gray-800 mt-2">
+                                {(curAlt as MealAlternative).name}
+                              </p>
+                            )}
+                          </div>
 
                           {curAlt.foods.map((food, foodIdx) => (
                             <NutritionFoodRow
@@ -2104,17 +2149,14 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                 )
               })}
 
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const idx = meals.length
-                  setMeals(prev => [...prev, newMeal(`Måltid ${idx + 1}`, '12:00')])
-                  setExpandedMeal(idx)
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                Legg til måltid
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {MEAL_OPTIONS.map(opt => (
+                  <Button key={opt.name} variant="outline" size="sm" onClick={() => addMealOfType(opt)}>
+                    <Plus className="w-3.5 h-3.5" />
+                    {opt.emoji} {opt.name}
+                  </Button>
+                ))}
+              </div>
             </>
           )}
         </div>
