@@ -348,6 +348,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const [meals,    setMeals]   = useState<Meal[]>([])
   const [activeAlt, setActiveAlt] = useState<Record<number, number>>({})
   const [expandedMeal, setExpandedMeal] = useState<number | null>(null)
+  const [expandedAlt, setExpandedAlt] = useState<{ mi: number; ai: number } | null>(null)
   const [editingAltName, setEditingAltName] = useState<{ mi: number; ai: number } | null>(null)
   const [editingMealTabIdx, setEditingMealTabIdx] = useState<number | null>(null)
   const [saving,          setSaving]          = useState(false)
@@ -706,6 +707,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
       return { ...m, alternatives: alts, foods: alts[0]?.foods ?? [] }
     }))
     setActiveAlt(prev => ({ ...prev, [mealIdx]: 0 }))
+    setExpandedAlt(null)
   }
 
   function deleteMeal(mealIdx: number) {
@@ -723,6 +725,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
       })
       return next
     })
+    setExpandedAlt(null)
   }
 
   // ── LIST VIEW ─────────────────────────────────────────────────────────────
@@ -1297,13 +1300,13 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                 const carb = alt.foods.reduce((s, f) => s + f.carbs_g, 0)
                 const fat  = alt.foods.reduce((s, f) => s + f.fat_g, 0)
                 const name = altT.name ?? alt.foods.slice(0, 2).map(f => f.name).join(', ')
-                const isSelected = expandedMeal === mi && (activeAlt[mi] ?? 0) === ai
+                const isSelected = expandedAlt?.mi === mi && expandedAlt?.ai === ai
                 return (
                   <button
                     key={`${mi}-${ai}`}
                     onClick={() => {
                       setExpandedMeal(mi)
-                      setActiveAlt(prev => ({ ...prev, [mi]: ai }))
+                      setExpandedAlt(isSelected ? null : { mi, ai })
                     }}
                     className={`w-full flex items-center gap-3 p-3 border-b border-gray-50 hover:bg-gray-50 text-left transition-colors ${
                       isSelected ? 'bg-[#ebf5ef] border-l-4 border-l-[#2d8653]' : expandedMeal === mi ? 'bg-gray-50/80' : ''
@@ -1439,184 +1442,180 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                 ))}
               </div>
 
-              {/* Recipe alternatives — tabs at top, single active card below */}
-              {expandedMeal !== null && meals[expandedMeal] && (() => {
-                const meal   = meals[expandedMeal]
-                const alts   = getAlts(meal)
-                const altIdx = Math.min(activeAlt[expandedMeal] ?? 0, alts.length - 1)
-                const alt    = alts[altIdx] ?? { foods: [] }
-                const altT   = alt as MealAlternative
-                const kcal   = alt.foods.reduce((s, f) => s + f.calories, 0)
-                const prot   = alt.foods.reduce((s, f) => s + f.protein_g, 0)
-                const carb   = alt.foods.reduce((s, f) => s + f.carbs_g, 0)
-                const fat    = alt.foods.reduce((s, f) => s + f.fat_g, 0)
-                const altName = altT.name ?? alt.foods.map(f => f.name).join(' + ')
-                const isEditingName = editingAltName?.mi === expandedMeal && editingAltName?.ai === altIdx
+              {/* Recipe alternatives — stacked vertically, one below the other */}
+              {expandedMeal !== null && meals[expandedMeal] && (
+                <div className="space-y-3">
+                  {getAlts(meals[expandedMeal]).map((alt, ai) => {
+                    const altT    = alt as MealAlternative
+                    const kcal    = alt.foods.reduce((s, f) => s + f.calories, 0)
+                    const prot    = alt.foods.reduce((s, f) => s + f.protein_g, 0)
+                    const carb    = alt.foods.reduce((s, f) => s + f.carbs_g, 0)
+                    const fat     = alt.foods.reduce((s, f) => s + f.fat_g, 0)
+                    const altName = altT.name ?? alt.foods.map(f => f.name).join(' + ')
+                    const isOpen  = expandedAlt?.mi === expandedMeal && expandedAlt?.ai === ai
+                    const isEditingName = editingAltName?.mi === expandedMeal && editingAltName?.ai === ai
 
-                return (
-                  <div className="space-y-3">
-                    {/* Alternative tabs */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {alts.map((a, ai) => (
-                        <button
-                          key={ai}
-                          onClick={() => setActiveAlt(prev => ({ ...prev, [expandedMeal]: ai }))}
-                          title={(a as MealAlternative).name ?? `Alternativ ${ai + 1}`}
-                          className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
-                            ai === altIdx
-                              ? 'bg-[#2d8653] text-white'
-                              : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                          }`}
+                    return (
+                      <div key={ai} className={`bg-white rounded-xl overflow-hidden transition-shadow ${isOpen ? 'shadow-md ring-1 ring-[#cdeee3]' : 'shadow-sm hover:shadow-md'}`}>
+
+                        {/* Summary row */}
+                        <div
+                          className="flex items-center gap-4 p-4 cursor-pointer"
+                          onClick={e => {
+                            if ((e.target as HTMLElement).closest('input')) return
+                            setExpandedAlt(isOpen ? null : { mi: expandedMeal!, ai })
+                          }}
                         >
-                          {ai + 1}
-                        </button>
-                      ))}
-                      <button
-                        onClick={() => openNewAlternativeModal(expandedMeal, meal.name, targetCals / Math.max(meals.length, 1))}
-                        title="Nytt alternativ"
-                        className="w-8 h-8 rounded-lg text-xs font-medium border border-dashed border-gray-300 text-gray-400 hover:text-[#2d8653] hover:border-[#2d8653] flex items-center justify-center"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Active alternative card */}
-                    <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-                      <div className="flex items-center gap-4 p-4">
-                        {altT.image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={altT.image_url}
-                            alt=""
-                            className="w-20 h-20 rounded-xl object-cover flex-shrink-0"
-                            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                          />
-                        ) : (
-                          <div className="w-20 h-20 rounded-xl flex-shrink-0 flex items-center justify-center [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)]">
-                            <Flame className="w-6 h-6 text-white/70" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            {/* Editable alternative name */}
-                            {isEditingName ? (
-                              <input
-                                autoFocus
-                                value={altT.name ?? altName}
-                                onChange={e => setMeals(prev =>
-                                  prev.map((m, mi2) => {
-                                    if (mi2 !== expandedMeal) return m
-                                    const a2 = getAlts(m).map((a, ai2) =>
-                                      ai2 !== altIdx ? a : { ...a, name: e.target.value } as MealAlternative
-                                    )
-                                    return { ...m, alternatives: a2, foods: a2[0]?.foods ?? [] }
-                                  })
-                                )}
-                                onBlur={() => setEditingAltName(null)}
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter' || e.key === 'Escape') setEditingAltName(null)
-                                }}
-                                className="font-semibold text-gray-900 border-b-2 border-[#6ecfb0] outline-none bg-transparent flex-1 text-sm leading-snug"
-                              />
-                            ) : (
-                              <p
-                                className="font-semibold text-gray-900 leading-snug flex-1 cursor-text hover:text-[#1a5c3a] transition-colors"
-                                onClick={() => setEditingAltName({ mi: expandedMeal, ai: altIdx })}
-                                title="Klikk for å endre navn"
-                              >
-                                {altName}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <p className="text-sm font-bold text-gray-700 pt-0.5">{Math.round(kcal)} kcal</p>
-                              <button
-                                onClick={() => openReplaceModal(expandedMeal, altIdx, meal.name, kcal > 0 ? kcal : 500)}
-                                className="inline-flex items-center gap-1 text-xs text-[#2d8653] hover:text-[#1a5c3a] border border-[#cdeee3] hover:border-[#6ecfb0] bg-[#ebf5ef] hover:bg-[#cdeee3] px-2 py-0.5 rounded-md transition-colors"
-                                title="Bytt ut med oppskrift fra biblioteket"
-                              >
-                                <ArrowLeftRight className="w-3 h-3" />
-                                Bytt ut
-                              </button>
-                              {alts.length > 1 && (
+                          {altT.image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={altT.image_url}
+                              alt=""
+                              className="w-20 h-20 rounded-xl object-cover flex-shrink-0"
+                              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                            />
+                          ) : (
+                            <div className="w-20 h-20 rounded-xl flex-shrink-0 flex items-center justify-center [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)]">
+                              <Flame className="w-6 h-6 text-white/70" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              {/* Editable alternative name */}
+                              {isEditingName ? (
+                                <input
+                                  autoFocus
+                                  value={altT.name ?? altName}
+                                  onChange={e => setMeals(prev =>
+                                    prev.map((m, mi2) => {
+                                      if (mi2 !== expandedMeal) return m
+                                      const a2 = getAlts(m).map((a, ai2) =>
+                                        ai2 !== ai ? a : { ...a, name: e.target.value } as MealAlternative
+                                      )
+                                      return { ...m, alternatives: a2, foods: a2[0]?.foods ?? [] }
+                                    })
+                                  )}
+                                  onBlur={() => setEditingAltName(null)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' || e.key === 'Escape') setEditingAltName(null)
+                                  }}
+                                  onClick={e => e.stopPropagation()}
+                                  className="font-semibold text-gray-900 border-b-2 border-[#6ecfb0] outline-none bg-transparent flex-1 text-sm leading-snug"
+                                />
+                              ) : (
+                                <p
+                                  className="font-semibold text-gray-900 leading-snug flex-1 cursor-text hover:text-[#1a5c3a] transition-colors"
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    setEditingAltName({ mi: expandedMeal!, ai })
+                                    setExpandedAlt({ mi: expandedMeal!, ai })
+                                  }}
+                                  title="Klikk for å endre navn"
+                                >
+                                  {altName}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <p className="text-sm font-bold text-gray-700 pt-0.5">{Math.round(kcal)} kcal</p>
                                 <button
-                                  onClick={() => removeAlternative(expandedMeal, altIdx)}
+                                  onClick={e => { e.stopPropagation(); openReplaceModal(expandedMeal!, ai, meals[expandedMeal!].name, kcal > 0 ? kcal : 500) }}
+                                  className="inline-flex items-center gap-1 text-xs text-[#2d8653] hover:text-[#1a5c3a] border border-[#cdeee3] hover:border-[#6ecfb0] bg-[#ebf5ef] hover:bg-[#cdeee3] px-2 py-0.5 rounded-md transition-colors"
+                                  title="Bytt ut med oppskrift fra biblioteket"
+                                >
+                                  <ArrowLeftRight className="w-3 h-3" />
+                                  Bytt ut
+                                </button>
+                                <button
+                                  onClick={e => { e.stopPropagation(); removeAlternative(expandedMeal!, ai) }}
                                   className="text-gray-300 hover:text-red-500"
                                   title="Slett dette alternativet"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
-                              )}
+                                {isOpen
+                                  ? <ChevronUp className="w-4 h-4 text-gray-400" />
+                                  : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1 truncate">{alt.foods.map(f => f.name).join(' · ')}</p>
+                            <div className="flex items-center gap-2 mt-2.5">
+                              <span className="text-xs font-semibold text-[#2d8653] bg-[#ebf5ef] px-2.5 py-1 rounded-full">P {Math.round(prot)}g</span>
+                              <span className="text-xs font-semibold text-yellow-600 bg-yellow-50 px-2.5 py-1 rounded-full">K {Math.round(carb)}g</span>
+                              <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full">F {Math.round(fat)}g</span>
                             </div>
                           </div>
-                          <p className="text-xs text-gray-400 mt-1 truncate">{alt.foods.map(f => f.name).join(' · ')}</p>
-                          <div className="flex items-center gap-2 mt-2.5">
-                            <span className="text-xs font-semibold text-[#2d8653] bg-[#ebf5ef] px-2.5 py-1 rounded-full">P {Math.round(prot)}g</span>
-                            <span className="text-xs font-semibold text-yellow-600 bg-yellow-50 px-2.5 py-1 rounded-full">K {Math.round(carb)}g</span>
-                            <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full">F {Math.round(fat)}g</span>
-                          </div>
                         </div>
-                      </div>
 
-                      {/* Ingredient editing */}
-                      <div className="border-t border-gray-100 px-4 pb-4 pt-3 bg-gray-50/50">
-                        {alt.foods.map((food, foodIdx) => (
-                          <NutritionFoodRow
-                            key={foodIdx}
-                            food={food}
-                            mealIdx={expandedMeal}
-                            altIdx={altIdx}
-                            foodIdx={foodIdx}
-                            updateFood={updateFood}
-                            removeFood={() => {
-                              setMeals(prev =>
-                                prev.map((m, mi2) => {
-                                  if (mi2 !== expandedMeal) return m
-                                  const a2 = getAlts(m).map((a, ai2) =>
-                                    ai2 !== altIdx ? a : { ...a, foods: a.foods.filter((_, fi) => fi !== foodIdx) }
+                        {/* Expanded ingredient editing */}
+                        {isOpen && (
+                          <div className="border-t border-gray-100 px-4 pb-4 pt-3 bg-gray-50/50">
+                            {alt.foods.map((food, foodIdx) => (
+                              <NutritionFoodRow
+                                key={foodIdx}
+                                food={food}
+                                mealIdx={expandedMeal!}
+                                altIdx={ai}
+                                foodIdx={foodIdx}
+                                updateFood={updateFood}
+                                removeFood={() => {
+                                  setMeals(prev =>
+                                    prev.map((m, mi2) => {
+                                      if (mi2 !== expandedMeal) return m
+                                      const a2 = getAlts(m).map((a, ai2) =>
+                                        ai2 !== ai ? a : { ...a, foods: a.foods.filter((_, fi) => fi !== foodIdx) }
+                                      )
+                                      return { ...m, alternatives: a2, foods: a2[0]?.foods ?? [] }
+                                    })
                                   )
-                                  return { ...m, alternatives: a2, foods: a2[0]?.foods ?? [] }
-                                })
-                              )
-                            }}
-                          />
-                        ))}
-                        {altT.recipe && altT.recipe.length > 0 && (
-                          <div className="mt-3 mb-2 p-3 bg-amber-50 border border-amber-100 rounded-lg">
-                            <p className="text-xs font-semibold text-amber-800 mb-2">Fremgangsmåte</p>
-                            <ol className="space-y-1.5">
-                              {altT.recipe.map((step, si) => (
-                                <li key={si} className="flex gap-2 text-sm text-amber-900">
-                                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-xs flex items-center justify-center font-medium mt-0.5">
-                                    {si + 1}
-                                  </span>
-                                  <span className="leading-snug">{step}</span>
-                                </li>
-                              ))}
-                            </ol>
+                                }}
+                              />
+                            ))}
+                            {altT.recipe && altT.recipe.length > 0 && (
+                              <div className="mt-3 mb-2 p-3 bg-amber-50 border border-amber-100 rounded-lg">
+                                <p className="text-xs font-semibold text-amber-800 mb-2">Fremgangsmåte</p>
+                                <ol className="space-y-1.5">
+                                  {altT.recipe.map((step, si) => (
+                                    <li key={si} className="flex gap-2 text-sm text-amber-900">
+                                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-xs flex items-center justify-center font-medium mt-0.5">
+                                        {si + 1}
+                                      </span>
+                                      <span className="leading-snug">{step}</span>
+                                    </li>
+                                  ))}
+                                </ol>
+                              </div>
+                            )}
+                            <Button
+                              variant="outline" size="sm" className="mt-2"
+                              onClick={() => {
+                                setMeals(prev =>
+                                  prev.map((m, mi2) => {
+                                    if (mi2 !== expandedMeal) return m
+                                    const a2 = getAlts(m).map((a, ai2) =>
+                                      ai2 !== ai ? a : { ...a, foods: [...a.foods, newFood()] }
+                                    )
+                                    return { ...m, alternatives: a2, foods: a2[0]?.foods ?? [] }
+                                  })
+                                )
+                              }}
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              Legg til matvare
+                            </Button>
                           </div>
                         )}
-                        <Button
-                          variant="outline" size="sm" className="mt-2"
-                          onClick={() => {
-                            setMeals(prev =>
-                              prev.map((m, mi2) => {
-                                if (mi2 !== expandedMeal) return m
-                                const a2 = getAlts(m).map((a, ai2) =>
-                                  ai2 !== altIdx ? a : { ...a, foods: [...a.foods, newFood()] }
-                                )
-                                return { ...m, alternatives: a2, foods: a2[0]?.foods ?? [] }
-                              })
-                            )
-                          }}
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          Legg til matvare
-                        </Button>
                       </div>
-                    </div>
-                  </div>
-                )
-              })()}
+                    )
+                  })}
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={() => openNewAlternativeModal(expandedMeal, meals[expandedMeal].name, targetCals / Math.max(meals.length, 1))}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Nytt alternativ
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
