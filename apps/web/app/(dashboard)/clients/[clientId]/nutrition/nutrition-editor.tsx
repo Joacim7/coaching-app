@@ -348,7 +348,6 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const [meals,    setMeals]   = useState<Meal[]>([])
   const [activeAlt, setActiveAlt] = useState<Record<number, number>>({})
   const [expandedMeal, setExpandedMeal] = useState<number | null>(null)
-  const [editingMealNameIdx, setEditingMealNameIdx] = useState<number | null>(null)
   const [expandedAlt, setExpandedAlt] = useState<{ mi: number; ai: number } | null>(null)
   const [editingAltName, setEditingAltName] = useState<{ mi: number; ai: number } | null>(null)
   const [editingMealTabIdx, setEditingMealTabIdx] = useState<number | null>(null)
@@ -444,7 +443,6 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
     setMeals(plan.meals ?? [])
     setActiveAlt({})
     setExpandedMeal((plan.meals?.length ?? 0) > 0 ? 0 : null)
-    setEditingMealNameIdx(null)
     setError(null)
     setMode('manual')
     setView('edit')
@@ -459,7 +457,6 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
     setMeals([])
     setActiveAlt({})
     setExpandedMeal(null)
-    setEditingMealNameIdx(null)
     setError(null)
     setView('choose')
   }
@@ -1378,6 +1375,17 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                     </button>
                   )
                 })}
+                {MEAL_OPTIONS.map(opt => (
+                  <button
+                    key={opt.name}
+                    onClick={() => addMealOfType(opt)}
+                    title={`Legg til ${opt.name}`}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-dashed border-gray-300 text-gray-400 hover:text-[#2d8653] hover:border-[#2d8653] transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    {opt.emoji} {opt.name}
+                  </button>
+                ))}
               </div>
 
               {/* Active meal alternatives — click to expand/edit */}
@@ -1463,6 +1471,15 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                                   <ArrowLeftRight className="w-3 h-3" />
                                   Bytt ut
                                 </button>
+                                {getAlts(meals[expandedMeal]).length > 1 && (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); removeAlternative(expandedMeal!, ai) }}
+                                    className="text-gray-300 hover:text-red-500"
+                                    title="Slett dette alternativet"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                                 {isOpen
                                   ? <ChevronUp className="w-4 h-4 text-gray-400" />
                                   : <ChevronDown className="w-4 h-4 text-gray-400" />}
@@ -1538,6 +1555,13 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                       </div>
                     )
                   })}
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={() => addAlternative(expandedMeal)}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Nytt alternativ
+                  </Button>
                 </div>
               )}
             </div>
@@ -1919,246 +1943,31 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
 
         {/* ── Right panel: meals ─────────────────────────────────────────── */}
         <div className="space-y-4">
-          {meals.length === 0 ? (
-            <Card className="flex items-center justify-center h-64">
-              <CardContent className="text-center text-gray-400">
-                {mode === 'ai' ? (
-                  <>
-                    <Sparkles className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-                    <p className="font-medium">Ingen matplan ennå</p>
-                    <p className="text-sm mt-1">Konfigurer innstillingene og trykk «Generer med AI»</p>
-                  </>
-                ) : (
-                  <>
-                    <PenLine className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-                    <p className="font-medium">Ingen måltider ennå</p>
-                    <p className="text-sm mt-1">Legg til måltider og matvarer manuelt</p>
-                    <div className="flex flex-wrap gap-2 justify-center mt-4">
-                      {MEAL_OPTIONS.map(opt => (
-                        <Button key={opt.name} variant="outline" size="sm" onClick={() => addMealOfType(opt)}>
-                          <Plus className="w-3.5 h-3.5" />
-                          {opt.emoji} {opt.name}
-                        </Button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              {meals.map((meal, mealIdx) => {
-                const alts     = getAlts(meal)
-                const altIdx   = Math.min(activeAlt[mealIdx] ?? 0, alts.length - 1)
-                const curAlt   = alts[altIdx] ?? { foods: [] }
-                const mealCals = curAlt.foods.reduce((s, f) => s + f.calories, 0)
-                const mealProt = curAlt.foods.reduce((s, f) => s + f.protein_g, 0)
-                const isExpanded = expandedMeal === mealIdx
-                const isEditingName = editingMealNameIdx === mealIdx
-
-                const firstImg = (getAlts(meal)[0] as MealAlternative).image_url
-                const curImg  = (curAlt as MealAlternative).image_url
-
-                return (
-                  <Card key={mealIdx} className="overflow-hidden">
-                    {/* Image banner — shown for current alt when expanded, or first alt when collapsed */}
-                    {(isExpanded ? curImg : firstImg) && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={isExpanded ? curImg : firstImg}
-                        alt={meal.name}
-                        className="w-full h-36 object-cover"
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                      />
-                    )}
-                    <div className="flex items-center justify-between px-5 py-3">
-                      {/* Left side: name + stats — div (not button) to allow nested buttons */}
-                      <div
-                        className="flex-1 text-left min-w-0 cursor-pointer"
-                        onClick={() => !isEditingName && setExpandedMeal(isExpanded ? null : mealIdx)}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          {isEditingName ? (
-                            <input
-                              autoFocus
-                              value={meal.name}
-                              onChange={e => setMeals(prev =>
-                                prev.map((m, i) => i === mealIdx ? { ...m, name: e.target.value } : m)
-                              )}
-                              onBlur={() => setEditingMealNameIdx(null)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' || e.key === 'Escape') setEditingMealNameIdx(null)
-                              }}
-                              className="font-semibold text-gray-900 border-b-2 border-[#6ecfb0] outline-none bg-transparent text-base w-full max-w-[180px]"
-                              onClick={e => e.stopPropagation()}
-                            />
-                          ) : (
-                            <span className="font-semibold text-gray-900">{meal.name}</span>
-                          )}
-                          {!isEditingName && (
-                            <button
-                              onClick={e => { e.stopPropagation(); setEditingMealNameIdx(mealIdx) }}
-                              className="text-gray-300 hover:text-[#2d8653] flex-shrink-0"
-                              title="Endre navn"
-                            >
-                              <PenLine className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          <span className="text-sm text-gray-400">{meal.time}</span>
-                        </div>
-                        {/* Descriptive alt name */}
-                        {!isEditingName && (curAlt as MealAlternative).name && (
-                          <p className="text-sm text-gray-600 italic mb-1 truncate">
-                            {(curAlt as MealAlternative).name}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-3 flex-wrap">
-                          {alts.length > 1 && (
-                            <span className="text-xs bg-[#cdeee3] text-[#1a5c3a] px-2 py-0.5 rounded-full">
-                              {alts.length} alternativer
-                            </span>
-                          )}
-                          <span className="text-xs text-gray-500">{Math.round(mealCals)} kcal</span>
-                          <span className="text-xs text-gray-500">{Math.round(mealProt)}g protein</span>
-                          <span className="text-xs text-gray-400">{curAlt.foods.length} matvarer</span>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => setExpandedMeal(isExpanded ? null : mealIdx)}
-                        className="ml-3 flex-shrink-0 text-gray-400 hover:text-gray-600"
-                      >
-                        {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                      </button>
-                    </div>
-
-                    {isExpanded && (
-                      <CardContent className="pt-0 pb-5">
-                        <div className="border-t border-gray-100 pt-4">
-                          <div className="mb-4">
-                            <div className="flex items-center gap-1 flex-wrap">
-                              <span className="text-xs text-gray-500 mr-1">Alternativ:</span>
-                              {alts.map((a, ai) => (
-                                <button
-                                  key={ai}
-                                  onClick={() => setActiveAlt(prev => ({ ...prev, [mealIdx]: ai }))}
-                                  title={(a as MealAlternative).name ?? `Alt ${ai + 1}`}
-                                  className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
-                                    ai === altIdx
-                                      ? 'bg-[#2d8653] text-white'
-                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                  }`}
-                                >
-                                  {ai + 1}
-                                </button>
-                              ))}
-                              <button
-                                onClick={() => addAlternative(mealIdx)}
-                                title="Nytt alternativ"
-                                className="w-8 h-8 rounded-lg text-xs font-medium border border-dashed border-gray-300 text-gray-400 hover:text-[#2d8653] hover:border-[#2d8653] flex items-center justify-center"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                              {alts.length > 1 && (
-                                <button
-                                  onClick={() => removeAlternative(mealIdx, altIdx)}
-                                  title="Slett dette alternativet"
-                                  className="ml-1 text-gray-300 hover:text-red-500"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                            {/* Show current alt name under the tabs */}
-                            {(curAlt as MealAlternative).name && (
-                              <p className="text-sm font-semibold text-gray-800 mt-2">
-                                {(curAlt as MealAlternative).name}
-                              </p>
-                            )}
-                          </div>
-
-                          {curAlt.foods.map((food, foodIdx) => (
-                            <NutritionFoodRow
-                              key={foodIdx}
-                              food={food}
-                              mealIdx={mealIdx}
-                              altIdx={altIdx}
-                              foodIdx={foodIdx}
-                              updateFood={updateFood}
-                              removeFood={() => {
-                                setMeals(prev =>
-                                  prev.map((m, mi) => {
-                                    if (mi !== mealIdx) return m
-                                    const a2 = getAlts(m).map((a, ai) =>
-                                      ai !== altIdx ? a : { ...a, foods: a.foods.filter((_, fi) => fi !== foodIdx) }
-                                    )
-                                    return { ...m, alternatives: a2, foods: a2[0]?.foods ?? [] }
-                                  })
-                                )
-                              }}
-                            />
-                          ))}
-
-                          {curAlt.recipe && curAlt.recipe.length > 0 && (
-                            <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-lg">
-                              <p className="text-xs font-semibold text-amber-800 mb-2">Fremgangsmåte</p>
-                              <ol className="space-y-1">
-                                {curAlt.recipe.map((step, si) => (
-                                  <li key={si} className="flex gap-2 text-sm text-amber-900">
-                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-xs flex items-center justify-center font-medium">
-                                      {si + 1}
-                                    </span>
-                                    <span>{step}</span>
-                                  </li>
-                                ))}
-                              </ol>
-                            </div>
-                          )}
-
-                          <div className="flex gap-2 mt-3">
-                            <Button
-                              variant="outline" size="sm"
-                              onClick={() => {
-                                setMeals(prev =>
-                                  prev.map((m, mi) => {
-                                    if (mi !== mealIdx) return m
-                                    const a2 = getAlts(m).map((a, ai) =>
-                                      ai !== altIdx ? a : { ...a, foods: [...a.foods, newFood()] }
-                                    )
-                                    return { ...m, alternatives: a2, foods: a2[0]?.foods ?? [] }
-                                  })
-                                )
-                              }}
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              Legg til matvare
-                            </Button>
-                            <Button
-                              variant="ghost" size="sm"
-                              className="text-red-500 hover:bg-red-50"
-                              onClick={() => setMeals(prev => prev.filter((_, mi) => mi !== mealIdx))}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Slett måltid
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    )}
-                  </Card>
-                )
-              })}
-
-              <div className="flex flex-wrap gap-2">
-                {MEAL_OPTIONS.map(opt => (
-                  <Button key={opt.name} variant="outline" size="sm" onClick={() => addMealOfType(opt)}>
-                    <Plus className="w-3.5 h-3.5" />
-                    {opt.emoji} {opt.name}
-                  </Button>
-                ))}
-              </div>
-            </>
-          )}
+          <Card className="flex items-center justify-center h-64">
+            <CardContent className="text-center text-gray-400">
+              {mode === 'ai' ? (
+                <>
+                  <Sparkles className="w-12 h-12 mx-auto mb-3 text-gray-200" />
+                  <p className="font-medium">Ingen matplan ennå</p>
+                  <p className="text-sm mt-1">Konfigurer innstillingene og trykk «Generer med AI»</p>
+                </>
+              ) : (
+                <>
+                  <PenLine className="w-12 h-12 mx-auto mb-3 text-gray-200" />
+                  <p className="font-medium">Ingen måltider ennå</p>
+                  <p className="text-sm mt-1">Legg til måltider og matvarer manuelt</p>
+                  <div className="flex flex-wrap gap-2 justify-center mt-4">
+                    {MEAL_OPTIONS.map(opt => (
+                      <Button key={opt.name} variant="outline" size="sm" onClick={() => addMealOfType(opt)}>
+                        <Plus className="w-3.5 h-3.5" />
+                        {opt.emoji} {opt.name}
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 
