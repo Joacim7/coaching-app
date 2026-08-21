@@ -367,12 +367,15 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const [libraryLoading,  setLibraryLoading]  = useState(false)
 
   async function fetchLibraryRecipes(mealName: string): Promise<LibraryRecipe[]> {
-    // Recipe library is org-wide (see migration 055) — not just this coach's own recipes
+    // Recipe library is org-wide (see migration 055) — not just this coach's own recipes.
+    // A coach can belong to more than one org (org_members is UNIQUE(org_id, user_id),
+    // not per-user), so resolve every org they're in rather than assuming a single row.
     let coachIds = [coachId]
-    const { data: membership } = await supabase.from('org_members').select('org_id').eq('user_id', coachId).single()
-    if (membership) {
-      const { data: orgMates } = await supabase.from('org_members').select('user_id').eq('org_id', membership.org_id)
-      if (orgMates?.length) coachIds = orgMates.map(m => m.user_id)
+    const { data: memberships } = await supabase.from('org_members').select('org_id').eq('user_id', coachId)
+    if (memberships?.length) {
+      const orgIds = memberships.map(m => m.org_id)
+      const { data: orgMates } = await supabase.from('org_members').select('user_id').in('org_id', orgIds)
+      if (orgMates?.length) coachIds = [...new Set(orgMates.map(m => m.user_id))]
     }
 
     // Standard (seeded) recipes are visible to every coach regardless of
