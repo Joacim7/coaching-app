@@ -190,7 +190,7 @@ function FoodRow({ food, onUpdate, onRemove, onFoodSelect }: FoodRowProps) {
             </div>
           ) : (
             <div className="space-y-1">
-              <FoodSearchInput onSelect={handleSelect} placeholder="Søk i Matvaretabellen..." />
+              <FoodSearchInput onSelect={handleSelect} placeholder="Søk ingrediens..." />
               {food.name && (
                 <button onClick={() => setSearching(false)} className="text-xs text-gray-400 hover:text-gray-600">
                   Avbryt

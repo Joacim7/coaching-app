@@ -169,6 +169,8 @@ export interface FoodSearchResult {
   protein_per_100g: number
   carbs_per_100g: number
   fat_per_100g: number
+  /** Where this result came from — omitted for plain Matvaretabellen matches. */
+  source?: 'custom' | 'approved'
 }
 
 // AI meal plan generation

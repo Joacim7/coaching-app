@@ -88,7 +88,15 @@ export function FoodSearchInput({ onSelect, placeholder = 'Søk matvare...' }: F
               onClick={() => handleSelect(food)}
               className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
             >
-              <div className="text-sm font-medium text-gray-900 truncate">{food.name}</div>
+              <div className="text-sm font-medium text-gray-900 truncate flex items-center gap-1.5">
+                {food.name}
+                {food.source === 'custom' && (
+                  <span className="shrink-0 text-[10px] font-normal text-blue-600 bg-blue-50 rounded px-1 py-0.5">Egen</span>
+                )}
+                {food.source === 'approved' && (
+                  <span className="shrink-0 text-[10px] font-normal text-emerald-600 bg-emerald-50 rounded px-1 py-0.5">Standard</span>
+                )}
+              </div>
               <div className="text-xs text-gray-500 mt-0.5 flex gap-2">
                 <span>{Math.round(food.calories_per_100g)} kcal</span>
                 <span>{food.protein_per_100g.toFixed(1)}g protein</span>

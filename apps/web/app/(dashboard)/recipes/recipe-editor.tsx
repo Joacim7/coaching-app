@@ -399,7 +399,7 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
           )}
         </div>
 
-        <FoodSearchInput onSelect={addIngredient} placeholder="Søk i Matvaretabellen..." />
+        <FoodSearchInput onSelect={addIngredient} placeholder="Søk ingrediens..." />
 
         {ingredients.length > 0 && (
           <div className="space-y-1">

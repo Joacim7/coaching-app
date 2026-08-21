@@ -263,7 +263,7 @@ function NutritionFoodRow({ food, mealIdx, altIdx, foodIdx, updateFood, removeFo
             </div>
           ) : (
             <div className="space-y-1">
-              <FoodSearchInput onSelect={handleFoodSelect} placeholder="Søk i Matvaretabellen..." />
+              <FoodSearchInput onSelect={handleFoodSelect} placeholder="Søk ingrediens..." />
               {food.name && (
                 <button onClick={() => setSearching(false)} className="text-xs text-gray-400 hover:text-gray-600">
                   Avbryt
