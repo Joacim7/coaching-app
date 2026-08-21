@@ -1609,7 +1609,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                   })}
                   <Button
                     variant="outline" size="sm"
-                    onClick={() => openNewAlternativeModal(expandedMeal, meals[expandedMeal].name, targetCals / Math.max(meals.length, 1))}
+                    onClick={() => openNewAlternativeModal(expandedMeal, meals[expandedMeal].name, 500)}
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Nytt alternativ
