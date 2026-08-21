@@ -380,11 +380,14 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
 
     // Standard (seeded) recipes are visible to every coach regardless of
     // org (see migration 065), combined with the org-wide set above.
+    // Recipes saved without a meal type ("Ikke valgt" in the recipe editor)
+    // have meal_type = null — ilike alone excludes NULL rows, which would
+    // silently hide org-shared recipes a coach forgot to tag. Include them.
     const { data } = await supabase
       .from('recipes')
       .select('id,title,instructions,image_url,meal_type,calories_per_serving,protein_per_serving,carbs_per_serving,fat_per_serving,ingredients')
       .or(`coach_id.in.(${coachIds.join(',')}),is_standard.eq.true`)
-      .ilike('meal_type', mealName)
+      .or(`meal_type.ilike.${mealName},meal_type.is.null`)
       .order('title', { ascending: true })
     return (data ?? []) as LibraryRecipe[]
   }
