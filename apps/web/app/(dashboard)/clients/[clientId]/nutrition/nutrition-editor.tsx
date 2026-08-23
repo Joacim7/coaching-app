@@ -162,6 +162,20 @@ function getAlts(meal: Meal): MealAlternative[] {
   return [{ foods: meal.foods }]
 }
 
+// The meal's real calorie target, inferred from its alternatives — used when
+// swapping a recipe so the replacement matches the meal as a whole, not just
+// whatever the one alternative being replaced currently happens to show (which
+// can be a stale/wrong outlier, e.g. from an earlier bad swap or generation).
+// Median is robust against a single alt being off.
+function mealTargetCals(meal: Meal): number {
+  const totals = getAlts(meal)
+    .map(a => a.foods.reduce((s, f) => s + f.calories, 0))
+    .filter(t => t > 0)
+    .sort((a, b) => a - b)
+  if (!totals.length) return 500
+  return totals[Math.floor(totals.length / 2)]
+}
+
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })
 }
@@ -1543,7 +1557,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 <p className="text-sm font-bold text-gray-700 pt-0.5">{Math.round(kcal)} kcal</p>
                                 <button
-                                  onClick={e => { e.stopPropagation(); openReplaceModal(expandedMeal!, ai, meals[expandedMeal!].name, kcal > 0 ? kcal : 500) }}
+                                  onClick={e => { e.stopPropagation(); openReplaceModal(expandedMeal!, ai, meals[expandedMeal!].name, mealTargetCals(meals[expandedMeal!])) }}
                                   className="inline-flex items-center gap-1 text-xs text-[#2d8653] hover:text-[#1a5c3a] border border-[#cdeee3] hover:border-[#6ecfb0] bg-[#ebf5ef] hover:bg-[#cdeee3] px-2 py-0.5 rounded-md transition-colors"
                                   title="Bytt ut med oppskrift fra biblioteket"
                                 >
