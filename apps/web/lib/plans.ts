@@ -13,18 +13,23 @@ export interface PlanInfo {
   features: string[]
 }
 
+// 'free' is not a purchasable plan and is never shown on /pricing — every
+// coach must subscribe before adding a single client. It's kept as a plan
+// definition only because profiles.subscription_plan defaults to 'free' (the
+// pre-subscription state) and its DB CHECK constraint still allows the
+// value; clientLimit: 0 is what actually enforces "must pay for client #1".
 export const PLANS: PlanInfo[] = [
   {
     slug: 'free',
     displayName: 'Free',
     priceKr: 0,
-    clientLimit: 3,
-    features: ['Inntil 3 klienter', 'Alle kjernefunksjoner'],
+    clientLimit: 0,
+    features: [],
   },
   {
     slug: 'starter',
     displayName: 'Starter',
-    priceKr: 499,
+    priceKr: 599,
     clientLimit: 10,
     features: ['Inntil 10 klienter', 'Alle kjernefunksjoner'],
   },
@@ -43,6 +48,9 @@ export const PLANS: PlanInfo[] = [
     features: ['Ubegrenset antall klienter', 'Alle kjernefunksjoner'],
   },
 ]
+
+// Plans actually shown on /pricing — excludes the non-purchasable 'free' state.
+export const DISPLAY_PLANS: PlanInfo[] = PLANS.filter(p => p.slug !== 'free')
 
 export function planBySlug(slug: string | null | undefined): PlanInfo {
   return PLANS.find(p => p.slug === slug) ?? PLANS[0]

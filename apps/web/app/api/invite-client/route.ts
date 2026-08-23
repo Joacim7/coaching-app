@@ -47,13 +47,10 @@ export async function POST(req: Request) {
           .eq('coach_id', coachId)
 
         if ((clientCount ?? 0) >= limit) {
-          return NextResponse.json(
-            {
-              error: `Du har nådd grensen på ${limit} klienter for din plan. Oppgrader for å legge til flere.`,
-              limitReached: true,
-            },
-            { status: 403 }
-          )
+          const error = limit === 0
+            ? 'Du må ha et aktivt abonnement for å legge til klienter. Oppgrader for å komme i gang.'
+            : `Du har nådd grensen på ${limit} klienter for din plan. Oppgrader for å legge til flere.`
+          return NextResponse.json({ error, limitReached: true }, { status: 403 })
         }
       }
     }

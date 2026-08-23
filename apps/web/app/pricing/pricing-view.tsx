@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Check, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { PLANS, type PlanSlug } from '@/lib/plans'
+import { DISPLAY_PLANS, type PlanSlug } from '@/lib/plans'
 
 interface PricingViewProps {
   isLoggedIn: boolean
@@ -63,14 +63,16 @@ export function PricingView({ isLoggedIn, currentPlan, checkoutStatus }: Pricing
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {PLANS.map(plan => {
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch max-w-4xl mx-auto">
+          {DISPLAY_PLANS.map(plan => {
             const isCurrent = isLoggedIn && currentPlan === plan.slug
-            const isFree = plan.slug === 'free'
             const isLoading = loadingPlan === plan.slug
 
             return (
-              <Card key={plan.slug} className={isCurrent ? 'ring-2 ring-[#2d8653]' : ''}>
+              <Card
+                key={plan.slug}
+                className={`h-full flex flex-col ${isCurrent ? 'ring-2 ring-[#2d8653]' : ''}`}
+              >
                 <CardHeader>
                   {isCurrent && (
                     <span className="inline-block text-xs font-medium text-[#2d8653] bg-[#ebf5ef] px-2 py-0.5 rounded-full mb-1 w-fit">
@@ -83,7 +85,7 @@ export function PricingView({ isLoggedIn, currentPlan, checkoutStatus }: Pricing
                     <span className="text-sm text-gray-400">kr/mnd</span>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex-1 flex flex-col justify-between">
                   <ul className="space-y-2 mb-6">
                     {plan.features.map(f => (
                       <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
@@ -93,11 +95,7 @@ export function PricingView({ isLoggedIn, currentPlan, checkoutStatus }: Pricing
                     ))}
                   </ul>
 
-                  {isFree ? (
-                    <Button variant="outline" disabled className="w-full">
-                      {isLoggedIn ? 'Standard' : 'Gratis å starte'}
-                    </Button>
-                  ) : isCurrent ? (
+                  {isCurrent ? (
                     <Button variant="outline" disabled className="w-full">
                       Aktiv plan
                     </Button>
