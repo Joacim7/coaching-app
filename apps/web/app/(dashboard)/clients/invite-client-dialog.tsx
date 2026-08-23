@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { UserPlus, X, CheckCircle2 } from 'lucide-react'
+import { UserPlus, X, CheckCircle2, Sparkles } from 'lucide-react'
 
 export default function InviteClientDialog({
   coachId,
@@ -21,12 +22,14 @@ export default function InviteClientDialog({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  const [limitReached, setLimitReached] = useState(false)
 
   function reset() {
     setEmail('')
     setError('')
     setSuccess(false)
     setEmailSent(false)
+    setLimitReached(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -44,7 +47,11 @@ export default function InviteClientDialog({
     setLoading(false)
 
     if (!res.ok) {
-      setError(result.error ?? 'Noe gikk galt')
+      if (result.limitReached) {
+        setLimitReached(true)
+      } else {
+        setError(result.error ?? 'Noe gikk galt')
+      }
       return
     }
 
@@ -94,6 +101,31 @@ export default function InviteClientDialog({
                     Oppstartsskjema sendt til {email}
                   </p>
                 )}
+              </div>
+            ) : limitReached ? (
+              <div className="text-center py-6">
+                <div className="w-14 h-14 bg-[#ebf5ef] rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Sparkles className="w-7 h-7 text-[#2d8653]" />
+                </div>
+                <p className="font-semibold text-gray-900">Du har nådd klientgrensen din</p>
+                <p className="text-gray-500 text-sm mt-1">
+                  Oppgrader planen din for å legge til flere klienter
+                </p>
+                <div className="flex gap-3 pt-5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => { setOpen(false); reset() }}
+                  >
+                    Lukk
+                  </Button>
+                  <Link href="/pricing" className="flex-1">
+                    <Button type="button" className="w-full">
+                      Se priser
+                    </Button>
+                  </Link>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">

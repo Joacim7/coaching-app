@@ -63,8 +63,14 @@ export async function updateSession(request: NextRequest) {
     // be reachable by anyone, including someone who can no longer log in.
     const isAccountDeletionRoute = request.nextUrl.pathname.startsWith('/slett-konto')
       || request.nextUrl.pathname.startsWith('/api/account-deletion')
+    // Pricing must be visible to a prospective coach before they've signed
+    // up, and the Stripe webhook is called server-to-server with no session
+    // cookie at all — both must bypass the login redirect.
+    const isPricingRoute = request.nextUrl.pathname === '/pricing'
+    const isStripeWebhook = request.nextUrl.pathname === '/api/stripe/webhook'
     const isPublic = isAuthRoute || isInviteRoute || isOnboardingRoute || isStartRoute
-      || isOrgInviteLookup || isAccountDeletionRoute || request.nextUrl.pathname === '/'
+      || isOrgInviteLookup || isAccountDeletionRoute || isPricingRoute || isStripeWebhook
+      || request.nextUrl.pathname === '/'
 
     if (!user && !isPublic) {
       const url = request.nextUrl.clone()

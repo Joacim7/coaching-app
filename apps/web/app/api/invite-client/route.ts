@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { sendWelcomeEmail } from '@/lib/email'
+import { planClientLimit } from '@/lib/plans'
 
 export async function POST(req: Request) {
   const { email, coachId } = await req.json()
@@ -22,12 +23,6 @@ export async function POST(req: Request) {
   // this per-coach limit. Only a coach with no org membership is capped by
   // their subscription_plan.
   const ORG_ADMIN_ID = '001bde00-57e8-4918-8c53-f596e0efbddb'
-  const PLAN_CLIENT_LIMITS: Record<string, number | null> = {
-    free: 3,
-    starter: 10,
-    pro: 20,
-    unlimited: null,
-  }
 
   if (coachId !== ORG_ADMIN_ID) {
     const { data: orgMembership } = await supabase
@@ -43,7 +38,7 @@ export async function POST(req: Request) {
         .eq('id', coachId)
         .single()
 
-      const limit = PLAN_CLIENT_LIMITS[limitProfile?.subscription_plan ?? 'free'] ?? PLAN_CLIENT_LIMITS.free
+      const limit = planClientLimit(limitProfile?.subscription_plan)
 
       if (limit !== null) {
         const { count: clientCount } = await supabase
@@ -53,7 +48,10 @@ export async function POST(req: Request) {
 
         if ((clientCount ?? 0) >= limit) {
           return NextResponse.json(
-            { error: `Du har nådd grensen på ${limit} klienter for din plan. Oppgrader for å legge til flere.` },
+            {
+              error: `Du har nådd grensen på ${limit} klienter for din plan. Oppgrader for å legge til flere.`,
+              limitReached: true,
+            },
             { status: 403 }
           )
         }
