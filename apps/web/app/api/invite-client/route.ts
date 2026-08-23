@@ -16,6 +16,51 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Ikke autorisert' }, { status: 401 })
   }
 
+  // ── Client limit (standalone coaches only) ────────────────────────────────
+  // The org admin account and any coach who belongs to an organization are
+  // exempt — organizations manage their own seat/client arrangements outside
+  // this per-coach limit. Only a coach with no org membership is capped by
+  // their subscription_plan.
+  const ORG_ADMIN_ID = '001bde00-57e8-4918-8c53-f596e0efbddb'
+  const PLAN_CLIENT_LIMITS: Record<string, number | null> = {
+    free: 3,
+    starter: 10,
+    pro: 20,
+    unlimited: null,
+  }
+
+  if (coachId !== ORG_ADMIN_ID) {
+    const { data: orgMembership } = await supabase
+      .from('org_members')
+      .select('id')
+      .eq('user_id', coachId)
+      .limit(1)
+
+    if (!orgMembership?.length) {
+      const { data: limitProfile } = await supabase
+        .from('profiles')
+        .select('subscription_plan')
+        .eq('id', coachId)
+        .single()
+
+      const limit = PLAN_CLIENT_LIMITS[limitProfile?.subscription_plan ?? 'free'] ?? PLAN_CLIENT_LIMITS.free
+
+      if (limit !== null) {
+        const { count: clientCount } = await supabase
+          .from('coach_clients')
+          .select('id', { count: 'exact', head: true })
+          .eq('coach_id', coachId)
+
+        if ((clientCount ?? 0) >= limit) {
+          return NextResponse.json(
+            { error: `Du har nådd grensen på ${limit} klienter for din plan. Oppgrader for å legge til flere.` },
+            { status: 403 }
+          )
+        }
+      }
+    }
+  }
+
   const clientId = crypto.randomUUID()
 
   // No full_name here — the client sets their own real name during
