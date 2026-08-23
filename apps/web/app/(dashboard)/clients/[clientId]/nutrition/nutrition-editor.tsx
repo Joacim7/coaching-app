@@ -55,11 +55,18 @@ interface Props {
 
 interface LibraryIngredient {
   name: string
-  grams: number
-  calories: number
-  protein: number
-  carbs: number
-  fat: number
+  // Older/seeded recipes store absolute per-serving values.
+  grams?: number
+  calories?: number
+  protein?: number
+  carbs?: number
+  fat?: number
+  // Recipes saved via the recipe editor store per-100g rates + a gram amount instead.
+  amount_g?: number
+  calories_per_100g?: number
+  protein_per_100g?: number
+  carbs_per_100g?: number
+  fat_per_100g?: number
 }
 
 interface LibraryRecipe {
@@ -75,14 +82,26 @@ function libraryRecipeToAlt(recipe: LibraryRecipe, targetCals: number): MealAlte
   const scale   = srcCals > 5 ? targetCals / srcCals : 1
   const ings    = recipe.ingredients ?? []
 
-  const foods: Food[] = ings.map(ing => ({
-    name:      ing.name,
-    amount:    `${Math.max(1, Math.round((ing.grams ?? 0) * scale))}g`,
-    calories:  Math.round((ing.calories ?? 0) * scale),
-    protein_g: Math.round((ing.protein  ?? 0) * scale * 10) / 10,
-    carbs_g:   Math.round((ing.carbs    ?? 0) * scale * 10) / 10,
-    fat_g:     Math.round((ing.fat      ?? 0) * scale * 10) / 10,
-  }))
+  const foods: Food[] = ings.map(ing => {
+    // Two ingredient shapes exist in the DB — normalise per-100g rates to
+    // absolute values first, then apply the same scale to both.
+    const isPer100g = ing.calories_per_100g !== undefined
+    const grams     = isPer100g ? (ing.amount_g ?? 0) : (ing.grams ?? 0)
+    const factor    = isPer100g ? grams / 100 : 1
+    const calories  = isPer100g ? (ing.calories_per_100g ?? 0) * factor : (ing.calories ?? 0)
+    const protein   = isPer100g ? (ing.protein_per_100g  ?? 0) * factor : (ing.protein  ?? 0)
+    const carbs     = isPer100g ? (ing.carbs_per_100g    ?? 0) * factor : (ing.carbs    ?? 0)
+    const fat       = isPer100g ? (ing.fat_per_100g      ?? 0) * factor : (ing.fat      ?? 0)
+
+    return {
+      name:      ing.name,
+      amount:    `${Math.max(1, Math.round(grams * scale))}g`,
+      calories:  Math.round(calories * scale),
+      protein_g: Math.round(protein * scale * 10) / 10,
+      carbs_g:   Math.round(carbs   * scale * 10) / 10,
+      fat_g:     Math.round(fat     * scale * 10) / 10,
+    }
+  })
 
   let steps: string[] = []
   if (recipe.instructions) {
