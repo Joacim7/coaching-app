@@ -46,7 +46,7 @@ export const PRICING_FEATURES: string[] = [
 // plans' labels stayed on one, which cascaded into misaligned feature lists
 // across the cards.
 export function planClientLimitLabel(plan: Pick<PlanInfo, 'clientLimit'>): string {
-  return plan.clientLimit === null ? 'Ubegrenset klienter' : `Inntil ${plan.clientLimit} klienter`
+  return plan.clientLimit === null ? 'Ubegrenset klienter' : `Opptil ${plan.clientLimit} klienter`
 }
 
 export function planBySlug(slug: string | null | undefined): PlanInfo {
