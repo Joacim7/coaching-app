@@ -1,11 +1,19 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { RecordingProvider } from '@/components/recording-provider'
+import { coachHasActiveAccess } from '@/lib/paywall'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+
+  // Standalone coaches without an active subscription can't use the
+  // dashboard at all — exempt coaches (org admin, org members) always pass.
+  if (user && !(await coachHasActiveAccess(supabase, user.id))) {
+    redirect('/pricing')
+  }
 
   return (
     <RecordingProvider>

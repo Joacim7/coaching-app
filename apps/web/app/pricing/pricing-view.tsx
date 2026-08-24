@@ -11,9 +11,10 @@ interface PricingViewProps {
   isLoggedIn: boolean
   currentPlan: string | null
   checkoutStatus: string | null
+  mustSubscribe: boolean
 }
 
-export function PricingView({ isLoggedIn, currentPlan, checkoutStatus }: PricingViewProps) {
+export function PricingView({ isLoggedIn, currentPlan, checkoutStatus, mustSubscribe }: PricingViewProps) {
   const [loadingPlan, setLoadingPlan] = useState<PlanSlug | null>(null)
   const [error, setError] = useState('')
 
@@ -44,14 +45,11 @@ export function PricingView({ isLoggedIn, currentPlan, checkoutStatus }: Pricing
       <div className="max-w-5xl mx-auto px-6 py-16">
         <div className="text-center mb-12">
           <h1 className="text-3xl font-bold text-gray-900">Priser</h1>
-          <p className="text-gray-500 mt-2">Velg planen som passer antall klienter du jobber med</p>
+          <p className="text-gray-500 mt-2">
+            {mustSubscribe ? 'Velg en plan for å komme i gang' : 'Velg planen som passer antall klienter du jobber med'}
+          </p>
         </div>
 
-        {checkoutStatus === 'success' && (
-          <div className="max-w-md mx-auto mb-8 text-sm text-center text-[#1a5c3a] bg-[#ebf5ef] border border-[#cdeee3] px-4 py-3 rounded-lg">
-            Betaling fullført! Planen din oppdateres om et øyeblikk.
-          </div>
-        )}
         {checkoutStatus === 'canceled' && (
           <div className="max-w-md mx-auto mb-8 text-sm text-center text-gray-600 bg-white border border-gray-200 px-4 py-3 rounded-lg">
             Betaling avbrutt — ingenting ble trukket.

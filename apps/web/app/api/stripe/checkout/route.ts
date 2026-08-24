@@ -57,7 +57,11 @@ export async function POST(req: Request) {
     line_items: [{ price: priceId, quantity: 1 }],
     subscription_data: { metadata: { coachId: user.id, plan } },
     metadata: { coachId: user.id, plan },
-    success_url: `${APP_URL}/pricing?checkout=success`,
+    // /api/stripe/confirm verifies the session and syncs subscription_plan
+    // synchronously before landing on /dashboard — the webhook also does
+    // this, but asynchronously, which could otherwise race the redirect and
+    // bounce a coach who just paid straight back to /pricing.
+    success_url: `${APP_URL}/api/stripe/confirm?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${APP_URL}/pricing?checkout=canceled`,
   })
 

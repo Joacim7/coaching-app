@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { sendWelcomeEmail } from '@/lib/email'
 import { planClientLimit } from '@/lib/plans'
+import { isExemptFromPaywall } from '@/lib/paywall'
 
 export async function POST(req: Request) {
   const { email, coachId } = await req.json()
@@ -22,36 +23,26 @@ export async function POST(req: Request) {
   // exempt — organizations manage their own seat/client arrangements outside
   // this per-coach limit. Only a coach with no org membership is capped by
   // their subscription_plan.
-  const ORG_ADMIN_ID = '001bde00-57e8-4918-8c53-f596e0efbddb'
+  if (!(await isExemptFromPaywall(supabase, coachId))) {
+    const { data: limitProfile } = await supabase
+      .from('profiles')
+      .select('subscription_plan')
+      .eq('id', coachId)
+      .single()
 
-  if (coachId !== ORG_ADMIN_ID) {
-    const { data: orgMembership } = await supabase
-      .from('org_members')
-      .select('id')
-      .eq('user_id', coachId)
-      .limit(1)
+    const limit = planClientLimit(limitProfile?.subscription_plan)
 
-    if (!orgMembership?.length) {
-      const { data: limitProfile } = await supabase
-        .from('profiles')
-        .select('subscription_plan')
-        .eq('id', coachId)
-        .single()
+    if (limit !== null) {
+      const { count: clientCount } = await supabase
+        .from('coach_clients')
+        .select('id', { count: 'exact', head: true })
+        .eq('coach_id', coachId)
 
-      const limit = planClientLimit(limitProfile?.subscription_plan)
-
-      if (limit !== null) {
-        const { count: clientCount } = await supabase
-          .from('coach_clients')
-          .select('id', { count: 'exact', head: true })
-          .eq('coach_id', coachId)
-
-        if ((clientCount ?? 0) >= limit) {
-          const error = limit === 0
-            ? 'Du må ha et aktivt abonnement for å legge til klienter. Oppgrader for å komme i gang.'
-            : `Du har nådd grensen på ${limit} klienter for din plan. Oppgrader for å legge til flere.`
-          return NextResponse.json({ error, limitReached: true }, { status: 403 })
-        }
+      if ((clientCount ?? 0) >= limit) {
+        const error = limit === 0
+          ? 'Du må ha et aktivt abonnement for å legge til klienter. Oppgrader for å komme i gang.'
+          : `Du har nådd grensen på ${limit} klienter for din plan. Oppgrader for å legge til flere.`
+        return NextResponse.json({ error, limitReached: true }, { status: 403 })
       }
     }
   }
