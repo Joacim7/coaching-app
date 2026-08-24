@@ -19,6 +19,11 @@ export function PricingView({ isLoggedIn, currentPlan, checkoutStatus, mustSubsc
   const [loadingPlan, setLoadingPlan] = useState<PlanSlug | null>(null)
   const [error, setError] = useState('')
 
+  // A coach only sees "Oppgrader" once they actually have a paid plan to
+  // upgrade from — anyone not logged in, or logged in but still on the
+  // pre-subscription 'free' state, is starting a first subscription.
+  const hasActiveSubscription = isLoggedIn && currentPlan != null && currentPlan !== 'free'
+
   async function handleUpgrade(plan: PlanSlug) {
     setError('')
     setLoadingPlan(plan)
@@ -107,7 +112,7 @@ export function PricingView({ isLoggedIn, currentPlan, checkoutStatus, mustSubsc
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-[#1a5c3a] bg-[#ebf5ef] rounded-lg px-3 py-2 mb-4">
+                    <p className="min-h-[44px] flex items-center justify-center text-center text-sm font-semibold text-[#1a5c3a] bg-[#ebf5ef] rounded-lg px-3 py-2 mb-4">
                       {planClientLimitLabel(plan)}
                     </p>
                     <ul className="space-y-2.5 mb-6">
@@ -131,7 +136,7 @@ export function PricingView({ isLoggedIn, currentPlan, checkoutStatus, mustSubsc
                       onClick={() => handleUpgrade(plan.slug)}
                     >
                       {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                      {isLoading ? 'Starter betaling...' : 'Oppgrader'}
+                      {isLoading ? 'Starter betaling...' : hasActiveSubscription ? 'Oppgrader' : 'Kom i gang'}
                     </Button>
                   ) : (
                     <Link href="/auth/register" className="block">

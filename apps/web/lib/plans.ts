@@ -41,8 +41,12 @@ export const PRICING_FEATURES: string[] = [
   '💰 Økonomioversikt per klient',
 ]
 
+// Kept short and similar in length across plans on purpose — "Ubegrenset
+// antall klienter" wrapped to two lines at tablet widths while the other
+// plans' labels stayed on one, which cascaded into misaligned feature lists
+// across the cards.
 export function planClientLimitLabel(plan: Pick<PlanInfo, 'clientLimit'>): string {
-  return plan.clientLimit === null ? 'Ubegrenset antall klienter' : `Inntil ${plan.clientLimit} klienter`
+  return plan.clientLimit === null ? 'Ubegrenset klienter' : `Inntil ${plan.clientLimit} klienter`
 }
 
 export function planBySlug(slug: string | null | undefined): PlanInfo {
