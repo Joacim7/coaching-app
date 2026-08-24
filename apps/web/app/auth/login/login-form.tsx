@@ -3,12 +3,12 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Dumbbell } from 'lucide-react'
 
 export default function LoginForm() {
   const router = useRouter()
@@ -47,12 +47,14 @@ export default function LoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#2d8653] rounded-xl flex items-center justify-center">
-              <Dumbbell className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-2xl font-bold text-gray-900">CoachApp</span>
-          </div>
+          <Image
+            src="/nova-performance-logo.png"
+            alt="Nova Performance"
+            width={180}
+            height={60}
+            className="object-contain"
+            priority
+          />
         </div>
 
         <Card>
