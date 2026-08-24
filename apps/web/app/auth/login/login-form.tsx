@@ -32,15 +32,32 @@ export default function LoginForm() {
     // needs NEXT_PUBLIC_SUPABASE_URL/ANON_KEY during prerendering/build —
     // this only ever runs client-side, on an actual submit.
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setError(error.message)
       setLoading(false)
-    } else {
-      router.push(next)
-      router.refresh()
+      return
     }
+
+    // Clients can have a real auth account too (for the mobile app) — make
+    // sure someone who mistakenly logs in here with client credentials
+    // can't reach the coach dashboard.
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .single()
+
+    if (profile?.role === 'client') {
+      await supabase.auth.signOut()
+      setError('Dette er coach-dashboardet. Last ned appen for å logge inn som klient.')
+      setLoading(false)
+      return
+    }
+
+    router.push(next)
+    router.refresh()
   }
 
   return (
