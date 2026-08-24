@@ -1,8 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getEffectiveOnboardingTemplate } from '@/lib/onboarding-template'
 import { IntakeForm } from './intake-form'
-
-interface Question { id: string; text: string; type: string }
 
 export default async function StartPage({
   params,
@@ -21,20 +20,11 @@ export default async function StartPage({
 
   if (!coach) notFound()
 
-  // Fetch coach's oppstart template (if any)
-  const { data: templates } = await admin
-    .from('checkin_templates')
-    .select('id, name, questions')
-    .eq('coach_id', coachId)
-    .eq('type', 'onboarding')
-    .order('created_at', { ascending: false })
-    .limit(1)
-
-  const template = (templates?.[0] ?? null) as {
-    id: string
-    name: string
-    questions: Question[]
-  } | null
+  // A standalone coach's own template always wins if they have one; only a
+  // coach with no template of their own falls back to their org's shared
+  // one (if they're in an org at all) — same resolution used everywhere
+  // else onboarding templates are looked up (see lib/onboarding-template.ts).
+  const template = await getEffectiveOnboardingTemplate(admin, coachId)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-[#ebf5ef]/30 flex items-center justify-center px-4 py-12">
