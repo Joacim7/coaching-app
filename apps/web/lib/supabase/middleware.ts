@@ -79,11 +79,13 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    if (user && isAuthRoute) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
-    }
+    // Deliberately no "already logged in -> /dashboard" redirect here: a
+    // coach with a stale/unsubscribed session visiting /auth/login would
+    // get bounced to /dashboard, which the paywall then bounces again to
+    // /pricing — so /auth/login could never actually be reached at all.
+    // Letting it always render is harmless (re-submitting just logs in
+    // again) and keeps the login form reachable no matter what a coach's
+    // current session/subscription state is.
 
     return supabaseResponse
   } catch (err) {
