@@ -98,12 +98,16 @@ export function PricingView({ isLoggedIn, currentPlan, checkoutStatus, mustSubsc
                     Mest populær
                   </span>
                 )}
-                <CardHeader className={plan.popular ? 'pt-8' : ''}>
-                  {isCurrent && (
-                    <span className="inline-block text-xs font-medium text-[#2d8653] bg-[#ebf5ef] px-2 py-0.5 rounded-full mb-1 w-fit">
-                      Din nåværende plan
-                    </span>
-                  )}
+                <CardHeader className="pt-8">
+                  {/* Fixed-height slot, whether or not this card has the badge — keeps
+                      every card's title starting at the exact same Y position. */}
+                  <div className="h-5 flex items-center">
+                    {isCurrent && (
+                      <span className="inline-block text-xs font-medium text-[#2d8653] bg-[#ebf5ef] px-2 py-0.5 rounded-full w-fit">
+                        Din nåværende plan
+                      </span>
+                    )}
+                  </div>
                   <CardTitle>{plan.displayName}</CardTitle>
                   <div className="flex items-baseline gap-1 mt-1">
                     <span className="text-3xl font-bold text-gray-900">{plan.priceKr}</span>
