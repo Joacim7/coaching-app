@@ -12,7 +12,7 @@ export default async function OrganizationPage() {
   // Find current user's org membership
   const { data: membership } = await supabase
     .from('org_members')
-    .select('role, org_id, organizations(id, name, max_coaches, created_at, created_by)')
+    .select('role, org_id, organizations(id, name, max_coaches, created_at, created_by, subscription_plan)')
     .eq('user_id', user.id)
     .single()
 
@@ -21,7 +21,21 @@ export default async function OrganizationPage() {
   }
 
   const org = membership.organizations as unknown as {
-    id: string; name: string; max_coaches: number; created_at: string; created_by: string
+    id: string; name: string; max_coaches: number; created_at: string; created_by: string; subscription_plan: string | null
+  }
+
+  // Org is created but hasn't completed payment yet — no dashboard stats to
+  // show until then; OrganizationView renders the plan picker (admin) or a
+  // waiting notice (coach) instead.
+  if (!org.subscription_plan) {
+    return (
+      <OrganizationView
+        org={org}
+        role={membership.role as 'admin' | 'coach'}
+        stats={null}
+        userId={user.id}
+      />
+    )
   }
 
   // Parallel stats

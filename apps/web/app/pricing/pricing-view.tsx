@@ -7,6 +7,7 @@ import { Check, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DISPLAY_PLANS, PRICING_FEATURES, planClientLimitLabel, type PlanSlug } from '@/lib/plans'
+import { ORG_PLANS } from '@/lib/orgPlans'
 
 interface PricingViewProps {
   isLoggedIn: boolean
@@ -151,6 +152,45 @@ export function PricingView({ isLoggedIn, currentPlan, checkoutStatus, mustSubsc
               </Card>
             )
           })}
+        </div>
+
+        {/* Organizations section */}
+        <div className="max-w-4xl mx-auto mt-20">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">For organisasjoner</h2>
+            <p className="text-gray-500 mt-2 max-w-lg mx-auto">
+              Driver du et treningssenter eller et coach-team? Samle coachene under én organisasjon
+              med delte ressurser og full oversikt.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {ORG_PLANS.map(plan => (
+              <Card key={plan.slug} className="h-full flex flex-col bg-white border-gray-100 shadow-sm">
+                <CardHeader className="pt-8">
+                  <CardTitle>{plan.displayName}</CardTitle>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-3xl font-bold text-gray-900">{plan.priceKr}</span>
+                    <span className="text-sm text-gray-400">kr/mnd</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col justify-between">
+                  <p className="min-h-[44px] flex items-center justify-center text-center text-sm font-semibold text-[#1a5c3a] bg-[#ebf5ef] rounded-lg px-3 py-2 mb-6">
+                    Opptil {plan.maxCoaches} coacher
+                  </p>
+                  {isLoggedIn ? (
+                    <Link href="/organization" className="block">
+                      <Button className="w-full">Gå til organisasjon</Button>
+                    </Link>
+                  ) : (
+                    <Link href="/auth/register" className="block">
+                      <Button className="w-full">Kom i gang</Button>
+                    </Link>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
     </div>

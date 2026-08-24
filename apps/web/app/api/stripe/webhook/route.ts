@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getStripe, isStripeTestMode, planSlugForPriceId } from '@/lib/stripe'
+import { getStripe, isStripeTestMode, planSlugForPriceId, orgPlanSlugForPriceId } from '@/lib/stripe'
+import { orgPlanBySlug } from '@/lib/orgPlans'
 import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 
@@ -32,6 +33,31 @@ export async function POST(req: Request) {
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
+
+      if (session.metadata?.type === 'org') {
+        const orgId = session.metadata?.orgId
+        const planInfo = orgPlanBySlug(session.metadata?.plan)
+        if (!orgId || !planInfo) {
+          console.error('[stripe/webhook] org checkout.session.completed missing orgId/plan metadata')
+          break
+        }
+
+        const { error } = await supabase
+          .from('organizations')
+          .update({
+            subscription_plan: planInfo.slug,
+            max_coaches: planInfo.maxCoaches,
+            ...(testMode ? {} : {
+              stripe_customer_id: typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
+              stripe_subscription_id: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id ?? null,
+            }),
+          })
+          .eq('id', orgId)
+
+        if (error) console.error('[stripe/webhook] organization update failed:', error.message)
+        break
+      }
+
       const coachId = session.client_reference_id ?? session.metadata?.coachId
       const plan = session.metadata?.plan
       if (!coachId || !plan) {
@@ -56,6 +82,33 @@ export async function POST(req: Request) {
 
     case 'customer.subscription.updated': {
       const subscription = event.data.object as Stripe.Subscription
+
+      if (subscription.metadata?.type === 'org') {
+        const orgId = await resolveOrgId(supabase, subscription)
+        if (!orgId) break
+
+        const cancelled = ['canceled', 'unpaid', 'incomplete_expired'].includes(subscription.status)
+        const priceId = subscription.items.data[0]?.price?.id
+        const planInfo = cancelled ? null : orgPlanBySlug(priceId ? orgPlanSlugForPriceId(priceId) : null)
+
+        if (!cancelled && !planInfo) {
+          console.error(`[stripe/webhook] Could not resolve org plan for subscription ${subscription.id} (price ${priceId})`)
+          break
+        }
+
+        const { error } = await supabase
+          .from('organizations')
+          .update({
+            subscription_plan: cancelled ? null : planInfo!.slug,
+            ...(cancelled ? {} : { max_coaches: planInfo!.maxCoaches }),
+            ...(testMode ? {} : { stripe_subscription_id: cancelled ? null : subscription.id }),
+          })
+          .eq('id', orgId)
+
+        if (error) console.error('[stripe/webhook] organization update failed:', error.message)
+        break
+      }
+
       const coachId = await resolveCoachId(supabase, subscription)
       if (!coachId) break
 
@@ -79,6 +132,20 @@ export async function POST(req: Request) {
 
     case 'customer.subscription.deleted': {
       const subscription = event.data.object as Stripe.Subscription
+
+      if (subscription.metadata?.type === 'org') {
+        const orgId = await resolveOrgId(supabase, subscription)
+        if (!orgId) break
+
+        const { error } = await supabase
+          .from('organizations')
+          .update({ subscription_plan: null, ...(testMode ? {} : { stripe_subscription_id: null }) })
+          .eq('id', orgId)
+
+        if (error) console.error('[stripe/webhook] organization update failed:', error.message)
+        break
+      }
+
       const coachId = await resolveCoachId(supabase, subscription)
       if (!coachId) break
 
@@ -107,6 +174,22 @@ async function resolveCoachId(supabase: any, subscription: Stripe.Subscription):
 
   const { data } = await supabase
     .from('profiles')
+    .select('id')
+    .eq('stripe_customer_id', customerId)
+    .single()
+
+  return data?.id ?? null
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function resolveOrgId(supabase: any, subscription: Stripe.Subscription): Promise<string | null> {
+  if (subscription.metadata?.orgId) return subscription.metadata.orgId
+
+  const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id
+  if (!customerId) return null
+
+  const { data } = await supabase
+    .from('organizations')
     .select('id')
     .eq('stripe_customer_id', customerId)
     .single()

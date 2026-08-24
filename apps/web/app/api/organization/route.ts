@@ -10,14 +10,14 @@ export async function GET() {
   // Find membership
   const { data: membership } = await supabase
     .from('org_members')
-    .select('role, org_id, organizations(id, name, max_coaches, created_at, created_by)')
+    .select('role, org_id, organizations(id, name, max_coaches, created_at, created_by, subscription_plan)')
     .eq('user_id', user.id)
     .single()
 
   if (!membership) return NextResponse.json(null)
 
   const org = membership.organizations as unknown as {
-    id: string; name: string; max_coaches: number; created_at: string; created_by: string
+    id: string; name: string; max_coaches: number; created_at: string; created_by: string; subscription_plan: string | null
   }
 
   // Get coach user_ids in org first, then count their clients

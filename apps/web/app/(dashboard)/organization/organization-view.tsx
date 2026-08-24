@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { exerciseThumbnail } from '@/lib/video-thumbnail'
+import { ORG_PLANS, type OrgPlanSlug } from '@/lib/orgPlans'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,7 @@ interface Org {
   max_coaches: number
   created_at: string
   created_by: string
+  subscription_plan: string | null
 }
 
 interface Stats {
@@ -177,6 +179,88 @@ function CreateOrgPanel({ onCreated }: { onCreated: (org: Org) => void }) {
           Opprett organisasjon
         </button>
       </div>
+    </div>
+  )
+}
+
+// ── Org plan picker (payment required before an org is usable) ─────────────────
+
+function OrgPlanSelector({ org }: { org: Org }) {
+  const [loadingPlan, setLoadingPlan] = useState<OrgPlanSlug | null>(null)
+  const [error, setError] = useState('')
+
+  async function handleSelect(plan: OrgPlanSlug) {
+    setError('')
+    setLoadingPlan(plan)
+    try {
+      const res = await fetch('/api/stripe/org-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId: org.id, plan }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        setError(result.error ?? 'Noe gikk galt')
+        setLoadingPlan(null)
+        return
+      }
+      window.location.assign(result.url)
+    } catch {
+      setError('Noe gikk galt — prøv igjen')
+      setLoadingPlan(null)
+    }
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto py-12">
+      <div className="text-center mb-10">
+        <div className="w-16 h-16 rounded-2xl bg-[#ebf5ef] flex items-center justify-center mx-auto mb-4">
+          <Building2 className="w-8 h-8 text-[#2d8653]" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900">Velg en plan for {org.name}</h2>
+        <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
+          Organisasjonen er opprettet, men må ha en aktiv plan før den kan tas i bruk.
+        </p>
+      </div>
+      {error && (
+        <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg text-center mb-6 max-w-sm mx-auto">{error}</p>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {ORG_PLANS.map(plan => (
+          <div key={plan.slug} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col">
+            <h3 className="text-lg font-bold text-gray-900">{plan.displayName}</h3>
+            <div className="flex items-baseline gap-1 mt-1 mb-4">
+              <span className="text-2xl font-bold text-gray-900">{plan.priceKr}</span>
+              <span className="text-sm text-gray-400">kr/mnd</span>
+            </div>
+            <p className="text-sm text-[#1a5c3a] bg-[#ebf5ef] rounded-lg px-3 py-2 mb-6 text-center font-semibold">
+              Opptil {plan.maxCoaches} coacher
+            </p>
+            <button
+              onClick={() => handleSelect(plan.slug)}
+              disabled={loadingPlan !== null}
+              className="mt-auto h-11 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-all flex items-center justify-center gap-2 [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:brightness-95"
+            >
+              {loadingPlan === plan.slug && <Loader2 className="w-4 h-4 animate-spin" />}
+              {loadingPlan === plan.slug ? 'Starter betaling...' : 'Velg denne planen'}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PendingPaymentNotice({ orgName }: { orgName: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-[#ebf5ef] flex items-center justify-center">
+        <Building2 className="w-8 h-8 text-[#2d8653]" />
+      </div>
+      <h2 className="text-xl font-bold text-gray-900">Venter på betaling</h2>
+      <p className="text-sm text-gray-500 max-w-sm">
+        {orgName} er opprettet, men en administrator må velge og betale for en plan før organisasjonen kan tas i bruk.
+      </p>
     </div>
   )
 }
@@ -1308,6 +1392,14 @@ export function OrganizationView({
         <CreateOrgPanel onCreated={newOrg => setOrg(newOrg)} />
       </div>
     )
+  }
+
+  // Org exists but hasn't completed payment yet — only the admin can choose
+  // and pay for a plan; other members just see a waiting notice.
+  if (!org.subscription_plan) {
+    return isAdmin
+      ? <OrgPlanSelector org={org} />
+      : <PendingPaymentNotice orgName={org.name} />
   }
 
   return (
