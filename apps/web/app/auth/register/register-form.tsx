@@ -16,6 +16,20 @@ interface InviteInfo {
   valid: boolean
 }
 
+// A standalone coach (no org to inherit a shared template from) gets a
+// sensible default lead intake form for their /start/[coachId] link,
+// editable later from Skjemaer → Oppstartsskjema.
+function defaultLeadTemplateQuestions() {
+  return [
+    { id: crypto.randomUUID(), text: 'Fornavn', type: 'text', required: true },
+    { id: crypto.randomUUID(), text: 'Etternavn', type: 'text', required: true },
+    { id: crypto.randomUUID(), text: 'Mobilnummer', type: 'text', required: true },
+    { id: crypto.randomUUID(), text: 'E-post', type: 'text', required: true },
+    { id: crypto.randomUUID(), text: 'Mål', type: 'text' },
+    { id: crypto.randomUUID(), text: 'Hvordan fant du oss?', type: 'text' },
+  ]
+}
+
 export default function RegisterForm() {
   const router = useRouter()
 
@@ -59,7 +73,7 @@ export default function RegisterForm() {
     // needs NEXT_PUBLIC_SUPABASE_URL/ANON_KEY during prerendering/build —
     // this only ever runs client-side, on an actual submit.
     const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -86,6 +100,20 @@ export default function RegisterForm() {
       router.push('/organization')
       router.refresh()
       return
+    }
+
+    // Standalone coach (no org invite) — set them up with a default lead
+    // intake template so their /start/[coachId] link isn't blank on day one.
+    if (data.user) {
+      const { error: templateError } = await supabase.from('checkin_templates').insert({
+        coach_id: data.user.id,
+        name: 'Oppstartsskjema',
+        type: 'onboarding',
+        questions: defaultLeadTemplateQuestions(),
+      })
+      if (templateError) {
+        console.error('[register] failed to create default lead template:', templateError.message)
+      }
     }
 
     router.push('/pricing')
