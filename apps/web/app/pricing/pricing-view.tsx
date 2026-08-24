@@ -107,8 +107,8 @@ export function PricingView({ isLoggedIn, currentPlan, checkoutStatus, mustSubsc
                       {isLoading ? 'Starter betaling...' : 'Oppgrader'}
                     </Button>
                   ) : (
-                    <Link href="/auth/login" className="block">
-                      <Button className="w-full">Logg inn for å oppgradere</Button>
+                    <Link href="/auth/register" className="block">
+                      <Button className="w-full">Kom i gang</Button>
                     </Link>
                   )}
                 </CardContent>
