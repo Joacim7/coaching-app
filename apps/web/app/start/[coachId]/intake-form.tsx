@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { CheckCircle2, AlertCircle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface Question { id: string; text: string; type: string; required?: boolean }
 
@@ -13,6 +14,17 @@ interface Template {
 
 function isBlank(val: string | undefined) {
   return !val || val.trim() === ''
+}
+
+// A template's own questions often already ask for first/last name, email,
+// and phone (both the seeded org template and the auto-created default for
+// standalone coaches do) — matched loosely by keyword so a coach renaming a
+// question slightly doesn't break this. When a template covers a field
+// itself, the generic top-level field for it is hidden instead of shown
+// twice, and the submitted lead's name/email/phone are derived from the
+// template's own answers.
+function findQuestion(questions: Question[], keywords: string[]): Question | undefined {
+  return questions.find(q => keywords.some(k => q.text.toLowerCase().includes(k)))
 }
 
 // ── Sub-inputs ────────────────────────────────────────────────────────────────
@@ -87,6 +99,36 @@ export function IntakeForm({
   const [fieldErrors, setFieldErrors] = useState<Set<string>>(new Set())
   const [submitted,   setSubmitted]   = useState(false)
 
+  const questions = template?.questions ?? []
+  const fornavnQ   = findQuestion(questions, ['fornavn'])
+  const etternavnQ = findQuestion(questions, ['etternavn'])
+  // Only look for a generic single "navn" question if the template doesn't
+  // already split it into fornavn/etternavn.
+  const fullNameQ  = !fornavnQ ? findQuestion(questions, ['navn']) : undefined
+  const emailQ     = findQuestion(questions, ['e-post', 'epost', 'email'])
+  const phoneQ     = findQuestion(questions, ['mobil', 'telefon', 'tlf'])
+
+  const templateHandlesName  = !!(fornavnQ || fullNameQ)
+  const templateHandlesEmail = !!emailQ
+  const templateHandlesPhone = !!phoneQ
+
+  function deriveName(): string {
+    if (fornavnQ && etternavnQ) {
+      return `${answers[fornavnQ.id] ?? ''} ${answers[etternavnQ.id] ?? ''}`.trim()
+    }
+    if (fornavnQ) return (answers[fornavnQ.id] ?? '').trim()
+    if (fullNameQ) return (answers[fullNameQ.id] ?? '').trim()
+    return name.trim()
+  }
+
+  function deriveEmail(): string {
+    return emailQ ? (answers[emailQ.id] ?? '').trim() : email.trim()
+  }
+
+  function derivePhone(): string {
+    return phoneQ ? (answers[phoneQ.id] ?? '').trim() : phone.trim()
+  }
+
   function setAnswer(id: string, value: string) {
     setAnswers(prev => ({ ...prev, [id]: value }))
     // Clear per-field error as soon as the user makes a selection
@@ -101,12 +143,9 @@ export function IntakeForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    // Validate name
-    if (!name.trim()) { setError('Navn er påkrevd'); return }
-
     // Validate required template questions
     const missing = new Set<string>()
-    for (const q of (template?.questions ?? [])) {
+    for (const q of questions) {
       if (q.required && isBlank(answers[q.id])) {
         missing.add(q.id)
       }
@@ -117,13 +156,19 @@ export function IntakeForm({
       return
     }
 
+    const finalName = deriveName()
+    if (!finalName) {
+      setError('Navn er påkrevd')
+      return
+    }
+
     setSubmitting(true)
     setError('')
     setFieldErrors(new Set())
 
     // Build form_answers keyed by question text (more readable for coach)
     const formAnswers: Record<string, string> = {}
-    for (const q of (template?.questions ?? [])) {
+    for (const q of questions) {
       if (!isBlank(answers[q.id])) {
         formAnswers[q.text] = answers[q.id]
       }
@@ -133,9 +178,9 @@ export function IntakeForm({
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
-        name,
-        email: email || undefined,
-        phone: phone || undefined,
+        name:  finalName,
+        email: deriveEmail() || undefined,
+        phone: derivePhone() || undefined,
         formAnswers: Object.keys(formAnswers).length > 0 ? formAnswers : undefined,
       }),
     })
@@ -167,40 +212,49 @@ export function IntakeForm({
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 space-y-6">
 
-      {/* Contact fields */}
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Navn *</label>
-          <input
-            type="text"
-            value={name}
-            onChange={e => { setName(e.target.value); if (error === 'Navn er påkrevd') setError('') }}
-            placeholder="Ola Nordmann"
-            className="w-full h-11 px-4 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
-          />
+      {/* Fallback contact fields — only shown for whichever of name/email/phone
+          the template doesn't already collect itself as its own question. */}
+      {(!templateHandlesName || !templateHandlesEmail || !templateHandlesPhone) && (
+        <div className="space-y-4">
+          {!templateHandlesName && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Navn *</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => { setName(e.target.value); if (error === 'Navn er påkrevd') setError('') }}
+                placeholder="Ola Nordmann"
+                className="w-full h-11 px-4 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
+              />
+            </div>
+          )}
+          {!templateHandlesEmail && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">E-post</label>
+              <input
+                type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="ola@example.com"
+                className="w-full h-11 px-4 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
+              />
+            </div>
+          )}
+          {!templateHandlesPhone && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Telefon</label>
+              <input
+                type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                placeholder="123 45 678"
+                className="w-full h-11 px-4 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
+              />
+            </div>
+          )}
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">E-post</label>
-          <input
-            type="email" value={email} onChange={e => setEmail(e.target.value)}
-            placeholder="ola@example.com"
-            className="w-full h-11 px-4 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Telefon</label>
-          <input
-            type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-            placeholder="123 45 678"
-            className="w-full h-11 px-4 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
-          />
-        </div>
-      </div>
+      )}
 
       {/* Template questions */}
-      {template && template.questions.length > 0 && (
+      {template && questions.length > 0 && (
         <div className="space-y-6 border-t border-gray-100 pt-6">
-          {template.questions.map((q, i) => {
+          {questions.map((q, i) => {
             const hasError = fieldErrors.has(q.id)
             return (
               <div key={q.id}>
@@ -258,13 +312,9 @@ export function IntakeForm({
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-full h-12 bg-[#2d8653] hover:bg-[#2d8653] text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors"
-      >
+      <Button type="submit" disabled={submitting} className="w-full h-12 text-sm font-semibold rounded-xl">
         {submitting ? 'Sender...' : 'Send inn'}
-      </button>
+      </Button>
     </form>
   )
 }
