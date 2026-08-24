@@ -12,6 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Standalone coaches without an active subscription can't use the
   // dashboard at all — exempt coaches (org admin, org members) always pass.
   if (user && !(await coachHasActiveAccess(supabase, user.id))) {
+    console.warn(`[dashboard paywall] redirecting user.id="${user.id}" (len ${user.id.length}) to /pricing`)
     redirect('/pricing')
   }
 
