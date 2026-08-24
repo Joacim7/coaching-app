@@ -1394,12 +1394,25 @@ export function OrganizationView({
     )
   }
 
-  // Org exists but hasn't completed payment yet — only the admin can choose
-  // and pay for a plan; other members just see a waiting notice.
+  // Org exists but hasn't completed payment yet. Only the admin can choose
+  // and pay for a plan, but they can still build the coach roster in the
+  // meantime — invited coaches don't get real dashboard access either way
+  // until the org's plan is active (see isExemptFromPaywall), so there's no
+  // exemption loophole in letting invites happen before payment.
   if (!org.subscription_plan) {
-    return isAdmin
-      ? <OrgPlanSelector org={org} />
-      : <PendingPaymentNotice orgName={org.name} />
+    if (!isAdmin) return <PendingPaymentNotice orgName={org.name} />
+    return (
+      <div className="space-y-10">
+        <OrgPlanSelector org={org} />
+        <div className="max-w-4xl mx-auto border-t border-gray-200 pt-8">
+          <h2 className="text-lg font-bold text-gray-900 mb-1">Inviter coacher</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Du kan sette sammen teamet allerede nå — coachene får tilgang så snart organisasjonen har en aktiv plan.
+          </p>
+          <CoachesTab orgId={org.id} isAdmin={isAdmin} userId={userId} />
+        </div>
+      </div>
+    )
   }
 
   return (
