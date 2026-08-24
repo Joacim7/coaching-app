@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getStripe, STRIPE_PRICE_ENV } from '@/lib/stripe'
+import { getStripe, isStripeTestMode, STRIPE_PRICE_ENV } from '@/lib/stripe'
 import { NextResponse } from 'next/server'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
@@ -38,8 +38,13 @@ export async function POST(req: Request) {
     .single()
 
   const stripe = getStripe()
+  const testMode = isStripeTestMode()
 
-  let customerId = profile?.stripe_customer_id ?? null
+  // Test and live customers are entirely separate in Stripe — a test-mode
+  // key can't reference a live customer id, and this DB is shared with
+  // production, so a stored id must never mix modes. In test mode, always
+  // create a throwaway customer and never persist it over the real one.
+  let customerId = testMode ? null : (profile?.stripe_customer_id ?? null)
   if (!customerId) {
     const customer = await stripe.customers.create({
       email: profile?.email ?? user.email ?? undefined,
@@ -47,7 +52,9 @@ export async function POST(req: Request) {
       metadata: { coachId: user.id },
     })
     customerId = customer.id
-    await supabase.from('profiles').update({ stripe_customer_id: customerId }).eq('id', user.id)
+    if (!testMode) {
+      await supabase.from('profiles').update({ stripe_customer_id: customerId }).eq('id', user.id)
+    }
   }
 
   const session = await stripe.checkout.sessions.create({

@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getStripe, planSlugForPriceId } from '@/lib/stripe'
+import { getStripe, isStripeTestMode, planSlugForPriceId } from '@/lib/stripe'
 import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 
@@ -23,6 +23,11 @@ export async function POST(req: Request) {
   }
 
   const supabase = createAdminClient()
+  // Test and live customers/subscriptions are entirely separate in Stripe,
+  // and this DB is shared with production — a test-mode id must never
+  // overwrite a real one. subscription_plan still updates either way, since
+  // that's exactly what local testing is meant to verify.
+  const testMode = isStripeTestMode()
 
   switch (event.type) {
     case 'checkout.session.completed': {
@@ -38,8 +43,10 @@ export async function POST(req: Request) {
         .from('profiles')
         .update({
           subscription_plan: plan,
-          stripe_customer_id: typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
-          stripe_subscription_id: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id ?? null,
+          ...(testMode ? {} : {
+            stripe_customer_id: typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
+            stripe_subscription_id: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id ?? null,
+          }),
         })
         .eq('id', coachId)
 
@@ -63,7 +70,7 @@ export async function POST(req: Request) {
 
       const { error } = await supabase
         .from('profiles')
-        .update({ subscription_plan: plan, stripe_subscription_id: subscription.id })
+        .update({ subscription_plan: plan, ...(testMode ? {} : { stripe_subscription_id: subscription.id }) })
         .eq('id', coachId)
 
       if (error) console.error('[stripe/webhook] profile update failed:', error.message)
@@ -77,7 +84,7 @@ export async function POST(req: Request) {
 
       const { error } = await supabase
         .from('profiles')
-        .update({ subscription_plan: 'free', stripe_subscription_id: null })
+        .update({ subscription_plan: 'free', ...(testMode ? {} : { stripe_subscription_id: null }) })
         .eq('id', coachId)
 
       if (error) console.error('[stripe/webhook] profile update failed:', error.message)

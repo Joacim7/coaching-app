@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getStripe } from '@/lib/stripe'
+import { getStripe, isStripeTestMode } from '@/lib/stripe'
 import { NextResponse } from 'next/server'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
@@ -34,12 +34,18 @@ export async function GET(req: Request) {
         // Only apply if this really is the coach who owns the session —
         // the webhook (service-role) remains the source of truth otherwise.
         if (user?.id === coachId) {
+          // Test-mode customer/subscription ids must never overwrite a real
+          // one in this shared DB — but subscription_plan is exactly what's
+          // being tested, so that still updates either way.
+          const testMode = isStripeTestMode()
           await supabase
             .from('profiles')
             .update({
               subscription_plan: plan,
-              stripe_customer_id: typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
-              stripe_subscription_id: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id ?? null,
+              ...(testMode ? {} : {
+                stripe_customer_id: typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
+                stripe_subscription_id: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id ?? null,
+              }),
             })
             .eq('id', coachId)
         }
