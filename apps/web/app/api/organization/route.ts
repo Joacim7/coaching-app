@@ -59,25 +59,9 @@ export async function GET() {
   })
 }
 
-// POST /api/organization — create a new org via SECURITY DEFINER function
-// (direct INSERT fails RLS when auth.uid() isn't resolved server-side)
-export async function POST(req: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { name } = await req.json()
-  if (!name?.trim()) return NextResponse.json({ error: 'Name required' }, { status: 400 })
-
-  const { data, error } = await supabase.rpc('create_organization', { p_name: name.trim() })
-
-  if (error) {
-    if (error.message.includes('Already in')) return NextResponse.json({ error: 'Already in an organization' }, { status: 409 })
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json(data, { status: 201 })
-}
+// Organizations are no longer created directly — a plan must be paid for
+// first. See /api/stripe/org-checkout (starts checkout for a name + plan)
+// and /api/stripe/org-confirm / the webhook (create the org once paid).
 
 // PATCH /api/organization — update org name (admin only)
 export async function PATCH(req: Request) {

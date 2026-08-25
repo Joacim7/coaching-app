@@ -123,67 +123,131 @@ function StatCard({
   )
 }
 
-// ── Create org panel ──────────────────────────────────────────────────────────
+// ── Shared org plan cards (used when creating a new org and when a pending
+// or existing org needs to pick/upgrade a plan) ─────────────────────────────
 
-function CreateOrgPanel({ onCreated }: { onCreated: (org: Org) => void }) {
-  const [name, setName] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  async function handleCreate() {
-    if (!name.trim()) return
-    setSaving(true)
-    setError('')
-    const res = await fetch('/api/organization', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() }),
-    })
-    setSaving(false)
-    if (res.ok) {
-      const org = await res.json()
-      onCreated(org)
-    } else {
-      const j = await res.json()
-      setError(j.error ?? 'Noe gikk galt')
-    }
-  }
-
+function OrgPlanCards({
+  onSelect, loadingPlan,
+}: {
+  onSelect: (plan: OrgPlanSlug) => void
+  loadingPlan: OrgPlanSlug | null
+}) {
   return (
-    <div className="flex flex-col items-center justify-center py-24 gap-6">
-      <div className="w-16 h-16 rounded-2xl bg-[#ebf5ef] flex items-center justify-center">
-        <Building2 className="w-8 h-8 text-[#2d8653]" />
-      </div>
-      <div className="text-center">
-        <h2 className="text-xl font-bold text-gray-900">Opprett organisasjon</h2>
-        <p className="text-sm text-gray-500 mt-1 max-w-sm">
-          Du er ikke koblet til noen organisasjon ennå. Opprett én for å invitere andre coacher og dele ressurser.
-        </p>
-      </div>
-      <div className="flex flex-col gap-3 w-full max-w-sm">
-        <input
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder="Organisasjonsnavn"
-          autoFocus
-          onKeyDown={e => e.key === 'Enter' && handleCreate()}
-          className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
-        />
-        {error && <p className="text-xs text-red-500">{error}</p>}
-        <button
-          onClick={handleCreate}
-          disabled={saving || !name.trim()}
-          className="h-11 rounded-xl bg-[#2d8653] text-white text-sm font-semibold hover:bg-[#2d8653] disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-        >
-          {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-          Opprett organisasjon
-        </button>
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {ORG_PLANS.map(plan => (
+        <div key={plan.slug} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col">
+          <h3 className="text-lg font-bold text-gray-900">{plan.displayName}</h3>
+          <div className="flex items-baseline gap-1 mt-1 mb-4">
+            <span className="text-2xl font-bold text-gray-900">{plan.priceKr}</span>
+            <span className="text-sm text-gray-400">kr/mnd</span>
+          </div>
+          <p className="text-sm text-[#1a5c3a] bg-[#ebf5ef] rounded-lg px-3 py-2 mb-6 text-center font-semibold">
+            Opptil {plan.maxCoaches} coacher
+          </p>
+          <button
+            onClick={() => onSelect(plan.slug)}
+            disabled={loadingPlan !== null}
+            className="mt-auto h-11 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-all flex items-center justify-center gap-2 [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:brightness-95"
+          >
+            {loadingPlan === plan.slug && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loadingPlan === plan.slug ? 'Starter betaling...' : 'Velg denne planen'}
+          </button>
+        </div>
+      ))}
     </div>
   )
 }
 
-// ── Org plan picker (payment required before an org is usable) ─────────────────
+// ── Create org panel — name, then plan + payment before the org exists ─────────
+
+function CreateOrgPanel() {
+  const [step, setStep] = useState<'name' | 'plan'>('name')
+  const [name, setName] = useState('')
+  const [loadingPlan, setLoadingPlan] = useState<OrgPlanSlug | null>(null)
+  const [error, setError] = useState('')
+
+  async function handleSelectPlan(plan: OrgPlanSlug) {
+    setError('')
+    setLoadingPlan(plan)
+    try {
+      const res = await fetch('/api/stripe/org-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), plan }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        setError(result.error ?? 'Noe gikk galt')
+        setLoadingPlan(null)
+        return
+      }
+      window.location.assign(result.url)
+    } catch {
+      setError('Noe gikk galt — prøv igjen')
+      setLoadingPlan(null)
+    }
+  }
+
+  if (step === 'name') {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-6">
+        <div className="w-16 h-16 rounded-2xl bg-[#ebf5ef] flex items-center justify-center">
+          <Building2 className="w-8 h-8 text-[#2d8653]" />
+        </div>
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900">Opprett organisasjon</h2>
+          <p className="text-sm text-gray-500 mt-1 max-w-sm">
+            Du er ikke koblet til noen organisasjon ennå. Opprett én for å invitere andre coacher og dele ressurser.
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 w-full max-w-sm">
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Organisasjonsnavn"
+            autoFocus
+            onKeyDown={e => e.key === 'Enter' && name.trim() && setStep('plan')}
+            className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
+          />
+          <button
+            onClick={() => name.trim() && setStep('plan')}
+            disabled={!name.trim()}
+            className="h-11 rounded-xl bg-[#2d8653] text-white text-sm font-semibold hover:bg-[#2d8653] disabled:opacity-50 transition-colors"
+          >
+            Neste — velg plan
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto py-12">
+      <div className="text-center mb-10">
+        <div className="w-16 h-16 rounded-2xl bg-[#ebf5ef] flex items-center justify-center mx-auto mb-4">
+          <Building2 className="w-8 h-8 text-[#2d8653]" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900">Velg en plan for {name}</h2>
+        <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
+          Organisasjonen opprettes så snart betalingen er fullført.
+        </p>
+        <button
+          onClick={() => setStep('name')}
+          className="text-xs text-gray-400 hover:text-gray-600 mt-2 underline"
+        >
+          ← Endre navn
+        </button>
+      </div>
+      {error && (
+        <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg text-center mb-6 max-w-sm mx-auto">{error}</p>
+      )}
+      <OrgPlanCards onSelect={handleSelectPlan} loadingPlan={loadingPlan} />
+    </div>
+  )
+}
+
+// ── Org plan picker (an already-created org still needs an active plan, or
+// is upgrading — see the invite coach-limit prompt in CoachesTab) ──────────────
 
 function OrgPlanSelector({ org }: { org: Org }) {
   const [loadingPlan, setLoadingPlan] = useState<OrgPlanSlug | null>(null)
@@ -225,28 +289,7 @@ function OrgPlanSelector({ org }: { org: Org }) {
       {error && (
         <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg text-center mb-6 max-w-sm mx-auto">{error}</p>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {ORG_PLANS.map(plan => (
-          <div key={plan.slug} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col">
-            <h3 className="text-lg font-bold text-gray-900">{plan.displayName}</h3>
-            <div className="flex items-baseline gap-1 mt-1 mb-4">
-              <span className="text-2xl font-bold text-gray-900">{plan.priceKr}</span>
-              <span className="text-sm text-gray-400">kr/mnd</span>
-            </div>
-            <p className="text-sm text-[#1a5c3a] bg-[#ebf5ef] rounded-lg px-3 py-2 mb-6 text-center font-semibold">
-              Opptil {plan.maxCoaches} coacher
-            </p>
-            <button
-              onClick={() => handleSelect(plan.slug)}
-              disabled={loadingPlan !== null}
-              className="mt-auto h-11 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-all flex items-center justify-center gap-2 [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:brightness-95"
-            >
-              {loadingPlan === plan.slug && <Loader2 className="w-4 h-4 animate-spin" />}
-              {loadingPlan === plan.slug ? 'Starter betaling...' : 'Velg denne planen'}
-            </button>
-          </div>
-        ))}
-      </div>
+      <OrgPlanCards onSelect={handleSelect} loadingPlan={loadingPlan} />
     </div>
   )
 }
@@ -277,6 +320,9 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
   const [toast, setToast]             = useState('')
   const [removing, setRemoving]       = useState<string | null>(null)
   const [removeError, setRemoveError] = useState('')
+  const [inviteError, setInviteError] = useState('')
+  const [limitReached, setLimitReached] = useState(false)
+  const [upgradingPlan, setUpgradingPlan] = useState<OrgPlanSlug | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -301,6 +347,8 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
   async function handleInvite() {
     if (!email.trim()) return
     setInviting(true)
+    setInviteError('')
+    setLimitReached(false)
     const res = await fetch('/api/organization/invitations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -313,6 +361,31 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
       setEmail('')
       setShowInvite(false)
       showToast('Invitasjon sendt')
+      return
+    }
+    const d = await res.json().catch(() => ({}))
+    setInviteError(d.error ?? 'Kunne ikke sende invitasjon')
+    setLimitReached(d.code === 'plan_limit_reached')
+  }
+
+  async function handleUpgrade(plan: OrgPlanSlug) {
+    setUpgradingPlan(plan)
+    try {
+      const res = await fetch('/api/stripe/org-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, plan }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        setInviteError(result.error ?? 'Noe gikk galt')
+        setUpgradingPlan(null)
+        return
+      }
+      window.location.assign(result.url)
+    } catch {
+      setInviteError('Noe gikk galt — prøv igjen')
+      setUpgradingPlan(null)
     }
   }
 
@@ -412,6 +485,15 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
           <button onClick={() => { setShowInvite(false); setEmail('') }} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {/* Invite error — a plan limit gets an inline upgrade prompt instead of
+          just a dead-end message */}
+      {inviteError && (
+        <div className="bg-red-50 border border-red-100 rounded-2xl p-4 space-y-4">
+          <p className="text-sm text-red-700">{inviteError}</p>
+          {limitReached && <OrgPlanCards onSelect={handleUpgrade} loadingPlan={upgradingPlan} />}
         </div>
       )}
 
@@ -1382,14 +1464,14 @@ export function OrganizationView({
   stats: Stats | null
   userId: string
 }) {
-  const [org, setOrg]     = useState<Org | null>(initialOrg)
+  const org = initialOrg
   const [tab, setTab]     = useState<Tab>('info')
   const isAdmin = role === 'admin'
 
   if (!org) {
     return (
       <div className="max-w-2xl mx-auto">
-        <CreateOrgPanel onCreated={newOrg => setOrg(newOrg)} />
+        <CreateOrgPanel />
       </div>
     )
   }

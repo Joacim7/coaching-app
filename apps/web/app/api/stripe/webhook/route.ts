@@ -34,6 +34,44 @@ export async function POST(req: Request) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
 
+      if (session.metadata?.type === 'org_create') {
+        const createdBy = session.metadata?.createdBy
+        const orgName = session.metadata?.orgName
+        const planInfo = orgPlanBySlug(session.metadata?.plan)
+        if (!createdBy || !orgName || !planInfo) {
+          console.error('[stripe/webhook] org_create missing createdBy/orgName/plan metadata')
+          break
+        }
+
+        const { data: org, error } = await supabase.rpc('create_organization_for_user', {
+          p_user_id: createdBy,
+          p_name: orgName,
+          p_plan: planInfo.slug,
+          p_max_coaches: planInfo.maxCoaches,
+        })
+
+        // "Already in an organization" means org-confirm (the synchronous
+        // redirect handler) already created it — not an error, just a no-op.
+        if (error) {
+          if (!error.message.includes('Already in an organization')) {
+            console.error('[stripe/webhook] org creation failed:', error.message)
+          }
+          break
+        }
+
+        const newOrgId = (org as { id: string } | null)?.id
+        if (newOrgId && !testMode) {
+          await supabase
+            .from('organizations')
+            .update({
+              stripe_customer_id: typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
+              stripe_subscription_id: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id ?? null,
+            })
+            .eq('id', newOrgId)
+        }
+        break
+      }
+
       if (session.metadata?.type === 'org') {
         const orgId = session.metadata?.orgId
         const planInfo = orgPlanBySlug(session.metadata?.plan)

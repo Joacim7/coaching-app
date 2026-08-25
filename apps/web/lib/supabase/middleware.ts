@@ -11,7 +11,14 @@ export async function updateSession(request: NextRequest) {
   // rather than take the whole app down. Pages/routes that actually need a
   // session still enforce that themselves server-side.
   try {
-    let supabaseResponse = NextResponse.next({ request })
+    // Forwarded to server components as the "x-pathname" request header —
+    // (dashboard)/layout.tsx uses it to exempt /organization from the
+    // blanket coach paywall, since that's the route a standalone coach with
+    // no individual subscription needs to reach in order to pay for an org.
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-pathname', request.nextUrl.pathname)
+
+    let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
 
     const supabaseUrl     = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -33,7 +40,7 @@ export async function updateSession(request: NextRequest) {
             cookiesToSet.forEach(({ name, value }) =>
               request.cookies.set(name, value)
             )
-            supabaseResponse = NextResponse.next({ request })
+            supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
             cookiesToSet.forEach(({ name, value, options }) =>
               supabaseResponse.cookies.set(name, value, options)
             )

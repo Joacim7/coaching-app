@@ -20,6 +20,31 @@ export async function POST(req: Request) {
   const { email } = await req.json()
   if (!email?.trim()) return NextResponse.json({ error: 'Email required' }, { status: 400 })
 
+  // A pending invitation reserves a seat just like an active member does —
+  // otherwise an admin could send far more invites than the plan allows and
+  // blow past the limit the moment they're all accepted.
+  const { data: orgRow } = await supabase
+    .from('organizations')
+    .select('max_coaches')
+    .eq('id', membership.org_id)
+    .single()
+
+  const [{ count: memberCount }, { count: pendingCount }] = await Promise.all([
+    supabase.from('org_members').select('id', { count: 'exact', head: true }).eq('org_id', membership.org_id),
+    supabase.from('org_invitations').select('id', { count: 'exact', head: true }).eq('org_id', membership.org_id).eq('status', 'pending'),
+  ])
+
+  const seatsUsed = (memberCount ?? 0) + (pendingCount ?? 0)
+  if (orgRow && seatsUsed >= orgRow.max_coaches) {
+    return NextResponse.json(
+      {
+        error: `Planen din tillater maks ${orgRow.max_coaches} coacher. Oppgrader planen for å invitere flere.`,
+        code: 'plan_limit_reached',
+      },
+      { status: 402 },
+    )
+  }
+
   const { data, error } = await supabase
     .from('org_invitations')
     .insert({

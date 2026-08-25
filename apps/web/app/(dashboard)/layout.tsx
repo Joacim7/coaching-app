@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
@@ -9,9 +10,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  // /organization is exempt from this gate — it's exactly where a standalone
+  // coach with no individual subscription needs to go to create and pay for
+  // an org (which is itself how they'd become exempt otherwise). It enforces
+  // its own access rules internally (name+plan before an org exists, plan
+  // picker for a still-unpaid org, full dashboard once active).
+  const pathname = (await headers()).get('x-pathname') ?? ''
+  const isOrgRoute = pathname.startsWith('/organization')
+
   // Standalone coaches without an active subscription can't use the
   // dashboard at all — exempt coaches (org admin, org members) always pass.
-  if (user && !(await coachHasActiveAccess(supabase, user.id))) {
+  if (user && !isOrgRoute && !(await coachHasActiveAccess(supabase, user.id))) {
     console.warn(`[dashboard paywall] redirecting user.id="${user.id}" (len ${user.id.length}) to /pricing`)
     redirect('/pricing')
   }

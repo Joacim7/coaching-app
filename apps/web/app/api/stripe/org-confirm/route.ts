@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getStripe, isStripeTestMode } from '@/lib/stripe'
 import { orgPlanBySlug } from '@/lib/orgPlans'
 import { NextResponse } from 'next/server'
@@ -23,36 +24,71 @@ export async function GET(req: Request) {
     const session = await stripe.checkout.sessions.retrieve(sessionId)
 
     if (session.status === 'complete' || session.payment_status === 'paid') {
-      const orgId = session.metadata?.orgId
-      const planInfo = orgPlanBySlug(session.metadata?.plan)
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      const testMode = isStripeTestMode()
 
-      if (orgId && planInfo) {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+      if (session.metadata?.type === 'org_create') {
+        const createdBy = session.metadata?.createdBy
+        const orgName = session.metadata?.orgName
+        const planInfo = orgPlanBySlug(session.metadata?.plan)
 
-        // Only apply if this really is an admin of the org that owns the
-        // session — the webhook (service-role) remains the source of truth
-        // otherwise.
-        const { data: membership } = user
-          ? await supabase.from('org_members').select('role').eq('org_id', orgId).eq('user_id', user.id).single()
-          : { data: null }
+        // Only the coach who actually paid can trigger creation from here —
+        // the webhook (service-role) is the fallback for everyone else.
+        if (user?.id === createdBy && orgName && planInfo) {
+          const admin = createAdminClient()
+          const { data: org, error } = await admin.rpc('create_organization_for_user', {
+            p_user_id: createdBy,
+            p_name: orgName,
+            p_plan: planInfo.slug,
+            p_max_coaches: planInfo.maxCoaches,
+          })
 
-        if (membership?.role === 'admin') {
-          // Test-mode customer/subscription ids must never overwrite a real
-          // one in this shared DB — but subscription_plan is exactly what's
-          // being tested, so that still updates either way.
-          const testMode = isStripeTestMode()
-          await supabase
-            .from('organizations')
-            .update({
-              subscription_plan: planInfo.slug,
-              max_coaches: planInfo.maxCoaches,
-              ...(testMode ? {} : {
-                stripe_customer_id: typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
-                stripe_subscription_id: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id ?? null,
-              }),
-            })
-            .eq('id', orgId)
+          // "Already in an organization" means the webhook (or a duplicate
+          // redirect) beat us to it — not an error, just a no-op here.
+          if (error && !error.message.includes('Already in an organization')) {
+            console.error('[stripe/org-confirm] org creation failed:', error.message)
+          } else if (!error && !testMode) {
+            const newOrgId = (org as { id: string } | null)?.id
+            if (newOrgId) {
+              await admin
+                .from('organizations')
+                .update({
+                  stripe_customer_id: typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
+                  stripe_subscription_id: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id ?? null,
+                })
+                .eq('id', newOrgId)
+            }
+          }
+        }
+      } else {
+        const orgId = session.metadata?.orgId
+        const planInfo = orgPlanBySlug(session.metadata?.plan)
+
+        if (orgId && planInfo) {
+          // Only apply if this really is an admin of the org that owns the
+          // session — the webhook (service-role) remains the source of truth
+          // otherwise.
+          const { data: membership } = user
+            ? await supabase.from('org_members').select('role').eq('org_id', orgId).eq('user_id', user.id).single()
+            : { data: null }
+
+          if (membership?.role === 'admin') {
+            // Test-mode customer/subscription ids must never overwrite a real
+            // one in this shared DB — but subscription_plan is exactly what's
+            // being tested, so that still updates either way.
+            await supabase
+              .from('organizations')
+              .update({
+                subscription_plan: planInfo.slug,
+                max_coaches: planInfo.maxCoaches,
+                ...(testMode ? {} : {
+                  stripe_customer_id: typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
+                  stripe_subscription_id: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id ?? null,
+                }),
+              })
+              .eq('id', orgId)
+          }
         }
       }
     }
