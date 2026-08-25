@@ -171,9 +171,14 @@ export default function SettingsView({ userId, email, initialProfile, billing }:
     setTimeout(() => setSaved(false), 2000)
   }
 
-  function handleLanguageChange(value: string) {
+  async function handleLanguageChange(value: string) {
     setLang(value)
     setLocale(value as Locale)
+    // Saved immediately on selection, unlike weight/distance unit which
+    // wait for "Lagre preferanser" — a language switch should stick right
+    // away rather than silently reverting if the coach navigates off
+    // without remembering to hit save.
+    await supabase.from('profiles').update({ language: value }).eq('id', userId)
   }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
