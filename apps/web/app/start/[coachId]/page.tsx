@@ -4,11 +4,11 @@ import { getEffectiveOnboardingTemplate } from '@/lib/onboarding-template'
 import { defaultLeadTemplateQuestions } from '@/lib/default-lead-template'
 import { IntakeForm } from './intake-form'
 
-// This reflects live DB state a coach can change anytime from Skjemaer
-// (or that gets lazily back-filled below) — Next can otherwise cache a
-// dynamic-segment page like this per coachId after its first request if it
-// doesn't recognize the Supabase client's own fetch as an uncached data
-// source, freezing whatever the template looked like at that first visit.
+// This reflects live DB state a coach can change anytime from Skjemaer —
+// Next can otherwise cache a dynamic-segment page like this per coachId
+// after its first request if it doesn't recognize the Supabase client's own
+// fetch as an uncached data source, freezing whatever the template looked
+// like at that first visit.
 export const dynamic = 'force-dynamic'
 
 export default async function StartPage({
@@ -28,38 +28,28 @@ export default async function StartPage({
 
   if (!coach) notFound()
 
-  // A standalone coach's own template always wins if they have one; only a
-  // coach with no template of their own falls back to their org's shared
-  // one (if they're in an org at all) — same resolution used everywhere
-  // else onboarding templates are looked up (see lib/onboarding-template.ts).
-  let template = await getEffectiveOnboardingTemplate(admin, coachId)
-
-  // Registration auto-creates this template (see register-form.tsx), but
-  // accounts created before that existed have none — back-fill it lazily
-  // here rather than leaving them stuck on the bare 3-field fallback form.
-  // Only for genuinely standalone coaches; an org coach with no shared
-  // template is expected to rely on the org's, not get their own.
-  if (!template) {
-    const { data: membership } = await admin
-      .from('org_members')
-      .select('id')
-      .eq('user_id', coachId)
-      .limit(1)
-
-    if (!membership?.length) {
-      const { data: created } = await admin
-        .from('checkin_templates')
-        .insert({
-          coach_id:  coachId,
-          name:      'Oppstartsskjema',
-          type:      'onboarding',
-          questions: defaultLeadTemplateQuestions(),
-        })
-        .select('*')
-        .single()
-
-      template = created ?? null
-    }
+  // A coach's own template always wins if they have one; otherwise their
+  // org's shared one, if any (see lib/onboarding-template.ts). If neither
+  // exists — an old standalone account that predates auto-creation on
+  // registration, or an org admin/coach whose org hasn't set up a shared
+  // template yet — fall back to the same default questions.
+  //
+  // This fallback is deliberately never persisted as the coach's own
+  // template: getEffectiveOnboardingTemplate always prefers an "own"
+  // template over the org's shared one, so writing one here would
+  // permanently shadow a real org template an admin sets up later. A
+  // standalone coach who wants an editable copy can save one from Skjemaer;
+  // brand new registrations still get a real, editable one immediately
+  // (see register-form.tsx).
+  const template = await getEffectiveOnboardingTemplate(admin, coachId) ?? {
+    id:             'default',
+    coach_id:       coachId,
+    name:           'Oppstartsskjema',
+    type:           'onboarding' as const,
+    questions:      defaultLeadTemplateQuestions(),
+    schedule_days:  [],
+    schedule_time:  null,
+    created_at:     new Date().toISOString(),
   }
 
   return (
@@ -72,9 +62,7 @@ export default async function StartPage({
             {coach.full_name.slice(0, 1).toUpperCase()}
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Kontakt {coach.full_name}</h1>
-          {template && (
-            <p className="text-gray-500 mt-1">{template.name}</p>
-          )}
+          <p className="text-gray-500 mt-1">{template.name}</p>
         </div>
 
         <IntakeForm coachId={coachId} template={template} />
