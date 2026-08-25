@@ -6,7 +6,7 @@ import {
   Building2, Users, UserPlus, FileText, BarChart2, Shield,
   Upload, Trash2, Loader2, Download, File, Plus, X, Mail,
   Clock, CheckCircle2, XCircle, Dumbbell, ChefHat, ClipboardList, Activity,
-  Share2, Link, Utensils, Video,
+  Share2, Link, Utensils, Video, Check,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { exerciseThumbnail } from '@/lib/video-thumbnail'
@@ -126,6 +126,47 @@ function StatCard({
 // ── Shared org plan cards (used when creating a new org and when a pending
 // or existing org needs to pick/upgrade a plan) ─────────────────────────────
 
+const ORG_ADMIN_FEATURES = [
+  'Dele treningsplaner, matplaner, oppskrifter, øvelser og dokumenter med alle coacher',
+  'Oversikt over alle coacher og deres klienter',
+  'Flytte klienter mellom coacher',
+  'Felles maler for check-ins og oppstartsskjema',
+]
+
+const ORG_COACH_FEATURES = [
+  'Dele egne treningsplaner, matplaner og oppskrifter med resten av organisasjonen',
+  'Se og bruke alle delte ressurser med sine klienter',
+]
+
+function OrgPlanFeatures() {
+  return (
+    <div className="max-w-2xl mx-auto mb-8 bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-left">
+      <div className="mb-4">
+        <h3 className="text-sm font-bold text-gray-900 mb-2">Som organisasjonsadmin får du:</h3>
+        <ul className="space-y-1.5">
+          {ORG_ADMIN_FEATURES.map(f => (
+            <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
+              <Check className="w-4 h-4 text-[#2d8653] flex-shrink-0 mt-0.5" />
+              {f}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <h3 className="text-sm font-bold text-gray-900 mb-2">Coachene kan:</h3>
+        <ul className="space-y-1.5">
+          {ORG_COACH_FEATURES.map(f => (
+            <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
+              <Check className="w-4 h-4 text-[#2d8653] flex-shrink-0 mt-0.5" />
+              {f}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 function OrgPlanCards({
   onSelect, loadingPlan,
 }: {
@@ -241,6 +282,7 @@ function CreateOrgPanel() {
       {error && (
         <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg text-center mb-6 max-w-sm mx-auto">{error}</p>
       )}
+      <OrgPlanFeatures />
       <OrgPlanCards onSelect={handleSelectPlan} loadingPlan={loadingPlan} />
     </div>
   )
@@ -289,6 +331,7 @@ function OrgPlanSelector({ org }: { org: Org }) {
       {error && (
         <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg text-center mb-6 max-w-sm mx-auto">{error}</p>
       )}
+      <OrgPlanFeatures />
       <OrgPlanCards onSelect={handleSelect} loadingPlan={loadingPlan} />
     </div>
   )
