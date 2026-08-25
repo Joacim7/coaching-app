@@ -6,6 +6,7 @@ import {
   User, CreditCard, Receipt, Bell, Scale,
   Globe, Shield, Camera, Check, Loader2, ChevronRight, ExternalLink,
 } from 'lucide-react'
+import { planBySlug } from '@/lib/plans'
 
 interface Props {
   userId: string
@@ -17,6 +18,18 @@ interface Props {
     weight_unit: 'kg' | 'lb'
     distance_unit: 'km' | 'mi'
     language: string
+  }
+  billing: {
+    planSlug: string
+    hasStripeCustomer: boolean
+    renewalDateIso: string | null
+    invoices: {
+      id: string
+      dateIso: string
+      amountKr: number
+      status: string
+      downloadUrl: string | null
+    }[]
   }
 }
 
@@ -113,7 +126,7 @@ function PlaceholderRow({ label, sub, badge }: { label: string; sub?: string; ba
   )
 }
 
-export default function SettingsView({ userId, email, initialProfile }: Props) {
+export default function SettingsView({ userId, email, initialProfile, billing }: Props) {
   const supabase = createClient()
   const fileRef  = useRef<HTMLInputElement>(null)
 
@@ -256,43 +269,71 @@ export default function SettingsView({ userId, email, initialProfile }: Props) {
 
       {/* ── 2. Abonnement ── */}
       <SectionCard icon={CreditCard} title="Abonnement">
-        <div className="flex items-center justify-between mb-4 p-4 rounded-xl bg-[#ebf5ef] border border-[#cdeee3]">
-          <div>
-            <p className="font-semibold text-[#1a5c3a]">Pro-plan</p>
-            <p className="text-sm text-[#2d8653] mt-0.5">Ubegrenset klienter · AI-matplaner · Opptak</p>
-          </div>
-          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[#cdeee3] text-[#1a5c3a]">Aktiv</span>
-        </div>
-        <PlaceholderRow label="Endre plan" sub="Oppgrader eller nedgrader abonnementet" />
-        <PlaceholderRow label="Betalingsmetode" sub="Visa •••• 4242" />
-        <PlaceholderRow label="Neste fornyelse" sub="1. august 2026" badge="299 kr/mnd" />
-        <div className="mt-4">
-          <button className="text-sm text-gray-400 hover:text-red-500 transition-colors">
-            Avslutt abonnement
-          </button>
-        </div>
+        {(() => {
+          const plan = planBySlug(billing.planSlug)
+          const isActive = billing.planSlug !== 'free'
+          return (
+            <>
+              <div className="flex items-center justify-between mb-4 p-4 rounded-xl bg-[#ebf5ef] border border-[#cdeee3]">
+                <div>
+                  <p className="font-semibold text-[#1a5c3a]">{plan.displayName}-plan</p>
+                  <p className="text-sm text-[#2d8653] mt-0.5">{plan.priceKr} kr/mnd</p>
+                </div>
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[#cdeee3] text-[#1a5c3a]">
+                  {isActive ? 'Aktiv' : 'Ingen aktivt abonnement'}
+                </span>
+              </div>
+              {isActive && (
+                <PlaceholderRow
+                  label="Neste fornyelse"
+                  sub={
+                    billing.renewalDateIso
+                      ? new Date(billing.renewalDateIso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
+                      : 'Ikke tilgjengelig'
+                  }
+                  badge={`${plan.priceKr} kr/mnd`}
+                />
+              )}
+            </>
+          )
+        })()}
       </SectionCard>
 
       {/* ── 3. Fakturaer ── */}
       <SectionCard icon={Receipt} title="Fakturaer">
-        {[
-          { date: '1. jul 2026', amount: '299 kr', status: 'Betalt' },
-          { date: '1. jun 2026', amount: '299 kr', status: 'Betalt' },
-          { date: '1. mai 2026', amount: '299 kr', status: 'Betalt' },
-        ].map((inv, i) => (
-          <div key={i} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
-            <div>
-              <p className="text-sm font-medium text-gray-800">Nova Performance Pro</p>
-              <p className="text-xs text-gray-400 mt-0.5">{inv.date}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-gray-700">{inv.amount}</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#ebf5ef] text-[#1a5c3a]">{inv.status}</span>
-              <button className="text-xs text-[#2d8653] hover:text-[#1a5c3a] font-medium">Last ned</button>
-            </div>
-          </div>
-        ))}
-        <p className="text-xs text-gray-400 mt-3">Fakturaer sendes til {email}</p>
+        {!billing.hasStripeCustomer || billing.invoices.length === 0 ? (
+          <p className="text-sm text-gray-400 py-2">Ingen fakturaer ennå</p>
+        ) : (
+          <>
+            {billing.invoices.map(inv => (
+              <div key={inv.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Nova Performance</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {new Date(inv.dateIso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-gray-700">{inv.amountKr} kr</span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#ebf5ef] text-[#1a5c3a]">{inv.status}</span>
+                  {inv.downloadUrl ? (
+                    <a
+                      href={inv.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-[#2d8653] hover:text-[#1a5c3a] font-medium"
+                    >
+                      Last ned
+                    </a>
+                  ) : (
+                    <span className="text-xs text-gray-300">Last ned</span>
+                  )}
+                </div>
+              </div>
+            ))}
+            <p className="text-xs text-gray-400 mt-3">Fakturaer sendes til {email}</p>
+          </>
+        )}
       </SectionCard>
 
       {/* ── 4. Varslingsadministrasjon ── */}
