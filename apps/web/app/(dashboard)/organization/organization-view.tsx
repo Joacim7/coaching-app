@@ -454,7 +454,7 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
         {isAdmin && (
           <button
             onClick={() => setShowInvite(s => !s)}
-            className="flex items-center gap-2 h-9 px-4 rounded-xl bg-[#2d8653] text-white text-sm font-semibold hover:bg-[#2d8653] transition-colors"
+            className="flex items-center gap-2 h-9 px-4 rounded-xl text-white text-sm font-semibold transition-all [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:brightness-95"
           >
             <UserPlus className="w-4 h-4" />
             Inviter coach

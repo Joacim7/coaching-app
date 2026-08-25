@@ -63,12 +63,12 @@ export default function LoginForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center mb-10">
           <Image
             src="/nova-performance-logo.png"
             alt="Nova Performance"
-            width={180}
-            height={60}
+            width={320}
+            height={107}
             className="object-contain"
             priority
           />
