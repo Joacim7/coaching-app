@@ -9,25 +9,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Dumbbell, Building2 } from 'lucide-react'
+import { defaultLeadTemplateQuestions } from '@/lib/default-lead-template'
 
 interface InviteInfo {
   email: string
   orgName: string
   valid: boolean
-}
-
-// A standalone coach (no org to inherit a shared template from) gets a
-// sensible default lead intake form for their /start/[coachId] link,
-// editable later from Skjemaer → Oppstartsskjema.
-function defaultLeadTemplateQuestions() {
-  return [
-    { id: crypto.randomUUID(), text: 'Fornavn', type: 'text', required: true },
-    { id: crypto.randomUUID(), text: 'Etternavn', type: 'text', required: true },
-    { id: crypto.randomUUID(), text: 'Mobilnummer', type: 'text', required: true },
-    { id: crypto.randomUUID(), text: 'E-post', type: 'text', required: true },
-    { id: crypto.randomUUID(), text: 'Mål', type: 'text' },
-    { id: crypto.randomUUID(), text: 'Hvordan fant du oss?', type: 'text' },
-  ]
 }
 
 export default function RegisterForm() {
