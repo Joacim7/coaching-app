@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
   User, CreditCard, Receipt, Bell, Scale,
@@ -284,15 +285,23 @@ export default function SettingsView({ userId, email, initialProfile, billing }:
                 </span>
               </div>
               {isActive && (
-                <PlaceholderRow
-                  label="Neste fornyelse"
-                  sub={
-                    billing.renewalDateIso
-                      ? new Date(billing.renewalDateIso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
-                      : 'Ikke tilgjengelig'
-                  }
-                  badge={`${plan.priceKr} kr/mnd`}
-                />
+                <>
+                  <PlaceholderRow
+                    label="Neste fornyelse"
+                    sub={
+                      billing.renewalDateIso
+                        ? new Date(billing.renewalDateIso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
+                        : 'Ikke tilgjengelig'
+                    }
+                    badge={`${plan.priceKr} kr/mnd`}
+                  />
+                  <Link
+                    href="/pricing"
+                    className="mt-4 flex items-center justify-center gap-2 h-10 px-5 rounded-xl text-white text-sm font-semibold transition-all [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]"
+                  >
+                    Oppgrader plan
+                  </Link>
+                </>
               )}
             </>
           )
