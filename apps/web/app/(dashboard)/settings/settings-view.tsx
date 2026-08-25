@@ -8,6 +8,8 @@ import {
   Globe, Shield, Camera, Check, Loader2, ChevronRight, ExternalLink,
 } from 'lucide-react'
 import { planBySlug } from '@/lib/plans'
+import { useLocale } from '@/components/locale-provider'
+import type { Locale } from '@/lib/i18n/translations'
 
 interface Props {
   userId: string
@@ -130,6 +132,7 @@ function PlaceholderRow({ label, sub, badge }: { label: string; sub?: string; ba
 export default function SettingsView({ userId, email, initialProfile, billing }: Props) {
   const supabase = createClient()
   const fileRef  = useRef<HTMLInputElement>(null)
+  const { t, setLocale } = useLocale()
 
   const [name,    setName]    = useState(initialProfile.full_name)
   const [phone,   setPhone]   = useState(initialProfile.phone)
@@ -168,6 +171,11 @@ export default function SettingsView({ userId, email, initialProfile, billing }:
     setTimeout(() => setSaved(false), 2000)
   }
 
+  function handleLanguageChange(value: string) {
+    setLang(value)
+    setLocale(value as Locale)
+  }
+
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -191,12 +199,12 @@ export default function SettingsView({ userId, email, initialProfile, billing }:
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-[#1a5c3a]">Innstillinger</h1>
-        <p className="text-sm text-gray-500 mt-1">Administrer konto, preferanser og varsler</p>
+        <h1 className="text-2xl font-bold text-[#1a5c3a]">{t('settings.title')}</h1>
+        <p className="text-sm text-gray-500 mt-1">{t('settings.subtitle')}</p>
       </div>
 
       {/* ── 1. Profilinnstillinger ── */}
-      <SectionCard icon={User} title="Profilinnstillinger">
+      <SectionCard icon={User} title={t('settings.profile.title')}>
         {/* Avatar */}
         <div className="flex items-center gap-5 mb-6">
           <div className="relative">
@@ -218,43 +226,43 @@ export default function SettingsView({ userId, email, initialProfile, billing }:
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
           </div>
           <div>
-            <p className="font-semibold text-gray-900">{name || 'Navn ikke satt'}</p>
+            <p className="font-semibold text-gray-900">{name || t('settings.profile.nameNotSet')}</p>
             <p className="text-sm text-gray-400">{email}</p>
             <button
               onClick={() => fileRef.current?.click()}
               className="text-xs text-[#2d8653] hover:text-[#1a5c3a] font-medium mt-1"
             >
-              Endre bilde
+              {t('settings.profile.changePhoto')}
             </button>
           </div>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Fullt navn</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t('settings.profile.fullName')}</label>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
               className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
-              placeholder="Ola Nordmann"
+              placeholder={t('settings.profile.fullNamePlaceholder')}
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">E-post</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t('settings.profile.email')}</label>
             <input
               value={email}
               disabled
               className="w-full h-10 px-3 rounded-xl border border-gray-100 bg-gray-50 text-sm text-gray-400 cursor-not-allowed"
             />
-            <p className="text-xs text-gray-400 mt-1">E-post endres via Supabase Auth</p>
+            <p className="text-xs text-gray-400 mt-1">{t('settings.profile.emailHint')}</p>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Telefon</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t('settings.profile.phone')}</label>
             <input
               value={phone}
               onChange={e => setPhone(e.target.value)}
               className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
-              placeholder="+47 123 45 678"
+              placeholder={t('settings.profile.phonePlaceholder')}
             />
           </div>
           <button
@@ -263,13 +271,13 @@ export default function SettingsView({ userId, email, initialProfile, billing }:
             className="flex items-center gap-2 h-10 px-5 rounded-xl text-white text-sm font-semibold transition-all [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a] disabled:opacity-60"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : null}
-            {saving ? 'Lagrer...' : saved ? 'Lagret!' : 'Lagre profil'}
+            {saving ? t('settings.saving') : saved ? t('settings.saved') : t('settings.profile.save')}
           </button>
         </div>
       </SectionCard>
 
       {/* ── 2. Abonnement ── */}
-      <SectionCard icon={CreditCard} title="Abonnement">
+      <SectionCard icon={CreditCard} title={t('settings.subscription.title')}>
         {(() => {
           const plan = planBySlug(billing.planSlug)
           const isActive = billing.planSlug !== 'free'
@@ -281,17 +289,17 @@ export default function SettingsView({ userId, email, initialProfile, billing }:
                   <p className="text-sm text-[#2d8653] mt-0.5">{plan.priceKr} kr/mnd</p>
                 </div>
                 <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[#cdeee3] text-[#1a5c3a]">
-                  {isActive ? 'Aktiv' : 'Ingen aktivt abonnement'}
+                  {isActive ? t('settings.subscription.active') : t('settings.subscription.none')}
                 </span>
               </div>
               {isActive && (
                 <>
                   <PlaceholderRow
-                    label="Neste fornyelse"
+                    label={t('settings.subscription.nextRenewal')}
                     sub={
                       billing.renewalDateIso
                         ? new Date(billing.renewalDateIso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
-                        : 'Ikke tilgjengelig'
+                        : t('settings.subscription.notAvailable')
                     }
                     badge={`${plan.priceKr} kr/mnd`}
                   />
@@ -299,7 +307,7 @@ export default function SettingsView({ userId, email, initialProfile, billing }:
                     href="/pricing"
                     className="mt-4 flex items-center justify-center gap-2 h-10 px-5 rounded-xl text-white text-sm font-semibold transition-all [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]"
                   >
-                    Oppgrader plan
+                    {t('settings.subscription.upgrade')}
                   </Link>
                 </>
               )}
@@ -309,9 +317,9 @@ export default function SettingsView({ userId, email, initialProfile, billing }:
       </SectionCard>
 
       {/* ── 3. Fakturaer ── */}
-      <SectionCard icon={Receipt} title="Fakturaer">
+      <SectionCard icon={Receipt} title={t('settings.invoices.title')}>
         {!billing.hasStripeCustomer || billing.invoices.length === 0 ? (
-          <p className="text-sm text-gray-400 py-2">Ingen fakturaer ennå</p>
+          <p className="text-sm text-gray-400 py-2">{t('settings.invoices.none')}</p>
         ) : (
           <>
             {billing.invoices.map(inv => (
@@ -332,50 +340,50 @@ export default function SettingsView({ userId, email, initialProfile, billing }:
                       rel="noopener noreferrer"
                       className="text-xs text-[#2d8653] hover:text-[#1a5c3a] font-medium"
                     >
-                      Last ned
+                      {t('settings.invoices.download')}
                     </a>
                   ) : (
-                    <span className="text-xs text-gray-300">Last ned</span>
+                    <span className="text-xs text-gray-300">{t('settings.invoices.download')}</span>
                   )}
                 </div>
               </div>
             ))}
-            <p className="text-xs text-gray-400 mt-3">Fakturaer sendes til {email}</p>
+            <p className="text-xs text-gray-400 mt-3">{t('settings.invoices.sentTo')} {email}</p>
           </>
         )}
       </SectionCard>
 
       {/* ── 4. Varslingsadministrasjon ── */}
-      <SectionCard icon={Bell} title="Varslingsadministrasjon">
-        <p className="text-xs text-gray-400 mb-3">Velg hvilke hendelser du vil varsles om</p>
+      <SectionCard icon={Bell} title={t('settings.notifications.title')}>
+        <p className="text-xs text-gray-400 mb-3">{t('settings.notifications.subtitle')}</p>
         <ToggleRow
-          label="Ny check-in innsendt"
-          sub="Varsle meg når en klient sender inn check-in"
+          label={t('settings.notifications.newCheckin')}
+          sub={t('settings.notifications.newCheckinSub')}
           checked={notifNewCheckin}
           onChange={setNotifNewCheckin}
         />
         <ToggleRow
-          label="Ukentlig klientrapport"
-          sub="Oppsummering av alle klienters uke"
+          label={t('settings.notifications.weeklyReport')}
+          sub={t('settings.notifications.weeklyReportSub')}
           checked={notifWeeklyReport}
           onChange={setNotifWeeklyReport}
         />
         <ToggleRow
-          label="Ny lead"
-          sub="Varsle meg om nye leads fra oppstartslenken"
+          label={t('settings.notifications.newLead')}
+          sub={t('settings.notifications.newLeadSub')}
           checked={notifNewLead}
           onChange={setNotifNewLead}
         />
       </SectionCard>
 
       {/* ── 5. Enheter og mål ── */}
-      <SectionCard icon={Scale} title="Enheter og mål">
-        <p className="text-xs text-gray-400 mb-4">Gjelder for alle klienter i dashboardet</p>
+      <SectionCard icon={Scale} title={t('settings.units.title')}>
+        <p className="text-xs text-gray-400 mb-4">{t('settings.units.subtitle')}</p>
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-800">Vektenhet</p>
-              <p className="text-xs text-gray-400 mt-0.5">Brukes i check-ins og progresjon</p>
+              <p className="text-sm font-medium text-gray-800">{t('settings.units.weight')}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t('settings.units.weightSub')}</p>
             </div>
             <UnitToggle
               value={weightU}
@@ -385,8 +393,8 @@ export default function SettingsView({ userId, email, initialProfile, billing }:
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-800">Avstandsenhet</p>
-              <p className="text-xs text-gray-400 mt-0.5">Brukes i treningsplaner og skritt</p>
+              <p className="text-sm font-medium text-gray-800">{t('settings.units.distance')}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t('settings.units.distanceSub')}</p>
             </div>
             <UnitToggle
               value={distU}
@@ -401,46 +409,42 @@ export default function SettingsView({ userId, email, initialProfile, billing }:
           className="flex items-center gap-2 h-10 px-5 rounded-xl text-white text-sm font-semibold mt-5 transition-all [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a] disabled:opacity-60"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : null}
-          {saving ? 'Lagrer...' : saved ? 'Lagret!' : 'Lagre preferanser'}
+          {saving ? t('settings.saving') : saved ? t('settings.saved') : t('settings.units.save')}
         </button>
       </SectionCard>
 
       {/* ── 6. Språk ── */}
-      <SectionCard icon={Globe} title="Språk">
+      <SectionCard icon={Globe} title={t('settings.language.title')}>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-800">Grensesnittspråk</p>
-            <p className="text-xs text-gray-400 mt-0.5">Språket som brukes i dashboardet</p>
+            <p className="text-sm font-medium text-gray-800">{t('settings.language.label')}</p>
           </div>
           <select
             value={lang}
-            onChange={e => setLang(e.target.value)}
+            onChange={e => handleLanguageChange(e.target.value)}
             className="h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653] bg-white"
           >
             <option value="nb">🇳🇴 Norsk (bokmål)</option>
-            <option value="nn">🇳🇴 Norsk (nynorsk)</option>
             <option value="en">🇬🇧 English</option>
-            <option value="sv">🇸🇪 Svenska</option>
-            <option value="da">🇩🇰 Dansk</option>
           </select>
         </div>
       </SectionCard>
 
       {/* ── 7. Juridisk ── */}
-      <SectionCard icon={Shield} title="Juridisk">
+      <SectionCard icon={Shield} title={t('settings.legal.title')}>
         <ExternalRow
-          label="Personvernerklæring"
-          sub="Hvordan vi behandler dine data"
+          label={t('settings.legal.privacy')}
+          sub={t('settings.legal.privacySub')}
           href="https://novaperformance.no/personvern"
         />
         <ExternalRow
-          label="Vilkår for bruk"
-          sub="Avtalevilkår for Nova Performance"
+          label={t('settings.legal.terms')}
+          sub={t('settings.legal.termsSub')}
           href="https://novaperformance.no/vilkar"
         />
         <ExternalRow
-          label="Databehandleravtale (DPA)"
-          sub="GDPR-avtale for behandling av klientdata"
+          label={t('settings.legal.dpa')}
+          sub={t('settings.legal.dpaSub')}
           href="https://novaperformance.no/dpa"
         />
       </SectionCard>

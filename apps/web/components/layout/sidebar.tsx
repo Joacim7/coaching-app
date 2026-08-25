@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
 import { useRecording } from '@/components/recording-provider'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 // ── Brand colors ───────────────────────────────────────────────────────────────
 const NOVA_DARK       = '#1a5c3a'
@@ -21,64 +23,64 @@ const NOVA_ACTIVE_BG  = '#1a5c3a20'   // ~12% opacity dark green
 const NOVA_AVATAR_BG  = '#cdeee3'     // light mint for avatar
 
 // ── Nav data ──────────────────────────────────────────────────────────────────
+// `key` is a stable, non-localized identifier used for expand/collapse state
+// and path-matching — only `labelKey` (resolved via t()) changes with locale.
 
-type Child = { href: string; label: string }
+type Child = { href: string; labelKey: TranslationKey }
 type NavItem = {
   href?: string
-  label: string
+  key: string
+  labelKey: TranslationKey
   icon: React.ElementType
   children?: Child[]
 }
-type Section = { label: string; items: NavItem[] }
+type Section = { labelKey: TranslationKey; items: NavItem[] }
 
 const sections: Section[] = [
   {
-    label: 'JOBB MED KLIENTER',
+    labelKey: 'sidebar.section.clients',
     items: [
-      { href: '/dashboard',           label: 'Hjem',     icon: Home },
-      { href: '/clients',             label: 'Klienter', icon: Users },
-      { href: '/messages',            label: 'Meldinger', icon: MessageSquare },
+      { href: '/dashboard', key: 'home',     labelKey: 'sidebar.home',     icon: Home },
+      { href: '/clients',   key: 'clients',  labelKey: 'sidebar.clients',  icon: Users },
+      { href: '/messages',  key: 'messages', labelKey: 'sidebar.messages', icon: MessageSquare },
       {
-        label: 'Skjemaer',
-        icon: FileText,
+        key: 'forms', labelKey: 'sidebar.forms', icon: FileText,
         children: [
-          { href: '/check-in-templates',                label: 'Maler' },
-          { href: '/skjemaer/ukentlig-oversikt',         label: 'Ukentlig oversikt' },
-          { href: '/skjemaer/onboarding',                label: 'Onboarding-innsendinger' },
+          { href: '/check-in-templates',        labelKey: 'sidebar.forms.templates' },
+          { href: '/skjemaer/ukentlig-oversikt', labelKey: 'sidebar.forms.weeklyOverview' },
+          { href: '/skjemaer/onboarding',        labelKey: 'sidebar.forms.onboardingSubmissions' },
         ],
       },
-      { href: '/leads',               label: 'Leads',     icon: UserPlus },
-      { href: '/analytics',           label: 'Analyser',  icon: BarChart2 },
+      { href: '/leads',     key: 'leads',     labelKey: 'sidebar.leads',     icon: UserPlus },
+      { href: '/analytics', key: 'analytics', labelKey: 'sidebar.analytics', icon: BarChart2 },
     ],
   },
   {
-    label: 'PLANLEGGING',
+    labelKey: 'sidebar.section.planning',
     items: [
       {
-        label: 'Trening',
-        icon: Dumbbell,
+        key: 'training', labelKey: 'sidebar.training', icon: Dumbbell,
         children: [
-          { href: '/training-plans',    label: 'Treningsplaner' },
-          { href: '/exercise-library',  label: 'Øvelsesbibliotek' },
+          { href: '/training-plans',   labelKey: 'sidebar.training.plans' },
+          { href: '/exercise-library', labelKey: 'sidebar.training.exerciseLibrary' },
         ],
       },
       {
-        label: 'Kosthold',
-        icon: UtensilsCrossed,
+        key: 'nutrition', labelKey: 'sidebar.nutrition', icon: UtensilsCrossed,
         children: [
-          { href: '/recipes',     label: 'Oppskrifter' },
-          { href: '/ingredients', label: 'Ingredienser' },
-          { href: '/meal-plans',  label: 'Matplaner' },
+          { href: '/recipes',     labelKey: 'sidebar.nutrition.recipes' },
+          { href: '/ingredients', labelKey: 'sidebar.nutrition.ingredients' },
+          { href: '/meal-plans',  labelKey: 'sidebar.nutrition.mealPlans' },
         ],
       },
     ],
   },
   {
-    label: 'ADMINISTRASJON',
+    labelKey: 'sidebar.section.admin',
     items: [
-      { href: '/finance',       label: 'Økonomi',      icon: DollarSign },
-      { href: '/documents',     label: 'Dokumenter',   icon: FolderOpen },
-      { href: '/organization',  label: 'Organisasjon', icon: Building2 },
+      { href: '/finance',      key: 'finance',      labelKey: 'sidebar.finance',      icon: DollarSign },
+      { href: '/documents',    key: 'documents',    labelKey: 'sidebar.documents',    icon: FolderOpen },
+      { href: '/organization', key: 'organization', labelKey: 'sidebar.organization', icon: Building2 },
     ],
   },
 ]
@@ -94,13 +96,14 @@ export function Sidebar() {
   const router = useRouter()
   const supabase = createClient()
   const { openRecordModal, stage, timer } = useRecording()
+  const { t } = useLocale()
 
   const [userName, setUserName]         = useState('')
   const [userInitials, setUserInitials] = useState('?')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    Trening:   TRENING_PATHS.some(p  => pathname.startsWith(p)),
-    Kosthold:  KOSTHOLD_PATHS.some(p => pathname.startsWith(p)),
-    Skjemaer:  SKJEMAER_PATHS.some(p => pathname.startsWith(p)),
+    training: TRENING_PATHS.some(p  => pathname.startsWith(p)),
+    nutrition: KOSTHOLD_PATHS.some(p => pathname.startsWith(p)),
+    forms:    SKJEMAER_PATHS.some(p => pathname.startsWith(p)),
   })
 
   useEffect(() => {
@@ -126,8 +129,8 @@ export function Sidebar() {
     return pathname === href || pathname.startsWith(href + '/')
   }
 
-  function toggleExpand(label: string) {
-    setExpanded(prev => ({ ...prev, [label]: !prev[label] }))
+  function toggleExpand(key: string) {
+    setExpanded(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
   // Inline style helpers
@@ -180,7 +183,7 @@ export function Sidebar() {
                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               )}
             </div>
-            <span className="flex-1 text-left">Record</span>
+            <span className="flex-1 text-left">{t('sidebar.record')}</span>
             {stage === 'recording' && (
               <span className="text-[10px] font-mono text-red-500 font-semibold">
                 {String(Math.floor(timer / 60)).padStart(2,'0')}:{String(timer % 60).padStart(2,'0')}
@@ -195,7 +198,7 @@ export function Sidebar() {
               style={isActive('/recordings') ? activeStyle : undefined}
             >
               <span className={isActive('/recordings') ? '' : 'text-gray-500 hover:text-gray-900'}>
-                Mine opptak
+                {t('sidebar.myRecordings')}
               </span>
             </Link>
           </div>
@@ -205,21 +208,21 @@ export function Sidebar() {
       {/* Nav-seksjoner */}
       <nav className="flex-1 px-3 py-2 overflow-y-auto space-y-4">
         {sections.map(section => (
-          <div key={section.label}>
+          <div key={section.labelKey}>
             <p className="px-3 mb-1 text-[10px] font-semibold text-gray-400 tracking-wider uppercase">
-              {section.label}
+              {t(section.labelKey)}
             </p>
             <div className="space-y-0.5">
               {section.items.map(item => {
                 // ── Expandable parent (has children, no href) ──
                 if (item.children) {
-                  const isOpen     = !!expanded[item.label]
+                  const isOpen     = !!expanded[item.key]
                   const groupActive = item.children.some(c => isActive(c.href))
                   const Icon = item.icon
                   return (
-                    <div key={item.label}>
+                    <div key={item.key}>
                       <button
-                        onClick={() => toggleExpand(item.label)}
+                        onClick={() => toggleExpand(item.key)}
                         className={cn(
                           'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                           groupActive ? '' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
@@ -230,7 +233,7 @@ export function Sidebar() {
                           className="w-4 h-4 flex-shrink-0"
                           style={groupActive ? activeIcon : { color: '#9ca3af' }}
                         />
-                        <span className="flex-1 text-left">{item.label}</span>
+                        <span className="flex-1 text-left">{t(item.labelKey)}</span>
                         <ChevronRight
                           className={cn('w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0', isOpen ? 'rotate-90' : '')}
                           style={groupActive ? activeChevron : { color: '#d1d5db' }}
@@ -251,7 +254,7 @@ export function Sidebar() {
                                 )}
                                 style={childActive ? activeStyle : undefined}
                               >
-                                {child.label}
+                                {t(child.labelKey)}
                               </Link>
                             )
                           })}
@@ -278,7 +281,7 @@ export function Sidebar() {
                       className="w-4 h-4 flex-shrink-0"
                       style={active ? activeIcon : { color: '#9ca3af' }}
                     />
-                    {item.label}
+                    {t(item.labelKey)}
                   </Link>
                 )
               })}
@@ -301,14 +304,14 @@ export function Sidebar() {
             <Link
               href="/settings"
               className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              title="Innstillinger"
+              title={t('sidebar.settings')}
             >
               <Settings className="w-4 h-4" />
             </Link>
             <button
               onClick={handleSignOut}
               className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-              title="Logg ut"
+              title={t('sidebar.logout')}
             >
               <LogOut className="w-4 h-4" />
             </button>
