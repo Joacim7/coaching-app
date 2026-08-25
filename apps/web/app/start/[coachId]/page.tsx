@@ -4,6 +4,13 @@ import { getEffectiveOnboardingTemplate } from '@/lib/onboarding-template'
 import { defaultLeadTemplateQuestions } from '@/lib/default-lead-template'
 import { IntakeForm } from './intake-form'
 
+// This reflects live DB state a coach can change anytime from Skjemaer
+// (or that gets lazily back-filled below) — Next can otherwise cache a
+// dynamic-segment page like this per coachId after its first request if it
+// doesn't recognize the Supabase client's own fetch as an uncached data
+// source, freezing whatever the template looked like at that first visit.
+export const dynamic = 'force-dynamic'
+
 export default async function StartPage({
   params,
 }: {
