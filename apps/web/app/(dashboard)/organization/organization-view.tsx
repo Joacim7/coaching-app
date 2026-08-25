@@ -131,10 +131,11 @@ const ORG_ADMIN_FEATURES = [
   'Oversikt over alle coacher og deres klienter',
   'Flytte klienter mellom coacher',
   'Felles maler for check-ins og oppstartsskjema',
+  'Se økonomioversikten til hele teamet',
 ]
 
 const ORG_COACH_FEATURES = [
-  'Dele egne treningsplaner, matplaner og oppskrifter med resten av organisasjonen',
+  'Dele egne treningsplaner, øvelser, matplaner og oppskrifter med resten av organisasjonen',
   'Se og bruke alle delte ressurser med sine klienter',
 ]
 
