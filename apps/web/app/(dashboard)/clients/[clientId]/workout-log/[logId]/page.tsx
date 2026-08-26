@@ -3,7 +3,17 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { DeleteWorkoutButton } from './delete-workout-button'
-import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
+import { getTranslator, normalizeLocale, type TranslationKey } from '@/lib/i18n/translations'
+
+// Mirrors the training editor's HEART_RATE_ZONE_LABEL_KEYS — the coach
+// prescribes and the client logs the same 'Sone 1'..'Sone 5' values.
+const HEART_RATE_ZONE_LABEL_KEYS: Record<string, TranslationKey> = {
+  'Sone 1': 'trainingEditor.heartRateZone1',
+  'Sone 2': 'trainingEditor.heartRateZone2',
+  'Sone 3': 'trainingEditor.heartRateZone3',
+  'Sone 4': 'trainingEditor.heartRateZone4',
+  'Sone 5': 'trainingEditor.heartRateZone5',
+}
 
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('nb-NO', {
@@ -172,7 +182,14 @@ export default async function WorkoutLogDetailPage({
                 <p className="text-xs text-[#2d8653] font-semibold mt-0.5">{t('clientDetail.workoutLog.distanceLabel')}</p>
               </div>
             )}
-            {cardioData?.avg_hr_bpm != null && (
+            {cardioData?.heart_rate_zone ? (
+              <div className="rounded-xl bg-[#ebf5ef] px-4 py-3">
+                <p className="text-lg font-bold text-[#1a5c3a]">
+                  {t(HEART_RATE_ZONE_LABEL_KEYS[cardioData.heart_rate_zone] ?? 'clientDetail.workoutLog.heartRateZone')}
+                </p>
+                <p className="text-xs text-[#2d8653] font-semibold mt-0.5">{t('clientDetail.workoutLog.heartRateZone')}</p>
+              </div>
+            ) : cardioData?.avg_hr_bpm != null && (
               <div className="rounded-xl bg-[#ebf5ef] px-4 py-3">
                 <p className="text-lg font-bold text-[#1a5c3a]">{cardioData.avg_hr_bpm} bpm</p>
                 <p className="text-xs text-[#2d8653] font-semibold mt-0.5">{t('clientDetail.workoutLog.avgHr')}</p>
@@ -201,6 +218,40 @@ export default async function WorkoutLogDetailPage({
       {!cardio && groups.length > 0 && (
         <div className="space-y-3">
           {groups.map(group => {
+            // A cardio sub-section exercise inside an otherwise-strength
+            // session (see mobile's Exercise.cardioConfig) — its "sets" is
+            // really just the one cardio result, not a real set list.
+            const cardioEntry = group.sets[0]?.type === 'cardio' ? group.sets[0] : null
+            if (cardioEntry) {
+              return (
+                <div key={group.name} className="rounded-xl border border-gray-100 bg-white overflow-hidden px-4 py-3">
+                  <p className="font-semibold text-gray-900 mb-2">{group.name}</p>
+                  <div className="flex flex-wrap gap-4">
+                    {cardioEntry.duration_min != null && (
+                      <div>
+                        <p className="text-sm font-bold text-[#1a5c3a]">{cardioEntry.duration_min} min</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.workoutLog.durationLabel')}</p>
+                      </div>
+                    )}
+                    {cardioEntry.distance_km != null && (
+                      <div>
+                        <p className="text-sm font-bold text-[#1a5c3a]">{cardioEntry.distance_km} km</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.workoutLog.distanceLabel')}</p>
+                      </div>
+                    )}
+                    {cardioEntry.heart_rate_zone && (
+                      <div>
+                        <p className="text-sm font-bold text-[#1a5c3a]">
+                          {t(HEART_RATE_ZONE_LABEL_KEYS[cardioEntry.heart_rate_zone] ?? 'clientDetail.workoutLog.heartRateZone')}
+                        </p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.workoutLog.heartRateZone')}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            }
+
             const groupVol = group.sets.reduce((s, r) =>
               s + (parseFloat(r.weight_kg) || 0) * (parseInt(r.reps) || 0), 0)
             const prevExercise = prevMap.get(group.name)

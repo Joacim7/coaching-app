@@ -107,6 +107,19 @@ export default async function WorkoutLogListPage({
                           <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.workoutLog.distance')}</p>
                         </div>
                       )}
+                      {setsData[0]?.heart_rate_zone ? (
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-gray-700">
+                            {setsData[0].heart_rate_zone.replace('Sone ', '')}
+                          </p>
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.workoutLog.heartRateZone')}</p>
+                        </div>
+                      ) : setsData[0]?.avg_hr_bpm != null && (
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-gray-700">{setsData[0].avg_hr_bpm} bpm</p>
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.workoutLog.avgHr')}</p>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <>

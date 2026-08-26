@@ -1209,6 +1209,7 @@ const dict = {
   'clientDetail.workoutLog.durationLabel':  { nb: 'Varighet', en: 'Duration' },
   'clientDetail.workoutLog.distanceLabel':  { nb: 'Distanse', en: 'Distance' },
   'clientDetail.workoutLog.avgHr':          { nb: 'Gjennomsnittspuls', en: 'Average heart rate' },
+  'clientDetail.workoutLog.heartRateZone':  { nb: 'Pulssone', en: 'Heart rate zone' },
   'clientDetail.workoutLog.totalSets':      { nb: 'Sett totalt', en: 'Total sets' },
   'clientDetail.workoutLog.volumeLabel':    { nb: 'Volum', en: 'Volume' },
   'clientDetail.workoutLog.setCol':         { nb: 'Sett', en: 'Set' },
