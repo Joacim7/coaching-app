@@ -580,6 +580,20 @@ export default function StandaloneMealPlanEditor({
   const planMealsForSplit = Array.from(new Map(meals.map(m => [m.name, m])).values())
     .map(m => ({ name: m.name, emoji: MEAL_OPTIONS.find(o => o.name === m.name)?.emoji ?? '🍽️' }))
 
+  // mealSplits is never persisted or restored from a loaded plan (it only
+  // ever existed to drive AI generation), so any meal the coach hasn't
+  // touched THIS session falls back to 0% instead of reflecting its actual
+  // share of the plan. Derive the displayed % from the meal's real current
+  // calories whenever no explicit edit exists yet.
+  const displayMealSplits: Record<string, number> = Object.fromEntries(
+    planMealsForSplit.map(pm => {
+      if (mealSplits[pm.name] != null) return [pm.name, mealSplits[pm.name]]
+      const meal = meals.find(m => m.name === pm.name)
+      const kcal = meal ? (getAlts(meal)[0]?.foods.reduce((s, f) => s + f.calories, 0) ?? 0) : 0
+      return [pm.name, effectiveCalories > 0 ? kcal / effectiveCalories : 0]
+    })
+  )
+
   // Active meal for right panel detail
   const safeMealTab = Math.min(activeMealTab, Math.max(0, meals.length - 1))
   const activeMeal = meals[safeMealTab] ?? null
@@ -865,8 +879,11 @@ export default function StandaloneMealPlanEditor({
             const distributionMeals = planMealsForSplit.length > 0
               ? planMealsForSplit
               : MEAL_OPTIONS.filter(m => selectedMeals.includes(m.name))
+            // Once real meals exist, show their actual current share rather
+            // than the (never-persisted) pre-generation split state.
+            const effectiveSplits = planMealsForSplit.length > 0 ? displayMealSplits : mealSplits
             const distNames = distributionMeals.map(m => m.name)
-            const distTotalPct = Math.round(distNames.reduce((s, n) => s + (mealSplits[n] ?? 0), 0) * 100)
+            const distTotalPct = Math.round(distNames.reduce((s, n) => s + (effectiveSplits[n] ?? 0), 0) * 100)
             const distSplitOk = Math.abs(distTotalPct - 100) <= 1
 
             return distributionMeals.length > 0 && (
@@ -876,8 +893,8 @@ export default function StandaloneMealPlanEditor({
                 </CardHeader>
                 <CardContent className="p-4 pt-3 space-y-2">
                   {distributionMeals.map(m => {
-                    const pct     = Math.round((mealSplits[m.name] ?? 0) * 100)
-                    const mealKcal = Math.round(effectiveCalories * (mealSplits[m.name] ?? 0))
+                    const pct     = Math.round((effectiveSplits[m.name] ?? 0) * 100)
+                    const mealKcal = Math.round(effectiveCalories * (effectiveSplits[m.name] ?? 0))
                     return (
                       <div key={m.name} className="flex items-center gap-2">
                         <span className="text-base w-5 flex-shrink-0 text-center">{m.emoji}</span>
@@ -886,7 +903,7 @@ export default function StandaloneMealPlanEditor({
                           type="range" min={1} max={60} value={pct}
                           onChange={e => {
                             const pctVal = Number(e.target.value) / 100
-                            const next = { ...mealSplits, [m.name]: pctVal }
+                            const next = { ...effectiveSplits, [m.name]: pctVal }
                             setMealSplits(next)
                             rescaleMealsToSplits([m.name], next)
                           }}

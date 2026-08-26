@@ -1462,6 +1462,20 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const planMealsForSplit = Array.from(new Map(meals.map(m => [m.name, m])).values())
     .map(m => ({ name: m.name, emoji: MEAL_OPTIONS.find(o => o.name === m.name)?.emoji ?? '🍽️' }))
 
+  // mealSplits is never persisted or restored from a loaded plan (it only
+  // ever existed to drive AI generation), so any meal the coach hasn't
+  // touched THIS session — e.g. "Kveldsmat" — falls back to 0% instead of
+  // reflecting its actual share of the plan. Derive the displayed % from
+  // the meal's real current calories whenever no explicit edit exists yet.
+  const displayMealSplits: Record<string, number> = Object.fromEntries(
+    planMealsForSplit.map(pm => {
+      if (mealSplits[pm.name] != null) return [pm.name, mealSplits[pm.name]]
+      const meal = meals.find(m => m.name === pm.name)
+      const kcal = meal ? (getAlts(meal)[0]?.foods.reduce((s, f) => s + f.calories, 0) ?? 0) : 0
+      return [pm.name, effectiveCalories > 0 ? kcal / effectiveCalories : 0]
+    })
+  )
+
   return (
     <div>
       {/* Header */}
@@ -1651,9 +1665,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                       </p>
                       <MealDistributionEditor
                         meals={planMealsForSplit}
-                        mealSplits={mealSplits}
+                        mealSplits={displayMealSplits}
                         onChange={(name, pct) => {
-                          const next = { ...mealSplits, [name]: pct }
+                          const next = { ...displayMealSplits, [name]: pct }
                           setMealSplits(next)
                           rescaleMealsToSplits([name], next)
                         }}
