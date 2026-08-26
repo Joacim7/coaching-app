@@ -42,7 +42,7 @@ export async function PATCH(
   // stops an admin from one org reassigning a coach_clients row from another org
   const { data: rel } = await admin
     .from('coach_clients')
-    .select('id, coach_id')
+    .select('id, coach_id, client_id')
     .eq('id', relId)
     .single()
 
@@ -64,5 +64,28 @@ export async function PATCH(
     .eq('id', relId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // A handful of tables gate coach access via their OWN coach_id column
+  // (checked directly in RLS) rather than through the live coach_clients
+  // relationship, so they don't follow the client automatically — unlike
+  // training/nutrition/progress data that's scoped purely by client_id and
+  // joins against coach_clients for access. Move ownership of those explicitly
+  // so the new coach doesn't lose access to the client's history.
+  // allSettled — the core reassignment above already succeeded, so a conflict
+  // on one of these (e.g. client_contracts' unique(coach_id, client_id) if the
+  // new coach already has a contract row for this client) shouldn't fail the
+  // whole request.
+  await Promise.allSettled([
+    admin.from('training_plans').update({ coach_id: newCoachId }).eq('client_id', rel.client_id),
+    admin.from('meal_plans').update({ coach_id: newCoachId }).eq('client_id', rel.client_id),
+    admin.from('client_phases').update({ coach_id: newCoachId }).eq('client_id', rel.client_id),
+    admin.from('client_goals').update({ coach_id: newCoachId }).eq('client_id', rel.client_id),
+    admin
+      .from('client_contracts')
+      .update({ coach_id: newCoachId })
+      .eq('client_id', rel.client_id)
+      .neq('coach_id', newCoachId),
+  ])
+
   return NextResponse.json({ ok: true })
 }
