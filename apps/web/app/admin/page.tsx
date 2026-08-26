@@ -2,6 +2,8 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { planBySlug, type PlanSlug } from '@/lib/plans'
+import { isDeletableTestCoach } from '@/lib/adminTestCoach'
+import { DeleteCoachButton } from './delete-coach-button'
 import { Users, UserCircle2, Building2, Wallet } from 'lucide-react'
 
 // Hard-restricted to a single platform-owner account — not a role check,
@@ -183,6 +185,7 @@ export default async function AdminPage() {
                   <th className="px-6 py-3">Organisasjon</th>
                   <th className="px-6 py-3 text-right">Aktive klienter</th>
                   <th className="px-6 py-3 text-right">Registrert</th>
+                  <th className="px-6 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -191,6 +194,8 @@ export default async function AdminPage() {
                   const org = orgId ? orgById.get(orgId) : null
                   const slug = (coach.subscription_plan ?? 'free') as PlanSlug
                   const plan = planBySlug(slug)
+                  const email = emailMap.get(coach.id) ?? null
+                  const canDelete = coach.id !== ADMIN_COACH_ID && isDeletableTestCoach(email)
                   return (
                     <tr key={coach.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-3.5 font-medium text-gray-900 whitespace-nowrap">
@@ -199,7 +204,7 @@ export default async function AdminPage() {
                           <span className="ml-2 text-[10px] font-semibold text-[#2d8653] bg-[#ebf5ef] px-1.5 py-0.5 rounded">DEG</span>
                         )}
                       </td>
-                      <td className="px-6 py-3.5 text-gray-500">{emailMap.get(coach.id) ?? '—'}</td>
+                      <td className="px-6 py-3.5 text-gray-500">{email ?? '—'}</td>
                       <td className="px-6 py-3.5">
                         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${PLAN_BADGE[slug]}`}>
                           {plan.displayName}
@@ -212,12 +217,15 @@ export default async function AdminPage() {
                         {activeClientCountByCoach.get(coach.id) ?? 0}
                       </td>
                       <td className="px-6 py-3.5 text-right text-gray-500 whitespace-nowrap">{fmtDate(coach.created_at)}</td>
+                      <td className="px-6 py-3.5 text-right">
+                        {canDelete && <DeleteCoachButton coachId={coach.id} coachName={coach.full_name ?? email ?? 'denne coachen'} />}
+                      </td>
                     </tr>
                   )
                 })}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-10 text-center text-gray-400">Ingen coacher funnet</td>
+                    <td colSpan={7} className="px-6 py-10 text-center text-gray-400">Ingen coacher funnet</td>
                   </tr>
                 )}
               </tbody>
