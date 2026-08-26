@@ -10,6 +10,8 @@ import {
 import Link from 'next/link'
 import type { ExerciseRow } from '@/app/(dashboard)/exercise-library/exercise-form-modal'
 import { exerciseThumbnail } from '@/lib/video-thumbnail'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -24,11 +26,11 @@ type SubSectionType = 'oppvarming' | 'styrke' | 'cardio' | 'nedkjøling'
 
 const SUBSECTION_TYPES: SubSectionType[] = ['oppvarming', 'styrke', 'cardio', 'nedkjøling']
 
-const SUBSECTION_LABELS: Record<SubSectionType, string> = {
-  oppvarming: 'Oppvarming',
-  styrke: 'Styrke',
-  cardio: 'Cardio',
-  nedkjøling: 'Nedkjøling',
+const SUBSECTION_LABEL_KEYS: Record<SubSectionType, TranslationKey> = {
+  oppvarming: 'trainingEditor.subsection.warmup',
+  styrke: 'trainingEditor.subsection.strength',
+  cardio: 'trainingEditor.subsection.cardio',
+  nedkjøling: 'trainingEditor.subsection.cooldown',
 }
 
 const SUBSECTION_ICONS: Record<SubSectionType, React.ReactNode> = {
@@ -110,9 +112,37 @@ interface Props {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+// Persisted as the default `session.title` (a freely-editable text field) —
+// must stay Norwegian regardless of UI language, since it's saved to the DB.
 const DAYS = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag']
 
+// Display-only translation of DAYS, for read-only UI labels (not persisted).
+const DAY_LABEL_KEYS: Record<string, TranslationKey> = {
+  Mandag: 'trainingEditor.day.monday',
+  Tirsdag: 'trainingEditor.day.tuesday',
+  Onsdag: 'trainingEditor.day.wednesday',
+  Torsdag: 'trainingEditor.day.thursday',
+  Fredag: 'trainingEditor.day.friday',
+  Lørdag: 'trainingEditor.day.saturday',
+  Søndag: 'trainingEditor.day.sunday',
+}
+
+// Filter values compared against real (Norwegian) muscle_groups/primary_muscles
+// strings stored in the exercises table — must stay Norwegian. Only the
+// displayed pill label is translated, via MUSCLE_PILL_LABEL_KEYS below.
 const MUSCLE_PILLS = ['Alle', 'Bryst', 'Rygg', 'Skuldre', 'Biceps', 'Triceps', 'Mage', 'Ben', 'Sete']
+
+const MUSCLE_PILL_LABEL_KEYS: Record<string, TranslationKey> = {
+  Alle: 'trainingEditor.musclePill.all',
+  Bryst: 'trainingEditor.musclePill.chest',
+  Rygg: 'trainingEditor.musclePill.back',
+  Skuldre: 'trainingEditor.musclePill.shoulders',
+  Biceps: 'trainingEditor.musclePill.biceps',
+  Triceps: 'trainingEditor.musclePill.triceps',
+  Mage: 'trainingEditor.musclePill.abs',
+  Ben: 'trainingEditor.musclePill.legs',
+  Sete: 'trainingEditor.musclePill.glutes',
+}
 
 const MUSCLE_COLORS: Record<string, string> = {
   Bryst: 'bg-pink-100 text-pink-700',
@@ -297,6 +327,14 @@ function selectClass() {
 
 // ── CardioForm ────────────────────────────────────────────────────────────────
 
+const HEART_RATE_ZONE_LABEL_KEYS: Record<string, TranslationKey> = {
+  'Sone 1': 'trainingEditor.heartRateZone1',
+  'Sone 2': 'trainingEditor.heartRateZone2',
+  'Sone 3': 'trainingEditor.heartRateZone3',
+  'Sone 4': 'trainingEditor.heartRateZone4',
+  'Sone 5': 'trainingEditor.heartRateZone5',
+}
+
 function CardioForm({
   config,
   onChange,
@@ -304,23 +342,24 @@ function CardioForm({
   config: CardioConfig
   onChange: (updates: Partial<CardioConfig>) => void
 }) {
+  const { t } = useLocale()
   return (
     <div className="space-y-4">
       {/* Type */}
       <div>
-        <label className={labelClass()}>Type</label>
+        <label className={labelClass()}>{t('trainingEditor.type')}</label>
         <select
           value={config.activity_type}
           onChange={e => onChange({ activity_type: e.target.value })}
           className={selectClass()}
         >
-          {ACTIVITY_TYPES.map(t => <option key={t}>{t}</option>)}
+          {ACTIVITY_TYPES.map(a => <option key={a}>{a}</option>)}
         </select>
       </div>
 
       {/* Kardio type toggle */}
       <div>
-        <label className={labelClass()}>Kardio type</label>
+        <label className={labelClass()}>{t('trainingEditor.cardioType')}</label>
         <div className="flex rounded-lg border border-gray-200 overflow-hidden">
           {(['kontinuerlig', 'intervaller'] as const).map(mode => (
             <button
@@ -333,7 +372,7 @@ function CardioForm({
                   : 'bg-white text-gray-500 hover:bg-[#ebf5ef] hover:text-[#1a5c3a]'
               }`}
             >
-              {mode.charAt(0).toUpperCase() + mode.slice(1)}
+              {t(mode === 'kontinuerlig' ? 'trainingEditor.cardioModeContinuous' : 'trainingEditor.cardioModeIntervals')}
             </button>
           ))}
         </div>
@@ -342,7 +381,7 @@ function CardioForm({
       {/* Varighet + Distanse */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass()}>Varighet (min)</label>
+          <label className={labelClass()}>{t('trainingEditor.durationMin')}</label>
           <input
             type="text"
             inputMode="numeric"
@@ -353,7 +392,7 @@ function CardioForm({
           />
         </div>
         <div>
-          <label className={labelClass()}>Distanse (km)</label>
+          <label className={labelClass()}>{t('trainingEditor.distanceKm')}</label>
           <input
             type="text"
             inputMode="decimal"
@@ -367,26 +406,26 @@ function CardioForm({
 
       {/* Pulssone */}
       <div>
-        <label className={labelClass()}>Pulssone</label>
+        <label className={labelClass()}>{t('trainingEditor.heartRateZone')}</label>
         <select
           value={config.heart_rate_zone}
           onChange={e => onChange({ heart_rate_zone: e.target.value })}
           className={selectClass()}
         >
-          <option value="">Velg pulssone...</option>
+          <option value="">{t('trainingEditor.chooseHeartRateZone')}</option>
           {HEART_RATE_ZONES.map(z => (
-            <option key={z.value} value={z.value}>{z.label}</option>
+            <option key={z.value} value={z.value}>{t(HEART_RATE_ZONE_LABEL_KEYS[z.value] ?? 'trainingEditor.heartRateZone1')}</option>
           ))}
         </select>
       </div>
 
       {/* Notater */}
       <div>
-        <label className={labelClass()}>Notater</label>
+        <label className={labelClass()}>{t('trainingEditor.notes')}</label>
         <textarea
           value={config.notes}
           onChange={e => onChange({ notes: e.target.value })}
-          placeholder="F.eks. fokus på jevnt tempo, hold puls under 150..."
+          placeholder={t('trainingEditor.cardioNotesPlaceholder')}
           rows={3}
           className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#6ecfb0] focus:border-[#6ecfb0] resize-none bg-white placeholder:text-gray-300"
         />
@@ -402,6 +441,7 @@ function SessionTypeModal({ onSelectStrength, onSelectCardio, onClose }: {
   onSelectCardio: () => void
   onClose: () => void
 }) {
+  const { t } = useLocale()
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
@@ -412,7 +452,7 @@ function SessionTypeModal({ onSelectStrength, onSelectCardio, onClose }: {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold text-gray-900">Velg økttype</h2>
+          <h2 className="text-lg font-bold text-gray-900">{t('trainingEditor.chooseSessionType')}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -427,8 +467,8 @@ function SessionTypeModal({ onSelectStrength, onSelectCardio, onClose }: {
               <Dumbbell className="w-6 h-6 text-[#1a5c3a]" />
             </div>
             <div className="text-center">
-              <p className="font-bold text-gray-800">Styrkeøkt</p>
-              <p className="text-xs text-gray-400 mt-0.5">Sett, reps, vekt</p>
+              <p className="font-bold text-gray-800">{t('trainingEditor.strengthSession')}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t('trainingEditor.strengthSessionSub')}</p>
             </div>
           </button>
 
@@ -440,8 +480,8 @@ function SessionTypeModal({ onSelectStrength, onSelectCardio, onClose }: {
               <Activity className="w-6 h-6 text-[#1a5c3a]" />
             </div>
             <div className="text-center">
-              <p className="font-bold text-gray-800">Cardio-økt</p>
-              <p className="text-xs text-gray-400 mt-0.5">Intervall, tid, puls</p>
+              <p className="font-bold text-gray-800">{t('trainingEditor.cardioSession')}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t('trainingEditor.cardioSessionSub')}</p>
             </div>
           </button>
         </div>
@@ -457,6 +497,7 @@ function CardioSessionModal({ initial, onAdd, onClose }: {
   onAdd: (config: CardioConfig) => void
   onClose: () => void
 }) {
+  const { t } = useLocale()
   const [config, setConfig] = useState<CardioConfig>(initial ?? defaultCardioConfig())
 
   function update(updates: Partial<CardioConfig>) {
@@ -478,7 +519,7 @@ function CardioSessionModal({ initial, onAdd, onClose }: {
             <div className="w-8 h-8 rounded-lg bg-[#ebf5ef] flex items-center justify-center">
               <Activity className="w-4 h-4 text-[#1a5c3a]" />
             </div>
-            <h2 className="text-lg font-bold text-gray-900">{initial ? 'Rediger kardio' : 'Legg til kardio'}</h2>
+            <h2 className="text-lg font-bold text-gray-900">{initial ? t('trainingEditor.editCardio') : t('trainingEditor.addCardio')}</h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-5 h-5" />
@@ -494,14 +535,14 @@ function CardioSessionModal({ initial, onAdd, onClose }: {
             onClick={onClose}
             className="flex-1 h-10 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:border-gray-300 transition-colors"
           >
-            Avbryt
+            {t('trainingEditor.cancel')}
           </button>
           <button
             type="button"
             onClick={() => onAdd(config)}
             className="flex-1 h-10 rounded-lg bg-gradient-to-r from-[#1a5c3a] to-[#6ecfb0] text-white text-sm font-bold hover:opacity-90 transition-opacity"
           >
-            {initial ? 'Lagre' : 'Legg til'}
+            {initial ? t('trainingEditor.save') : t('trainingEditor.add')}
           </button>
         </div>
       </div>
@@ -516,6 +557,7 @@ function ExerciseCard({ ex, onAdd, onDragStart }: {
   onAdd: () => void
   onDragStart: () => void
 }) {
+  const { t } = useLocale()
   const primaryMuscle = ex.muscle_groups[0] ?? 'Annet'
   const colorClass = MUSCLE_COLORS[primaryMuscle] ?? 'bg-gray-100 text-gray-600'
   const thumb = exerciseThumbnail(ex)
@@ -550,7 +592,7 @@ function ExerciseCard({ ex, onAdd, onDragStart }: {
             rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
             draggable={false}
-            title="Se video"
+            title={t('trainingEditor.watchVideo')}
             className="absolute inset-0 flex items-center justify-center group/thumb"
           >
             <div className="absolute inset-0 bg-gray-900/0 group-hover/thumb:bg-gray-900/20 transition-colors" />
@@ -602,6 +644,7 @@ function SupersetPicker({
   onToggleMember: (otherId: string) => void
   onClose: () => void
 }) {
+  const { t } = useLocale()
   // Same-section only — linking across e.g. Oppvarming and Styrke would be
   // an unusual superset and complicates keeping sub-sections coherent.
   const others = sessionExercises.filter(e => e.id !== ex.id && e.section === ex.section)
@@ -610,10 +653,10 @@ function SupersetPicker({
       <div className="fixed inset-0 z-10" onClick={onClose} />
       <div className="absolute z-20 top-full left-0 mt-2 w-72 bg-white rounded-xl border-2 border-[#6ecfb0] shadow-xl p-2">
         <p className="px-2 py-1.5 text-xs font-bold text-[#1a5c3a]">
-          Supersett med {ex.name ? `«${ex.name}»` : 'denne øvelsen'}
+          {ex.name ? t('trainingEditor.supersetWithName', { name: ex.name }) : `${t('trainingEditor.supersetWith')} ${t('trainingEditor.thisExercise')}`}
         </p>
         {others.length === 0 ? (
-          <p className="px-2 py-2 text-sm text-gray-400">Legg til flere øvelser i økten først.</p>
+          <p className="px-2 py-2 text-sm text-gray-400">{t('trainingEditor.addMoreExercisesFirst')}</p>
         ) : (
           <div className="max-h-52 overflow-y-auto border-t border-gray-100 mt-1 pt-1">
             {others.map(o => {
@@ -629,7 +672,7 @@ function SupersetPicker({
                     onChange={() => onToggleMember(o.id)}
                     className="accent-[#1a5c3a]"
                   />
-                  <span className="truncate text-gray-700">{o.name || 'Uten navn'}</span>
+                  <span className="truncate text-gray-700">{o.name || t('trainingEditor.unnamed')}</span>
                 </label>
               )
             })}
@@ -639,7 +682,7 @@ function SupersetPicker({
           onClick={onClose}
           className="mt-1 w-full text-center text-xs font-semibold text-[#1a5c3a] hover:underline py-1"
         >
-          Ferdig
+          {t('trainingEditor.done')}
         </button>
       </div>
     </>
@@ -673,6 +716,7 @@ function SessionExerciseRow({
   onClosePicker: () => void
   onToggleSupersetMember: (otherId: string) => void
 }) {
+  const { t } = useLocale()
   const primaryMuscle = ex.muscle_groups?.[0]
   const colorClass = primaryMuscle ? (MUSCLE_COLORS[primaryMuscle] ?? 'bg-gray-100 text-gray-500') : 'bg-gray-100 text-gray-500'
 
@@ -690,7 +734,7 @@ function SessionExerciseRow({
       <div className="flex items-center gap-2">
         <button
           onClick={() => (pickerOpen ? onClosePicker() : onOpenPicker())}
-          title={ex.group_id ? 'Endre supersett' : 'Lag supersett med andre øvelser'}
+          title={ex.group_id ? t('trainingEditor.changeSuperset') : t('trainingEditor.createSuperset')}
           className={`relative shrink-0 flex items-center justify-center h-6 min-w-[26px] px-1.5 rounded-md text-[10px] font-extrabold tracking-wide transition-colors ${
             ex.group_id
               ? 'bg-[#1a5c3a] text-white'
@@ -703,7 +747,7 @@ function SessionExerciseRow({
           <button
             onClick={onMoveUp}
             disabled={!onMoveUp}
-            title="Flytt opp"
+            title={t('trainingEditor.moveUp')}
             className="w-5 h-4 flex items-center justify-center text-gray-300 hover:text-[#1a5c3a] disabled:opacity-20 disabled:hover:text-gray-300 transition-colors"
           >
             <ChevronUp className="w-3.5 h-3.5" />
@@ -711,7 +755,7 @@ function SessionExerciseRow({
           <button
             onClick={onMoveDown}
             disabled={!onMoveDown}
-            title="Flytt ned"
+            title={t('trainingEditor.moveDown')}
             className="w-5 h-4 flex items-center justify-center text-gray-300 hover:text-[#1a5c3a] disabled:opacity-20 disabled:hover:text-gray-300 transition-colors"
           >
             <ChevronDown className="w-3.5 h-3.5" />
@@ -733,7 +777,7 @@ function SessionExerciseRow({
               href={videoUrl}
               target="_blank"
               rel="noopener noreferrer"
-              title="Se video"
+              title={t('trainingEditor.watchVideo')}
               className="absolute inset-0 flex items-center justify-center bg-gray-900/0 hover:bg-gray-900/30 transition-colors"
             >
               <Video className="w-3.5 h-3.5 text-white opacity-0 group-hover/thumb:opacity-100 transition-opacity drop-shadow" />
@@ -745,7 +789,7 @@ function SessionExerciseRow({
           <input
             value={ex.name}
             onChange={e => onChange('name', e.target.value)}
-            placeholder="Øvelsesnavn..."
+            placeholder={t('trainingEditor.exerciseNamePlaceholder')}
             className="w-full text-sm font-semibold text-gray-800 bg-transparent focus:outline-none placeholder:text-gray-300"
           />
           {(groupLabel || primaryMuscle) && (
@@ -773,7 +817,7 @@ function SessionExerciseRow({
       <div className="flex items-center flex-wrap gap-3 mt-3 pt-3 border-t border-gray-50">
         {/* Sett */}
         <div className="text-center shrink-0">
-          <p className="text-[10px] text-gray-400 mb-0.5">Sett</p>
+          <p className="text-[10px] text-gray-400 mb-0.5">{t('trainingEditor.sets')}</p>
           <div className="flex items-center gap-1">
             <button onClick={() => onChange('sets', Math.max(1, ex.sets - 1))} className="w-5 h-5 rounded bg-gray-100 text-gray-500 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] text-xs flex items-center justify-center">−</button>
             <span className="w-5 text-center text-sm font-bold text-gray-700">{ex.sets}</span>
@@ -783,38 +827,38 @@ function SessionExerciseRow({
 
         {/* Reps */}
         <div className="text-center shrink-0">
-          <p className="text-[10px] text-gray-400 mb-0.5">Reps</p>
+          <p className="text-[10px] text-gray-400 mb-0.5">{t('trainingEditor.reps')}</p>
           <input value={ex.reps} onChange={e => onChange('reps', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="8–10" />
         </div>
 
         {/* Vekt */}
         <div className="text-center shrink-0">
-          <p className="text-[10px] text-gray-400 mb-0.5">Vekt</p>
+          <p className="text-[10px] text-gray-400 mb-0.5">{t('trainingEditor.weight')}</p>
           <input value={ex.weight} onChange={e => onChange('weight', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="kg" />
         </div>
 
         {/* Pause */}
         <div className="text-center shrink-0">
-          <p className="text-[10px] text-gray-400 mb-0.5">Pause</p>
+          <p className="text-[10px] text-gray-400 mb-0.5">{t('trainingEditor.rest')}</p>
           <input value={ex.rest} onChange={e => onChange('rest', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="60s" />
         </div>
 
         {/* RIR */}
         <div className="text-center shrink-0">
-          <p className="text-[10px] text-gray-400 mb-0.5">RIR</p>
+          <p className="text-[10px] text-gray-400 mb-0.5">{t('trainingEditor.rir')}</p>
           <input value={ex.rir ?? ''} onChange={e => onChange('rir', e.target.value)} className="w-12 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="2" />
         </div>
 
         {/* Tempo */}
         <div className="text-center shrink-0">
-          <p className="text-[10px] text-gray-400 mb-0.5">Tempo</p>
+          <p className="text-[10px] text-gray-400 mb-0.5">{t('trainingEditor.tempo')}</p>
           <input value={ex.tempo ?? ''} onChange={e => onChange('tempo', e.target.value)} className="w-14 text-sm font-semibold text-center border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0]" placeholder="30X1" />
         </div>
 
         {/* Notes */}
         <div className="text-left flex-1 min-w-[140px]">
-          <p className="text-[10px] text-gray-400 mb-0.5">Notater</p>
-          <input value={ex.notes} onChange={e => onChange('notes', e.target.value)} placeholder="Notater..." className="w-full text-xs text-gray-600 border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0] placeholder:text-gray-300" />
+          <p className="text-[10px] text-gray-400 mb-0.5">{t('trainingEditor.notes')}</p>
+          <input value={ex.notes} onChange={e => onChange('notes', e.target.value)} placeholder={t('trainingEditor.notesPlaceholder')} className="w-full text-xs text-gray-600 border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#6ecfb0] placeholder:text-gray-300" />
         </div>
       </div>
 
@@ -836,8 +880,9 @@ function SubSectionAdder({ existing, onAdd }: {
   existing: SubSectionType[]
   onAdd: (type: SubSectionType) => void
 }) {
+  const { t } = useLocale()
   const [open, setOpen] = useState(false)
-  const available = SUBSECTION_TYPES.filter(t => !existing.includes(t))
+  const available = SUBSECTION_TYPES.filter(s => !existing.includes(s))
   if (available.length === 0) return null
 
   return (
@@ -847,7 +892,7 @@ function SubSectionAdder({ existing, onAdd }: {
         className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-[#1a5c3a] hover:bg-[#ebf5ef] border border-dashed border-gray-200 hover:border-[#6ecfb0] transition-colors"
       >
         <Plus className="w-4 h-4" />
-        Legg til økt
+        {t('trainingEditor.addSession')}
       </button>
       {open && (
         <>
@@ -858,14 +903,14 @@ function SubSectionAdder({ existing, onAdd }: {
               by the pane's overflow-y-auto, making its items unclickable
               even though the trigger button itself works fine. */}
           <div className="absolute z-20 bottom-full left-0 mb-1 w-48 bg-white rounded-xl border border-gray-200 shadow-lg p-1.5">
-            {available.map(t => (
+            {available.map(s => (
               <button
-                key={t}
-                onClick={() => { onAdd(t); setOpen(false) }}
+                key={s}
+                onClick={() => { onAdd(s); setOpen(false) }}
                 className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] transition-colors"
               >
-                {SUBSECTION_ICONS[t]}
-                {SUBSECTION_LABELS[t]}
+                {SUBSECTION_ICONS[s]}
+                {t(SUBSECTION_LABEL_KEYS[s])}
               </button>
             ))}
           </div>
@@ -882,6 +927,7 @@ export default function StandaloneTrainingPlanEditor({
 }: Props) {
   const supabase = createClient()
   const router = useRouter()
+  const { t } = useLocale()
 
   const [title, setTitle]     = useState(initialPlan?.title ?? 'Ny treningsplan')
   const [isDraft, setIsDraft] = useState(false)
@@ -1515,7 +1561,7 @@ export default function StandaloneTrainingPlanEditor({
           }`}
         >
           <span className={`w-2 h-2 rounded-full ${isDraft ? 'bg-amber-400' : 'bg-gray-300'}`} />
-          {isDraft ? 'Kladd' : 'Aktiv'}
+          {isDraft ? t('trainingEditor.draft') : t('trainingEditor.active')}
         </button>
 
         {!clientId && initialPlan?.id && (
@@ -1530,14 +1576,14 @@ export default function StandaloneTrainingPlanEditor({
                     value={selectedAssignClient ? selectedAssignClient.name : assignQuery}
                     onChange={e => { setAssignQuery(e.target.value); setSelectedClientId('') }}
                     onFocus={() => setSelectedClientId('')}
-                    placeholder="Søk klient..."
+                    placeholder={t('trainingEditor.searchClientPlaceholder')}
                     className="h-9 w-48 text-sm border border-gray-300 rounded-lg pl-7 pr-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#6ecfb0]"
                   />
                 </div>
                 {!selectedClientId && (
                   <div className="absolute z-20 mt-1 w-48 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
                     {filteredAssignClients.length === 0 ? (
-                      <p className="px-3 py-2 text-xs text-gray-400">Ingen treff</p>
+                      <p className="px-3 py-2 text-xs text-gray-400">{t('trainingEditor.noMatches')}</p>
                     ) : (
                       filteredAssignClients.map(c => (
                         <button
@@ -1554,14 +1600,14 @@ export default function StandaloneTrainingPlanEditor({
                 )}
               </div>
               <button onClick={handleAssign} disabled={!selectedClientId || assigning} className="h-9 px-3 text-sm font-semibold rounded-lg bg-[#1a5c3a] text-white hover:bg-[#2d8653] disabled:opacity-50">
-                {assigning ? 'Tildeler...' : 'Tildel'}
+                {assigning ? t('trainingEditor.assigning') : t('trainingEditor.assign')}
               </button>
               <button onClick={() => { setAssignOpen(false); setAssignQuery(''); setSelectedClientId('') }} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
             </div>
           ) : (
             <button onClick={() => setAssignOpen(true)} className="flex items-center gap-1.5 h-9 px-3 text-sm font-semibold rounded-lg border border-gray-200 hover:border-gray-300 text-gray-600">
               <UserPlus className="w-4 h-4" />
-              Tildel
+              {t('trainingEditor.assign')}
             </button>
           )
         )}
@@ -1569,16 +1615,16 @@ export default function StandaloneTrainingPlanEditor({
         {initialPlan?.id && (
           confirmDelete ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-red-600">Slett denne planen?</span>
+              <span className="text-xs text-red-600">{t('trainingEditor.confirmDeletePlan')}</span>
               <button
                 onClick={handleDeletePlan}
                 disabled={deleting}
                 className="h-9 px-3 text-sm font-semibold rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
               >
-                {deleting ? 'Sletter...' : 'Ja, slett'}
+                {deleting ? t('trainingEditor.saving') : t('trainingEditor.yesDelete')}
               </button>
               <button onClick={() => setConfirmDelete(false)} className="h-9 px-3 text-sm text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
-                Avbryt
+                {t('trainingEditor.cancel')}
               </button>
             </div>
           ) : (
@@ -1587,14 +1633,14 @@ export default function StandaloneTrainingPlanEditor({
               className="flex items-center gap-1.5 h-9 px-3 text-sm font-semibold rounded-lg border border-gray-200 hover:border-red-300 text-gray-400 hover:text-red-500 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
-              Slett plan
+              {t('trainingEditor.deletePlan')}
             </button>
           )
         )}
 
         <button onClick={handleSaveAsTemplate} disabled={saving} className="flex items-center gap-1.5 h-9 px-3 text-sm font-semibold rounded-lg border border-gray-200 hover:border-[#6ecfb0] text-gray-600 hover:text-[#1a5c3a] transition-colors">
           <Save className="w-4 h-4" />
-          {savedTemplate ? 'Mal lagret ✓' : 'Lagre som mal'}
+          {savedTemplate ? t('trainingEditor.templateSaved') : t('trainingEditor.saveAsTemplate')}
         </button>
 
         {/* runSave, not handleSave directly: the debounced auto-save and
@@ -1606,7 +1652,7 @@ export default function StandaloneTrainingPlanEditor({
             and double every session. */}
         <button onClick={runSave} disabled={saving} className="flex items-center gap-1.5 h-9 px-4 text-sm font-bold rounded-lg bg-gradient-to-r from-[#1a5c3a] to-[#6ecfb0] text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
           <Save className="w-4 h-4" />
-          {saved ? 'Lagret ✓' : saving ? 'Lagrer...' : 'Lagre'}
+          {saved ? t('trainingEditor.saved') : saving ? t('trainingEditor.saving') : t('trainingEditor.save')}
         </button>
       </div>
 
@@ -1621,7 +1667,7 @@ export default function StandaloneTrainingPlanEditor({
               <input
                 value={libSearch}
                 onChange={e => setLibSearch(e.target.value)}
-                placeholder="Søk i øvelsesbibliotek..."
+                placeholder={t('trainingEditor.searchLibrary')}
                 className="w-full pl-9 pr-3 h-9 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#6ecfb0]"
               />
             </div>
@@ -1638,7 +1684,7 @@ export default function StandaloneTrainingPlanEditor({
           <div className="flex gap-1.5 px-3 py-2.5 overflow-x-auto scrollbar-hide border-b border-gray-100 shrink-0">
             {MUSCLE_PILLS.map(pill => (
               <button key={pill} onClick={() => setMusclePill(pill)} className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-colors ${musclePill === pill ? 'bg-[#1a5c3a] text-white' : 'bg-white border border-gray-200 text-gray-500 hover:border-[#6ecfb0] hover:text-[#1a5c3a]'}`}>
-                {pill}
+                {t(MUSCLE_PILL_LABEL_KEYS[pill])}
               </button>
             ))}
           </div>
@@ -1647,7 +1693,7 @@ export default function StandaloneTrainingPlanEditor({
             {filteredExercises.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-gray-400 text-sm">
                 <Dumbbell className="w-8 h-8 mb-2 text-gray-200" />
-                <p>Ingen øvelser funnet</p>
+                <p>{t('trainingEditor.noExercisesFound')}</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
@@ -1681,7 +1727,7 @@ export default function StandaloneTrainingPlanEditor({
                   <button
                     onClick={() => moveSession(s.day_of_week, -1)}
                     disabled={tabIdx === 0}
-                    title="Flytt økt tidligere"
+                    title={t('trainingEditor.moveSessionEarlier')}
                     className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 shadow-sm hover:bg-[#ebf5ef] hover:border-[#6ecfb0] hover:text-[#1a5c3a] disabled:opacity-0 disabled:pointer-events-none transition-all"
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -1702,14 +1748,14 @@ export default function StandaloneTrainingPlanEditor({
                   <button
                     onClick={() => moveSession(s.day_of_week, 1)}
                     disabled={tabIdx === sessions.length - 1}
-                    title="Flytt økt senere"
+                    title={t('trainingEditor.moveSessionLater')}
                     className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 shadow-sm hover:bg-[#ebf5ef] hover:border-[#6ecfb0] hover:text-[#1a5c3a] disabled:opacity-0 disabled:pointer-events-none transition-all"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => removeSession(s.day_of_week)}
-                    title="Fjern økt"
+                    title={t('trainingEditor.removeSession')}
                     className="w-6 h-7 flex items-center justify-center rounded-lg text-xs text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                   >✕</button>
                 </div>
@@ -1734,9 +1780,9 @@ export default function StandaloneTrainingPlanEditor({
                 <div className="w-20 h-20 rounded-2xl bg-[#ebf5ef] flex items-center justify-center mb-5">
                   <Dumbbell className="w-9 h-9 text-[#6ecfb0]" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-700 mb-2">Ingen økter ennå</h3>
+                <h3 className="text-lg font-bold text-gray-700 mb-2">{t('trainingEditor.noSessionsYet')}</h3>
                 <p className="text-sm text-gray-400 mb-6 max-w-xs">
-                  Legg til en treningsøkt og dra øvelser fra biblioteket til venstre inn i økten.
+                  {t('trainingEditor.noSessionsHint')}
                 </p>
                 <button
                   onClick={() => setShowTypeModal(true)}
@@ -1754,7 +1800,7 @@ export default function StandaloneTrainingPlanEditor({
                     <input
                       value={activeSession.title}
                       onChange={e => updateSession(activeSession.day_of_week, 'title', e.target.value)}
-                      placeholder="Navn på økt..."
+                      placeholder={t('trainingEditor.sessionNamePlaceholder')}
                       className="text-xl font-bold text-gray-900 bg-transparent focus:outline-none border-b-2 border-gray-200 hover:border-gray-300 focus:border-[#6ecfb0] transition-colors"
                     />
                     <Pencil className="w-3.5 h-3.5 text-gray-300 group-hover/title:text-gray-400 transition-colors shrink-0" />
@@ -1766,7 +1812,7 @@ export default function StandaloneTrainingPlanEditor({
                     }
                   </span>
                   <span className="text-sm text-gray-300">·</span>
-                  <span className="text-sm text-gray-400">{DAYS[activeSession.day_of_week - 1]}</span>
+                  <span className="text-sm text-gray-400">{t(DAY_LABEL_KEYS[DAYS[activeSession.day_of_week - 1]])}</span>
                 </div>
 
                 {/* ── Styrkeøkt ── */}
@@ -1835,7 +1881,7 @@ export default function StandaloneTrainingPlanEditor({
                               : 'border-gray-200 text-gray-400 hover:border-[#6ecfb0] hover:text-[#2d8653]'
                           }`}
                         >
-                          {dropTarget === zoneKey ? '✓ Slipp for å legge til' : 'Dra øvelser hit fra biblioteket'}
+                          {dropTarget === zoneKey ? t('trainingEditor.dropToAdd') : t('trainingEditor.dragExercisesHere')}
                         </div>
                         <button
                           onClick={() => addExerciseToSession(dayNum, undefined, sectionFilter)}
@@ -1871,7 +1917,7 @@ export default function StandaloneTrainingPlanEditor({
                               {hasNamedSections && (
                                 <h4 className="flex items-center gap-1.5 mb-2 text-xs font-bold text-[#1a5c3a] uppercase tracking-wide">
                                   <Plus className="w-3.5 h-3.5 text-[#2d8653]" />
-                                  Generelt
+                                  {t('trainingEditor.general')}
                                 </h4>
                               )}
                               {renderExerciseSection(undefined)}
@@ -1887,13 +1933,13 @@ export default function StandaloneTrainingPlanEditor({
                             <div className="flex items-center justify-between mb-2">
                               <h4 className="flex items-center gap-1.5 text-xs font-bold text-[#1a5c3a] uppercase tracking-wide">
                                 <span className="text-[#2d8653]">{SUBSECTION_ICONS[secType]}</span>
-                                {SUBSECTION_LABELS[secType]}
+                                {t(SUBSECTION_LABEL_KEYS[secType])}
                               </h4>
                               <div className="flex items-center gap-1">
                                 <button
                                   onClick={() => moveSubSection(dayNum, secType, -1)}
                                   disabled={secIdx === 0}
-                                  title="Flytt seksjon opp"
+                                  title={t('trainingEditor.moveSectionUp')}
                                   className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] disabled:opacity-20 disabled:pointer-events-none transition-colors"
                                 >
                                   <ChevronUp className="w-4 h-4" />
@@ -1901,7 +1947,7 @@ export default function StandaloneTrainingPlanEditor({
                                 <button
                                   onClick={() => moveSubSection(dayNum, secType, 1)}
                                   disabled={secIdx === activeSession.sections.length - 1}
-                                  title="Flytt seksjon ned"
+                                  title={t('trainingEditor.moveSectionDown')}
                                   className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-[#ebf5ef] hover:text-[#1a5c3a] disabled:opacity-20 disabled:pointer-events-none transition-colors"
                                 >
                                   <ChevronDown className="w-4 h-4" />

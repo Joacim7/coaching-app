@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Play, Download, Trash2, Video, X, Clock, HardDrive, Plus, Link2, Check } from 'lucide-react'
 import Link from 'next/link'
+import { useLocale } from '@/components/locale-provider'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ function formatDate(iso: string) {
 
 function CopyLinkButton({ url }: { url: string }) {
   const [copied, setCopied] = useState(false)
+  const { t } = useLocale()
 
   async function handleCopy() {
     try {
@@ -70,7 +72,7 @@ function CopyLinkButton({ url }: { url: string }) {
   return (
     <button
       onClick={handleCopy}
-      title="Kopier delbar link"
+      title={t('recordings.copyShareableLink')}
       className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold transition-colors ${
         copied
           ? 'bg-green-50 text-green-700'
@@ -80,12 +82,12 @@ function CopyLinkButton({ url }: { url: string }) {
       {copied ? (
         <>
           <Check className="w-3.5 h-3.5" />
-          Kopiert!
+          {t('common.copied')}
         </>
       ) : (
         <>
           <Link2 className="w-3.5 h-3.5" />
-          Del link
+          {t('recordings.shareLink')}
         </>
       )}
     </button>
@@ -102,9 +104,10 @@ export function RecordingsView({ initialRecordings }: Props) {
   const [recordings, setRecordings] = useState<RecordingRow[]>(initialRecordings)
   const [playing, setPlaying]       = useState<RecordingRow | null>(null)
   const [deleting, setDeleting]     = useState<string | null>(null)
+  const { t } = useLocale()
 
   async function handleDelete(rec: RecordingRow) {
-    if (!confirm(`Slett "${rec.title}"? Dette kan ikke angres.`)) return
+    if (!confirm(t('recordings.deleteConfirm', { title: rec.title }))) return
     setDeleting(rec.id)
     const res = await fetch(`/api/recordings/${rec.id}`, { method: 'DELETE' })
     setDeleting(null)
@@ -127,9 +130,9 @@ export function RecordingsView({ initialRecordings }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a5c3a]">Mine opptak</h1>
+          <h1 className="text-2xl font-bold text-[#1a5c3a]">{t('sidebar.myRecordings')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Opptak fra dine coachingøkter
+            {t('recordings.subtitle')}
           </p>
         </div>
         <Link
@@ -137,7 +140,7 @@ export function RecordingsView({ initialRecordings }: Props) {
           className="inline-flex items-center gap-2 h-9 px-4 rounded-xl text-white text-sm font-semibold transition-all [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]"
         >
           <Plus className="w-4 h-4" />
-          Nytt opptak
+          {t('recordings.newRecording')}
         </Link>
       </div>
 
@@ -147,13 +150,13 @@ export function RecordingsView({ initialRecordings }: Props) {
           <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
             <Video className="w-7 h-7 text-gray-300" />
           </div>
-          <p className="font-semibold text-gray-500">Ingen opptak ennå</p>
+          <p className="font-semibold text-gray-500">{t('recordings.empty')}</p>
           <p className="text-sm text-gray-400 mt-1">
-            Gå til{' '}
+            {t('recordings.goToRecordPrefix')}{' '}
             <Link href="/record" className="text-[#2d8653] hover:underline">
-              Record
+              {t('sidebar.record')}
             </Link>{' '}
-            for å starte et opptak
+            {t('recordings.goToRecordSuffix')}
           </p>
         </div>
       )}
@@ -197,7 +200,7 @@ export function RecordingsView({ initialRecordings }: Props) {
                     className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#ebf5ef] text-[#1a5c3a] text-xs font-semibold hover:bg-[#cdeee3] transition-colors"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
-                    Spill av
+                    {t('recordings.play')}
                   </button>
                 )}
                 {rec.share_url && (
@@ -206,7 +209,7 @@ export function RecordingsView({ initialRecordings }: Props) {
                 {rec.share_url && (
                   <button
                     onClick={() => handleDownload(rec)}
-                    title="Last ned"
+                    title={t('settings.invoices.download')}
                     className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                   >
                     <Download className="w-4 h-4" />
@@ -215,7 +218,7 @@ export function RecordingsView({ initialRecordings }: Props) {
                 <button
                   onClick={() => handleDelete(rec)}
                   disabled={deleting === rec.id}
-                  title="Slett"
+                  title={t('recordings.delete')}
                   className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
                 >
                   <Trash2 className="w-4 h-4" />

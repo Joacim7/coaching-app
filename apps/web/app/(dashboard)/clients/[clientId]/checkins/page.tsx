@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { CheckinsView } from './checkins-view'
 import type { CheckinRow } from '../recent-checkins'
+import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
 
 export default async function ClientCheckinsPage({
   params,
@@ -22,6 +23,13 @@ export default async function ClientCheckinsPage({
     .single()
 
   if (!rel) notFound()
+
+  const { data: coachProfile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(coachProfile?.language))
 
   const profile = Array.isArray(rel.profile) ? rel.profile[0] : rel.profile
 
@@ -50,7 +58,7 @@ export default async function ClientCheckinsPage({
         </Link>
         <div>
           <p className="text-sm text-gray-500">{(profile as any)?.full_name}</p>
-          <h1 className="text-xl font-bold text-gray-900">Check-ins</h1>
+          <h1 className="text-xl font-bold text-gray-900">{t('clientDetail.checkins.pageTitle')}</h1>
         </div>
       </div>
 

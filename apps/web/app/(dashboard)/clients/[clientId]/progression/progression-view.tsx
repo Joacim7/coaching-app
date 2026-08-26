@@ -4,8 +4,16 @@ import { useState, useMemo } from 'react'
 import { LineChart } from './line-chart'
 import { Scale, Moon, Footprints, Zap } from 'lucide-react'
 import { rollingWindowBounds } from '@/lib/client-metrics'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
-type Filter = 'uke' | 'måned' | 'alt'
+type Filter = 'week' | 'month' | 'all'
+
+const FILTER_LABEL_KEYS: Record<Filter, TranslationKey> = {
+  week:  'clientDetail.progression.week',
+  month: 'clientDetail.progression.month',
+  all:   'clientDetail.progression.all',
+}
 
 interface MetricRow {
   date: string
@@ -23,8 +31,8 @@ interface Props {
 // "Uke"/"Måned" are rolling N-day windows ending today (not calendar week/month),
 // using the same date-string bounds as Oversikt's "Nåværende" weight calculation.
 function periodRange(filter: Filter) {
-  if (filter === 'uke')   return rollingWindowBounds(7)
-  if (filter === 'måned') return rollingWindowBounds(30)
+  if (filter === 'week')  return rollingWindowBounds(7)
+  if (filter === 'month') return rollingWindowBounds(30)
   return { start: '', prevStart: '', prevEnd: '' }
 }
 
@@ -39,10 +47,11 @@ function calcStats(vals: number[]) {
   }
 }
 
-const FILTER_LABELS: Filter[] = ['uke', 'måned', 'alt']
+const FILTER_VALUES: Filter[] = ['week', 'month', 'all']
 
 export function ProgressionView({ data }: Props) {
-  const [filter, setFilter] = useState<Filter>('alt')
+  const { t } = useLocale()
+  const [filter, setFilter] = useState<Filter>('all')
 
   const { start, prevStart, prevEnd } = useMemo(() => periodRange(filter), [filter])
 
@@ -52,7 +61,7 @@ export function ProgressionView({ data }: Props) {
   )
 
   const prevFiltered = useMemo(() => {
-    if (filter === 'alt') return []
+    if (filter === 'all') return []
     return data.filter(r => r.date >= prevStart && r.date < prevEnd)
   }, [data, prevStart, prevEnd, filter])
 
@@ -71,7 +80,7 @@ export function ProgressionView({ data }: Props) {
   const prevStStats = calcStats(prevFiltered.filter(r => r.steps        != null).map(r => r.steps!))
   const prevEStats  = calcStats(prevFiltered.filter(r => r.energy_level != null).map(r => r.energy_level!))
 
-  const periodLabel = filter === 'uke' ? 'forrige uke' : filter === 'måned' ? 'forrige måned' : null
+  const periodLabel = filter === 'week' ? t('clientDetail.progression.vsPrevWeek') : filter === 'month' ? t('clientDetail.progression.vsPrevMonth') : null
 
   const hasAnyData = weightData.length + sleepData.length + stepsData.length + energyData.length > 0
 
@@ -79,7 +88,7 @@ export function ProgressionView({ data }: Props) {
     <div className="space-y-5">
       {/* Filter */}
       <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        {FILTER_LABELS.map(f => (
+        {FILTER_VALUES.map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -89,7 +98,7 @@ export function ProgressionView({ data }: Props) {
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            {f === 'alt' ? 'Alt' : f.charAt(0).toUpperCase() + f.slice(1)}
+            {t(FILTER_LABEL_KEYS[f])}
           </button>
         ))}
       </div>
@@ -99,9 +108,9 @@ export function ProgressionView({ data }: Props) {
           <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
             <Scale className="w-6 h-6 text-gray-300" />
           </div>
-          <p className="font-medium text-gray-500">Ingen målinger registrert</p>
+          <p className="font-medium text-gray-500">{t('clientDetail.progression.noMeasurements')}</p>
           <p className="text-sm text-gray-400 mt-1 max-w-sm mx-auto">
-            Vekt, søvn, skritt og energinivå logges automatisk fra klientens daglige check-ins.
+            {t('clientDetail.progression.autoLoggedHint')}
           </p>
         </div>
       ) : (
@@ -110,7 +119,7 @@ export function ProgressionView({ data }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <MetricCard
               icon={<Scale className="w-4 h-4" />}
-              label="Vekt"
+              label={t('clientDetail.progression.weight')}
               color="blue"
               unit="kg"
               stats={wStats}
@@ -121,7 +130,7 @@ export function ProgressionView({ data }: Props) {
             />
             <MetricCard
               icon={<Moon className="w-4 h-4" />}
-              label="Søvn"
+              label={t('clientDetail.progression.sleep')}
               color="violet"
               unit="t"
               stats={sStats}
@@ -132,7 +141,7 @@ export function ProgressionView({ data }: Props) {
             />
             <MetricCard
               icon={<Footprints className="w-4 h-4" />}
-              label="Skritt"
+              label={t('clientDetail.progression.steps')}
               color="green"
               unit=""
               stats={stStats ? { ...stStats,
@@ -147,7 +156,7 @@ export function ProgressionView({ data }: Props) {
             />
             <MetricCard
               icon={<Zap className="w-4 h-4" />}
-              label="Energi"
+              label={t('clientDetail.progression.energy')}
               color="amber"
               unit="/10"
               stats={eStats}
@@ -161,24 +170,24 @@ export function ProgressionView({ data }: Props) {
           {/* ── Chart cards ─────────────────────────────────── */}
           <div className="space-y-4">
             <ChartCard
-              title="Vekt (kg)"
-              subtitle={wStats ? `Snitt ${wStats.avg.toFixed(1)} kg` : undefined}
+              title={t('clientDetail.progression.weightKg')}
+              subtitle={wStats ? `${t('clientDetail.progression.avg')} ${wStats.avg.toFixed(1)} kg` : undefined}
               icon={<Scale className="w-3.5 h-3.5 text-[#2d8653]" />}
             >
               <LineChart data={weightData} color="#3b82f6" unit="kg" height={160} decimals={1} />
             </ChartCard>
 
             <ChartCard
-              title="Energinivå (1–10)"
-              subtitle={eStats ? `Snitt ${eStats.avg.toFixed(1)}` : undefined}
+              title={t('clientDetail.progression.energyLevel')}
+              subtitle={eStats ? `${t('clientDetail.progression.avg')} ${eStats.avg.toFixed(1)}` : undefined}
               icon={<Zap className="w-3.5 h-3.5 text-amber-500" />}
             >
               <LineChart data={energyData} color="#f59e0b" unit="" height={140} decimals={1} />
             </ChartCard>
 
             <ChartCard
-              title="Søvn (timer)"
-              subtitle={sStats ? `Snitt ${sStats.avg.toFixed(1)}t` : undefined}
+              title={t('clientDetail.progression.sleepHours')}
+              subtitle={sStats ? `${t('clientDetail.progression.avg')} ${sStats.avg.toFixed(1)}t` : undefined}
               icon={<Moon className="w-3.5 h-3.5 text-violet-500" />}
             >
               <LineChart data={sleepData} color="#8b5cf6" unit="t" height={140} decimals={1} />
@@ -212,6 +221,7 @@ const COLOR_MAP = {
 }
 
 function MetricCard({ icon, label, color, unit, stats, prevAvg, decimals, isGoodWhenDown, periodLabel }: MetricCardProps) {
+  const { t } = useLocale()
   const c = COLOR_MAP[color]
 
   let delta: number | null = null
@@ -238,7 +248,7 @@ function MetricCard({ icon, label, color, unit, stats, prevAvg, decimals, isGood
           <p className={`text-2xl font-bold ${c.val}`}>
             {stats.avg.toFixed(decimals)}{unit && <span className="text-base font-semibold ml-0.5">{unit}</span>}
           </p>
-          <p className={`text-[10px] font-medium mt-0.5 mb-2 ${c.sub}`}>Snitt</p>
+          <p className={`text-[10px] font-medium mt-0.5 mb-2 ${c.sub}`}>{t('clientDetail.progression.avg')}</p>
 
           {delta != null && periodLabel && (
             <p className={`text-xs font-semibold mb-2 ${deltaColor}`}>
@@ -248,18 +258,18 @@ function MetricCard({ icon, label, color, unit, stats, prevAvg, decimals, isGood
 
           <div className={`mt-2 space-y-0.5 text-xs ${c.sub}`}>
             <div className="flex justify-between">
-              <span>Min</span><span className="font-semibold">{stats.min.toFixed(decimals)}{unit}</span>
+              <span>{t('clientDetail.progression.min')}</span><span className="font-semibold">{stats.min.toFixed(decimals)}{unit}</span>
             </div>
             <div className="flex justify-between">
-              <span>Max</span><span className="font-semibold">{stats.max.toFixed(decimals)}{unit}</span>
+              <span>{t('clientDetail.progression.max')}</span><span className="font-semibold">{stats.max.toFixed(decimals)}{unit}</span>
             </div>
             <div className="flex justify-between">
-              <span>Målinger</span><span className="font-semibold">{stats.count}</span>
+              <span>{t('clientDetail.progression.measurements')}</span><span className="font-semibold">{stats.count}</span>
             </div>
           </div>
         </>
       ) : (
-        <p className={`text-sm font-semibold ${c.sub}`}>Ingen data</p>
+        <p className={`text-sm font-semibold ${c.sub}`}>{t('clientDetail.progression.noData')}</p>
       )}
     </div>
   )

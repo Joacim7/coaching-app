@@ -5,6 +5,8 @@ import { X, Plus, Video, Upload, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { youTubeThumbnail } from '@/lib/video-thumbnail'
 import { createClient } from '@/lib/supabase/client'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 // ── Shared type ───────────────────────────────────────────────────────────────
 
@@ -74,9 +76,9 @@ function emptyForm(): FormState {
   }
 }
 
-function fromExercise(ex: ExerciseRow, mode: FormMode): FormState {
+function fromExercise(ex: ExerciseRow, mode: FormMode, t: (key: TranslationKey, vars?: Record<string, string | number>) => string): FormState {
   return {
-    name:            mode === 'copy' ? `${ex.name} (kopi)` : ex.name,
+    name:            mode === 'copy' ? t('exerciseLibrary.copySuffix', { name: ex.name }) : ex.name,
     description:     ex.description     ?? '',
     instructions:    ex.instructions    ?? '',
     categories:      ex.categories      ?? [],
@@ -102,20 +104,21 @@ interface ModalProps {
   onClose: () => void
 }
 
-const TITLES: Record<FormMode, string> = {
-  create: 'Ny øvelse',
-  edit:   'Rediger øvelse',
-  copy:   'Kopier øvelse',
+const TITLE_KEYS: Record<FormMode, TranslationKey> = {
+  create: 'exerciseLibrary.newExercise',
+  edit:   'exerciseLibrary.editExercise',
+  copy:   'exerciseLibrary.copyExercise',
 }
-const SAVE_LABELS: Record<FormMode, string> = {
-  create: 'Lagre øvelse',
-  edit:   'Oppdater øvelse',
-  copy:   'Lagre kopi',
+const SAVE_LABEL_KEYS: Record<FormMode, TranslationKey> = {
+  create: 'exerciseLibrary.save',
+  edit:   'exerciseLibrary.update',
+  copy:   'exerciseLibrary.saveCopy',
 }
 
 export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) {
+  const { t } = useLocale()
   const [form, setForm] = useState<FormState>(() =>
-    exercise ? fromExercise(exercise, mode) : emptyForm()
+    exercise ? fromExercise(exercise, mode, t) : emptyForm()
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -139,7 +142,7 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Ikke innlogget')
+      if (!user) throw new Error(t('exerciseLibrary.notLoggedIn'))
 
       const ext  = file.name.split('.').pop() || 'mp4'
       const path = `${user.id}/${crypto.randomUUID()}.${ext}`
@@ -159,7 +162,7 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
       const { data: pub } = supabase.storage.from('exercise-videos').getPublicUrl(path)
       set('video_url', pub.publicUrl)
     } catch (err) {
-      setVideoUploadError(err instanceof Error ? err.message : 'Kunne ikke laste opp video')
+      setVideoUploadError(err instanceof Error ? err.message : t('exerciseLibrary.uploadFailed'))
     } finally {
       setUploadingVideo(false)
     }
@@ -204,7 +207,7 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
     setSaving(false)
 
     if (!res.ok) {
-      setError(data.error ?? 'Noe gikk galt')
+      setError(data.error ?? t('common.somethingWentWrong'))
       return
     }
 
@@ -219,9 +222,9 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <div>
-            <h2 className="text-base font-bold text-gray-900">{TITLES[mode]}</h2>
+            <h2 className="text-base font-bold text-gray-900">{t(TITLE_KEYS[mode])}</h2>
             {mode === 'copy' && exercise && (
-              <p className="text-xs text-gray-400 mt-0.5">Basert på: {exercise.name}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t('exerciseLibrary.basedOn', { name: exercise.name })}</p>
             )}
           </div>
           <button
@@ -240,12 +243,12 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                  Øvelsenavn <span className="text-red-500">*</span>
+                  {t('exerciseLibrary.exerciseName')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="f.eks. Benkpress"
+                  placeholder={t('exerciseLibrary.namePlaceholder')}
                   value={form.name}
                   onChange={e => set('name', e.target.value)}
                   className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
@@ -254,10 +257,10 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
               </div>
 
               <div className="col-span-2">
-                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Kort beskrivelse</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">{t('exerciseLibrary.shortDescription')}</label>
                 <input
                   type="text"
-                  placeholder="En setning om øvelsen..."
+                  placeholder={t('exerciseLibrary.shortDescPlaceholder')}
                   value={form.description}
                   onChange={e => set('description', e.target.value)}
                   className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
@@ -267,8 +270,8 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
 
             {/* ── Category ────────────────────────────────────── */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Kategori</label>
-              <p className="text-[10px] text-gray-400 mb-2">Velg en eller flere</p>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">{t('exerciseLibrary.category')}</label>
+              <p className="text-[10px] text-gray-400 mb-2">{t('exerciseLibrary.chooseOneOrMore')}</p>
               <div className="flex flex-wrap gap-2">
                 {CATEGORIES.map(c => (
                   <button
@@ -288,8 +291,8 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
 
             {/* ── Main muscle groups ───────────────────────────── */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Hovedmuskelgruppe</label>
-              <p className="text-[10px] text-gray-400 mb-2">Velg alle relevante muskelgrupper</p>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">{t('exerciseLibrary.mainMuscleGroup')}</label>
+              <p className="text-[10px] text-gray-400 mb-2">{t('exerciseLibrary.chooseAllRelevant')}</p>
               <div className="flex flex-wrap gap-2">
                 {MUSCLE_GROUPS.map(m => (
                   <button
@@ -309,8 +312,8 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
 
             {/* ── Primary muscles ─────────────────────────────── */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Primære muskler</label>
-              <p className="text-[10px] text-gray-400 mb-2">Spesifikke muskler som aktiveres</p>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">{t('exerciseLibrary.primaryMuscles')}</label>
+              <p className="text-[10px] text-gray-400 mb-2">{t('exerciseLibrary.specificMusclesActivated')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {PRIMARY_MUSCLES.map(m => (
                   <button
@@ -330,7 +333,7 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
 
             {/* ── Equipment ───────────────────────────────────── */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-2">Utstyr</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-2">{t('exerciseLibrary.equipment')}</label>
               <div className="flex flex-wrap gap-2">
                 {EQUIPMENT.map(eq => (
                   <button
@@ -350,10 +353,10 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
 
             {/* ── Instructions ────────────────────────────────── */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Fremgangsmåte</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">{t('exerciseLibrary.method')}</label>
               <textarea
                 rows={4}
-                placeholder="Beskriv utførelsen steg for steg..."
+                placeholder={t('exerciseLibrary.methodPlaceholder')}
                 value={form.instructions}
                 onChange={e => set('instructions', e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
@@ -362,7 +365,7 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
 
             {/* ── Video ─────────────────────────────────────────── */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Video (valgfri)</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">{t('exerciseLibrary.videoOptional')}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="url"
@@ -373,7 +376,7 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
                 />
                 <label className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors flex-shrink-0">
                   {uploadingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  {uploadingVideo ? 'Laster opp...' : 'Last opp video'}
+                  {uploadingVideo ? t('exerciseLibrary.uploading') : t('exerciseLibrary.uploadVideo')}
                   <input
                     type="file"
                     accept="video/*"
@@ -395,12 +398,12 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
                     href={url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title="Se video"
+                    title={t('exerciseLibrary.watchVideo')}
                     className="relative mt-2 block w-40 aspect-video rounded-lg overflow-hidden bg-gray-100 group/preview"
                   >
                     {preview ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={preview} alt="Video-forhåndsvisning" className="w-full h-full object-cover" />
+                      <img src={preview} alt={t('exerciseLibrary.videoPreview')} className="w-full h-full object-cover" />
                     ) : (
                       // No YouTube thumbnail — a directly uploaded video file,
                       // so show its first frame natively instead of a plain
@@ -430,14 +433,14 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
               onClick={onClose}
               className="flex-1 rounded-xl"
             >
-              Avbryt
+              {t('common.cancel')}
             </Button>
             <Button
               type="submit"
               disabled={saving || !form.name.trim()}
               className="flex-1 rounded-xl"
             >
-              {saving ? 'Lagrer...' : SAVE_LABELS[mode]}
+              {saving ? t('common.saving') : t(SAVE_LABEL_KEYS[mode])}
             </Button>
           </div>
         </form>
@@ -453,12 +456,13 @@ interface TriggerProps {
 }
 
 export function ExerciseFormModal({ onCreated }: TriggerProps) {
+  const { t } = useLocale()
   const [open, setOpen] = useState(false)
   return (
     <>
       <Button onClick={() => setOpen(true)} size="sm" className="h-9 px-4 rounded-xl">
         <Plus className="w-4 h-4" />
-        Ny øvelse
+        {t('exerciseLibrary.newExercise')}
       </Button>
       {open && (
         <ExerciseModal

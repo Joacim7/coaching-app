@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
+import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
 
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('nb-NO', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
@@ -33,6 +34,13 @@ export default async function WorkoutLogListPage({
 
   if (!rel) notFound()
 
+  const { data: coachProfile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(coachProfile?.language))
+
   const profile = Array.isArray(rel.profile) ? rel.profile[0] : rel.profile
   const allLogs = logs ?? []
 
@@ -45,21 +53,21 @@ export default async function WorkoutLogListPage({
         className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
       >
         <ChevronLeft className="w-4 h-4" />
-        {profile?.full_name ?? 'Klient'} — Trening
+        {profile?.full_name ?? t('dashboard.clientFallback')} {t('clientDetail.workoutLog.backSuffix')}
       </Link>
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Treningslogg</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('clientDetail.workoutLog.title')}</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          {allLogs.length} {allLogs.length === 1 ? 'treningsøkt' : 'treningsøkter'} logget
+          {allLogs.length} {allLogs.length === 1 ? t('clientDetail.workoutLog.sessionSingular') : t('clientDetail.workoutLog.sessionPlural')} {t('clientDetail.workoutLog.loggedSuffix')}
         </p>
       </div>
 
       {/* List */}
       {allLogs.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center">
-          <p className="text-sm text-gray-400">Ingen treningsøkter logget ennå</p>
+          <p className="text-sm text-gray-400">{t('clientDetail.workoutLog.noneYet')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -80,7 +88,7 @@ export default async function WorkoutLogListPage({
               >
                 <div className="min-w-0">
                   <p className="font-semibold text-sm text-gray-800 truncate">
-                    {log.session_title ?? 'Treningsøkt'}
+                    {log.session_title ?? t('clientDetail.training.workoutSession')}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5 capitalize">{fmtDate(log.date)}</p>
                 </div>
@@ -90,13 +98,13 @@ export default async function WorkoutLogListPage({
                       {setsData[0]?.duration_min != null && (
                         <div className="text-right">
                           <p className="text-sm font-semibold text-gray-700">{setsData[0].duration_min} min</p>
-                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">varighet</p>
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.workoutLog.duration')}</p>
                         </div>
                       )}
                       {setsData[0]?.distance_km != null && (
                         <div className="text-right">
                           <p className="text-sm font-semibold text-gray-700">{setsData[0].distance_km} km</p>
-                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">distanse</p>
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.workoutLog.distance')}</p>
                         </div>
                       )}
                     </>
@@ -104,13 +112,13 @@ export default async function WorkoutLogListPage({
                     <>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-gray-700">{totalSets}</p>
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">sett</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.workoutLog.sets')}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-gray-700">
                           {Math.round(totalKg).toLocaleString('nb-NO')} kg
                         </p>
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">volum</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.workoutLog.volume')}</p>
                       </div>
                     </>
                   )}

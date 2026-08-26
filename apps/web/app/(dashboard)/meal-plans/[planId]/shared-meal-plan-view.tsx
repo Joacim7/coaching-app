@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Copy, Loader2, Share2 } from 'lucide-react'
+import { useLocale } from '@/components/locale-provider'
 import type { Meal, Food, MealAlternative } from '@coaching/types'
 
 interface PlanProp {
@@ -29,6 +30,7 @@ function FoodLine({ food }: { food: Food }) {
 }
 
 function MealCard({ meal }: { meal: Meal }) {
+  const { t } = useLocale()
   const alternatives: MealAlternative[] = meal.alternatives?.length ? meal.alternatives : [{ foods: meal.foods }]
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
@@ -40,7 +42,7 @@ function MealCard({ meal }: { meal: Meal }) {
         <div key={i} className={i > 0 ? 'pt-2 border-t border-gray-50' : ''}>
           {alternatives.length > 1 && (
             <p className="text-xs font-semibold text-[#2d8653] mb-1">
-              Alternativ {i + 1}{alt.name ? ` — ${alt.name}` : ''}
+              {t('mealPlans.alternativeNumber', { n: i + 1 })}{alt.name ? ` — ${alt.name}` : ''}
             </p>
           )}
           {alt.foods.map((f, fi) => <FoodLine key={fi} food={f} />)}
@@ -56,6 +58,7 @@ function MealCard({ meal }: { meal: Meal }) {
 // own library and edit the copy from there.
 export function SharedMealPlanView({ plan }: { plan: PlanProp }) {
   const router = useRouter()
+  const { t } = useLocale()
   const [copying, setCopying] = useState(false)
   const [error, setError]     = useState('')
 
@@ -72,11 +75,18 @@ export function SharedMealPlanView({ plan }: { plan: PlanProp }) {
       const { newPlanId } = await res.json()
       router.push(`/meal-plans/${newPlanId}`)
     } else {
-      setError('Kunne ikke kopiere planen. Prøv igjen.')
+      setError(t('mealPlans.copyFailed'))
     }
   }
 
   const hasMacros = plan.calories_target || plan.protein_g || plan.carbs_g || plan.fat_g
+
+  const macros = [
+    { label: t('clientDetail.nutrition.calories'), value: plan.calories_target ? `${plan.calories_target} kcal` : '—', color: 'text-orange-600' },
+    { label: t('clientDetail.nutrition.protein'),  value: plan.protein_g        ? `${plan.protein_g}g`            : '—', color: 'text-[#2d8653]' },
+    { label: t('clientDetail.nutrition.carbs'),    value: plan.carbs_g          ? `${plan.carbs_g}g`               : '—', color: 'text-yellow-600' },
+    { label: t('clientDetail.nutrition.fat'),      value: plan.fat_g            ? `${plan.fat_g}g`                 : '—', color: 'text-red-500' },
+  ]
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-10">
@@ -85,12 +95,12 @@ export function SharedMealPlanView({ plan }: { plan: PlanProp }) {
         className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
       >
         <ChevronLeft className="w-4 h-4" />
-        Tilbake til matplaner
+        {t('mealPlans.backToMealPlans')}
       </Link>
 
       <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-100 text-sm text-amber-700 flex items-center gap-2">
         <Share2 className="w-4 h-4 flex-shrink-0" />
-        Denne matplanen er delt av en annen coach i organisasjonen din. Kopier den til dine egne matplaner for å kunne redigere den.
+        {t('mealPlans.sharedByOtherCoach')}
       </div>
 
       <div className="flex items-start justify-between gap-4">
@@ -101,7 +111,7 @@ export function SharedMealPlanView({ plan }: { plan: PlanProp }) {
           className="flex items-center gap-2 h-9 px-4 rounded-xl bg-[#2d8653] text-white text-sm font-semibold hover:bg-[#1a5c3a] disabled:opacity-50 transition-colors flex-shrink-0"
         >
           {copying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
-          {copying ? 'Kopierer...' : 'Kopier til mine matplaner'}
+          {copying ? t('mealPlans.copying') : t('mealPlans.copyToMine')}
         </button>
       </div>
 
@@ -109,12 +119,7 @@ export function SharedMealPlanView({ plan }: { plan: PlanProp }) {
 
       {hasMacros && (
         <div className="grid grid-cols-4 gap-3">
-          {([
-            { label: 'Kalorier', value: plan.calories_target ? `${plan.calories_target} kcal` : '—', color: 'text-orange-600' },
-            { label: 'Protein',  value: plan.protein_g        ? `${plan.protein_g}g`            : '—', color: 'text-[#2d8653]' },
-            { label: 'Karbo',    value: plan.carbs_g          ? `${plan.carbs_g}g`               : '—', color: 'text-yellow-600' },
-            { label: 'Fett',     value: plan.fat_g            ? `${plan.fat_g}g`                 : '—', color: 'text-red-500' },
-          ] as const).map(m => (
+          {macros.map(m => (
             <div key={m.label} className="bg-gray-50 rounded-xl p-3 text-center">
               <p className={`text-sm font-bold ${m.color}`}>{m.value}</p>
               <p className="text-[10px] text-gray-400 mt-0.5 uppercase tracking-wide">{m.label}</p>
@@ -125,7 +130,7 @@ export function SharedMealPlanView({ plan }: { plan: PlanProp }) {
 
       <div className="space-y-4">
         {plan.meals.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-10">Ingen måltider i denne planen ennå.</p>
+          <p className="text-sm text-gray-400 text-center py-10">{t('mealPlans.noMealsYet')}</p>
         ) : (
           plan.meals.map((meal, i) => <MealCard key={i} meal={meal} />)
         )}

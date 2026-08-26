@@ -1,9 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
 import StandaloneTrainingPlanEditor from './standalone-training-editor'
+import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
 
 export default async function NewTrainingPlanPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: coachProfile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(coachProfile?.language))
 
   const [{ data: clients }, { data: exercises }] = await Promise.all([
     supabase
@@ -20,7 +28,7 @@ export default async function NewTrainingPlanPage() {
 
   const clientList = (clients ?? []).map(c => {
     const profile = Array.isArray(c.profile) ? c.profile[0] : c.profile
-    return { id: c.client_id, name: profile?.full_name ?? 'Ukjent' }
+    return { id: c.client_id, name: profile?.full_name ?? t('common.unknown') }
   })
 
   return (

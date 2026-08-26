@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ChefHat, Plus, ImageIcon, Loader2, CheckCircle2, Share2, Sparkles } from 'lucide-react'
 import { recipeImageUrl } from '@/lib/food-image'
+import { useLocale } from '@/components/locale-provider'
 
 export interface RecipeRow {
   id: string
@@ -30,6 +31,7 @@ type BackfillState =
   | { status: 'error' }
 
 export function RecipesView({ recipes, loadError }: { recipes: RecipeRow[]; loadError?: string | null }) {
+  const { t } = useLocale()
   const [activeTab,   setActiveTab]   = useState<string | null>(null)
   const [backfill,    setBackfill]    = useState<BackfillState>({ status: 'idle' })
   const [imageOverrides, setImageOverrides] = useState<Record<string, string>>({})
@@ -48,12 +50,12 @@ export function RecipesView({ recipes, loadError }: { recipes: RecipeRow[]; load
       const res = await fetch(`/api/recipes/${recipeId}/generate-image`, { method: 'POST' })
       const json = await res.json() as { image_url?: string; error?: string }
       if (!res.ok || !json.image_url) {
-        setGenError(prev => ({ ...prev, [recipeId]: json.error ?? 'Kunne ikke generere bilde' }))
+        setGenError(prev => ({ ...prev, [recipeId]: json.error ?? t('recipes.imageGenFailed') }))
       } else {
         setImageOverrides(prev => ({ ...prev, [recipeId]: json.image_url! }))
       }
     } catch {
-      setGenError(prev => ({ ...prev, [recipeId]: 'Kunne ikke generere bilde' }))
+      setGenError(prev => ({ ...prev, [recipeId]: t('recipes.imageGenFailed') }))
     } finally {
       setGenerating(prev => ({ ...prev, [recipeId]: false }))
     }
@@ -120,8 +122,8 @@ export function RecipesView({ recipes, loadError }: { recipes: RecipeRow[]; load
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a5c3a]">Oppskrifter</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{recipes.length} oppskrifter i biblioteket</p>
+          <h1 className="text-2xl font-bold text-[#1a5c3a]">{t('recipes.title')}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{t('recipes.recipeCount', { n: recipes.length })}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -134,14 +136,14 @@ export function RecipesView({ recipes, loadError }: { recipes: RecipeRow[]; load
               : backfill.status === 'done'
                 ? <CheckCircle2 className="w-4 h-4 text-green-500" />
                 : <ImageIcon className="w-4 h-4" />}
-            Hent bilder
+            {t('recipes.fetchImages')}
           </button>
           <Link
             href="/recipes/new"
             className="inline-flex items-center gap-2 h-9 px-4 rounded-xl text-white text-sm font-semibold transition-all [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]"
           >
             <Plus className="w-4 h-4" />
-            Ny oppskrift
+            {t('recipes.newRecipe')}
           </Link>
         </div>
       </div>
@@ -153,7 +155,7 @@ export function RecipesView({ recipes, loadError }: { recipes: RecipeRow[]; load
           <span className="min-w-0">
             {backfill.total > 0
               ? <><span className="font-semibold">{backfill.current}/{backfill.total}</span> — {backfill.title}</>
-              : 'Starter...'}
+              : t('recipes.starting')}
           </span>
         </div>
       )}
@@ -161,14 +163,14 @@ export function RecipesView({ recipes, loadError }: { recipes: RecipeRow[]; load
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#ebf5ef] border border-[#cdeee3] text-sm text-[#1a5c3a]">
           <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
           <span>
-            <span className="font-semibold">{backfill.updated} bilder</span> hentet
-            {backfill.skipped > 0 && <>, {backfill.skipped} hoppet over</>}
+            {t('recipes.imagesFetched', { n: backfill.updated })}
+            {backfill.skipped > 0 && t('recipes.skippedSuffix', { n: backfill.skipped })}
           </span>
         </div>
       )}
       {backfill.status === 'error' && (
         <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-sm text-red-600">
-          Kunne ikke hente bilder — sjekk at PEXELS_API_KEY er satt i .env.local
+          {t('recipes.fetchImagesFailed')}
         </div>
       )}
 
@@ -180,7 +182,7 @@ export function RecipesView({ recipes, loadError }: { recipes: RecipeRow[]; load
             !activeTab ? 'border-[#2d8653] text-[#2d8653]' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
-          Alle <span className="text-gray-400 text-xs ml-1">{recipes.length}</span>
+          {t('recipes.allTab')} <span className="text-gray-400 text-xs ml-1">{recipes.length}</span>
         </button>
         {MEAL_TYPES.map(type => (
           <button
@@ -199,7 +201,7 @@ export function RecipesView({ recipes, loadError }: { recipes: RecipeRow[]; load
       {/* Load error — distinct from "genuinely no recipes" so it's not silently hidden */}
       {loadError && (
         <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-sm text-red-600">
-          Kunne ikke laste oppskrifter: {loadError}
+          {t('recipes.loadFailed', { error: loadError })}
         </div>
       )}
 
@@ -207,9 +209,9 @@ export function RecipesView({ recipes, loadError }: { recipes: RecipeRow[]; load
       {!loadError && filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <ChefHat className="w-10 h-10 text-gray-200 mb-3" />
-          <p className="font-medium text-gray-500 text-sm">Ingen oppskrifter</p>
+          <p className="font-medium text-gray-500 text-sm">{t('recipes.empty')}</p>
           {activeTab && (
-            <p className="text-xs text-gray-400 mt-1">Ingen {activeTab}-oppskrifter i biblioteket</p>
+            <p className="text-xs text-gray-400 mt-1">{t('recipes.noneInCategory', { type: activeTab })}</p>
           )}
         </div>
       )}
@@ -250,7 +252,7 @@ export function RecipesView({ recipes, loadError }: { recipes: RecipeRow[]; load
                   {generating[recipe.id]
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : <Sparkles className="w-3.5 h-3.5" />}
-                  Generer bilde
+                  {t('recipes.generateImage')}
                 </button>
                 {genError[recipe.id] && (
                   <div className="absolute bottom-2 left-2 right-2 px-2 py-1 rounded-lg bg-red-600/90 text-white text-[11px] font-medium">
@@ -266,7 +268,7 @@ export function RecipesView({ recipes, loadError }: { recipes: RecipeRow[]; load
                   {recipe.is_org_shared && (
                     <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
                       <Share2 className="w-2.5 h-2.5" />
-                      Delt
+                      {t('recipes.shared')}
                     </span>
                   )}
                 </div>

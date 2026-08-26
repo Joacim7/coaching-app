@@ -3,6 +3,7 @@
 import { useRef, useEffect } from 'react'
 import { Monitor, MonitorOff, Circle, Square, Mic, MicOff, Video as CamIcon, VideoOff } from 'lucide-react'
 import { useRecording } from '@/components/recording-provider'
+import { useLocale } from '@/components/locale-provider'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ export default function RecordPage() {
     startScreen, startRecording, stopRecording, stopSharing,
     toggleMic, toggleCam,
   } = useRecording()
+  const { t } = useLocale()
 
   // Local preview video — shows the screen share ON this page only.
   // This is separate from the hidden compositing video in RecordingProvider.
@@ -68,10 +70,10 @@ export default function RecordPage() {
         <span className="text-white font-semibold text-sm tracking-wide">Nova Record</span>
         <span className="text-gray-500 text-xs">
           {stage === 'recording'
-            ? `Tar opp · ${fmtTime(timer)}`
+            ? t('record.recordingStatus', { time: fmtTime(timer) })
             : stage === 'preview'
-            ? 'Klar til opptak'
-            : 'Inaktiv'}
+            ? t('record.readyToRecord')
+            : t('record.inactive')}
         </span>
       </div>
 
@@ -86,11 +88,9 @@ export default function RecordPage() {
                 <Monitor className="w-9 h-9 text-gray-500" />
               </div>
               <div className="space-y-2.5">
-                <h2 className="text-white text-xl font-bold">Start en ny økt</h2>
+                <h2 className="text-white text-xl font-bold">{t('record.startNewSession')}</h2>
                 <p className="text-gray-500 text-sm leading-relaxed">
-                  Del skjermen din — vindu, fane eller hele skjermen.
-                  Webkameraet vises som en boble du kan flytte fritt,
-                  og opptaket fortsetter mens du navigerer i appen.
+                  {t('record.shareScreenDescription')}
                 </p>
               </div>
               <button
@@ -98,7 +98,7 @@ export default function RecordPage() {
                 className="w-full flex items-center justify-center gap-2.5 h-11 rounded-2xl bg-[#2d8653] hover:bg-[#2d8653] text-white font-semibold transition-colors"
               >
                 <Monitor className="w-4 h-4" />
-                Del skjerm
+                {t('record.shareScreen')}
               </button>
             </div>
           </div>
@@ -126,10 +126,9 @@ export default function RecordPage() {
                     <Monitor className="w-6 h-6 text-gray-500" />
                   </div>
                   <div className="text-center space-y-1 max-w-xs">
-                    <p className="text-white text-sm font-semibold">Hele skjermen deles</p>
+                    <p className="text-white text-sm font-semibold">{t('record.entireScreenShared')}</p>
                     <p className="text-gray-500 text-xs leading-relaxed">
-                      Forhåndsvisning skjult for å unngå speileffekt.
-                      Opptaket fanger skjermen din normalt.
+                      {t('record.previewHiddenDescription')}
                     </p>
                   </div>
                   {stage === 'recording' && (
@@ -154,7 +153,7 @@ export default function RecordPage() {
               {stage === 'recording' && (
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-gray-900/80 backdrop-blur-sm border border-white/10 px-4 py-2 rounded-xl pointer-events-none">
                   <p className="text-gray-400 text-xs text-center">
-                    Naviger fritt i appen — opptaket fortsetter i bakgrunnen
+                    {t('record.navigateFreelyHint')}
                   </p>
                 </div>
               )}
@@ -171,13 +170,13 @@ export default function RecordPage() {
               active={micOn}
               onClick={toggleMic}
               icon={micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-              label={micOn ? 'Mikrofon' : 'Av'}
+              label={micOn ? t('record.microphone') : t('record.off')}
             />
             <CtrlBtn
               active={camOn}
               onClick={toggleCam}
               icon={camOn ? <CamIcon className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
-              label={camOn ? 'Kamera' : 'Av'}
+              label={camOn ? t('record.camera') : t('record.off')}
             />
 
             <div className="w-px h-10 bg-white/10 mx-2" />
@@ -189,7 +188,7 @@ export default function RecordPage() {
                 className="flex items-center gap-2 px-7 h-11 rounded-2xl bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-semibold text-sm transition-colors shadow-lg shadow-red-900/30"
               >
                 <Circle className="w-4 h-4 fill-white" />
-                Start opptak
+                {t('record.startRecordingBtn')}
               </button>
             ) : (
               <button
@@ -197,7 +196,7 @@ export default function RecordPage() {
                 className="flex items-center gap-2 px-7 h-11 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-red-900/30"
               >
                 <Square className="w-4 h-4 fill-white" />
-                Stopp opptak
+                {t('record.stopRecordingBtn')}
               </button>
             )}
 
@@ -208,7 +207,7 @@ export default function RecordPage() {
               className="flex flex-col items-center gap-1 px-4 py-2.5 rounded-xl text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
             >
               <MonitorOff className="w-5 h-5" />
-              <span className="text-[10px] font-medium">Stopp deling</span>
+              <span className="text-[10px] font-medium">{t('record.stopSharing')}</span>
             </button>
           </div>
         </div>

@@ -5,15 +5,16 @@ import { MessageSquare, ChevronLeft, Dumbbell, UtensilsCrossed, ClipboardList } 
 import { ClientTabNav } from './client-tab-nav'
 import { ClientSettingsPanel } from './client-settings-panel'
 import type { ClientStatus } from '@coaching/types'
+import { getTranslator, normalizeLocale, type TranslationKey } from '@/lib/i18n/translations'
 
-const STATUS_CONFIG: Record<ClientStatus, { label: string; pill: string; dot: string }> = {
-  active:     { label: 'Aktiv',             pill: 'bg-green-50 text-green-700',   dot: 'bg-green-500' },
-  inactive:   { label: 'Inaktiv',           pill: 'bg-gray-100 text-gray-500',    dot: 'bg-gray-400' },
-  new:        { label: 'Ny klient',         pill: 'bg-[#ebf5ef] text-[#1a5c3a]',     dot: 'bg-[#2d8653]' },
-  onboarding: { label: 'Venter onboarding', pill: 'bg-yellow-50 text-yellow-700', dot: 'bg-yellow-500' },
-  course:     { label: 'På kurs',           pill: 'bg-[#ebf5ef] text-[#1a5c3a]', dot: 'bg-[#2d8653]' },
-  followup:   { label: 'Oppfølging',        pill: 'bg-orange-50 text-orange-700', dot: 'bg-orange-400' },
-  app_access: { label: 'App tilgang',       pill: 'bg-blue-50 text-blue-700',     dot: 'bg-blue-500' },
+const STATUS_CONFIG: Record<ClientStatus, { labelKey: TranslationKey; pill: string; dot: string }> = {
+  active:     { labelKey: 'clientDetail.status.active',     pill: 'bg-green-50 text-green-700',   dot: 'bg-green-500' },
+  inactive:   { labelKey: 'clientDetail.status.inactive',   pill: 'bg-gray-100 text-gray-500',    dot: 'bg-gray-400' },
+  new:        { labelKey: 'clientDetail.status.new',        pill: 'bg-[#ebf5ef] text-[#1a5c3a]',     dot: 'bg-[#2d8653]' },
+  onboarding: { labelKey: 'clientDetail.status.onboarding', pill: 'bg-yellow-50 text-yellow-700', dot: 'bg-yellow-500' },
+  course:     { labelKey: 'clientDetail.status.course',     pill: 'bg-[#ebf5ef] text-[#1a5c3a]', dot: 'bg-[#2d8653]' },
+  followup:   { labelKey: 'clientDetail.status.followup',   pill: 'bg-orange-50 text-orange-700', dot: 'bg-orange-400' },
+  app_access: { labelKey: 'clientDetail.status.appAccess',  pill: 'bg-blue-50 text-blue-700',     dot: 'bg-blue-500' },
 }
 
 const GRADIENTS = [
@@ -34,11 +35,11 @@ function initials(name: string) {
     : name.slice(0, 2).toUpperCase()
 }
 
-function relDate(iso: string) {
+function relDate(iso: string, t: (key: TranslationKey, vars?: Record<string, string | number>) => string) {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
-  if (days === 0) return 'I dag'
-  if (days === 1) return 'I går'
-  if (days < 7) return `${days}d siden`
+  if (days === 0) return t('clientDetail.relDate.today')
+  if (days === 1) return t('clientDetail.relDate.yesterday')
+  if (days < 7) return t('clientDetail.relDate.daysAgo', { n: days })
   return new Date(iso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' })
 }
 
@@ -62,8 +63,15 @@ export default async function ClientDetailLayout({
 
   if (!rel) notFound()
 
+  const { data: coachProfile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(coachProfile?.language))
+
   const profile = Array.isArray(rel.profile) ? rel.profile[0] : rel.profile
-  const name = profile?.full_name ?? 'Klient'
+  const name = profile?.full_name ?? t('dashboard.clientFallback')
   const status = (rel.status ?? 'active') as ClientStatus
   const sc = STATUS_CONFIG[status]
 
@@ -118,7 +126,7 @@ export default async function ClientDetailLayout({
         className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition-colors mb-4 group"
       >
         <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-        Alle klienter
+        {t('clientDetail.hero.allClients')}
       </Link>
 
       {/* Hero card */}
@@ -134,10 +142,10 @@ export default async function ClientDetailLayout({
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${sc.pill}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
-                  {sc.label}
+                  {t(sc.labelKey)}
                 </span>
                 <span className="text-xs text-gray-400">
-                  Klient siden {new Date(rel.created_at).toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' })}
+                  {t('clientDetail.hero.clientSince', { date: new Date(rel.created_at).toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }) })}
                 </span>
               </div>
               {goal ? (
@@ -145,18 +153,18 @@ export default async function ClientDetailLayout({
                   {goal.description
                     ? goal.description
                     : goal.target_weight_kg != null
-                      ? `Målvekt: ${goal.target_weight_kg} kg`
-                      : 'Mål satt'}
+                      ? t('clientDetail.hero.targetWeight', { kg: goal.target_weight_kg })
+                      : t('clientDetail.hero.goalSet')}
                 </p>
               ) : (
-                <p className="text-sm text-gray-400 mt-1.5 italic">Mål ikke satt ennå</p>
+                <p className="text-sm text-gray-400 mt-1.5 italic">{t('clientDetail.hero.noGoalYet')}</p>
               )}
             </div>
           </div>
 
           {/* Right: action buttons */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button className="p-2.5 rounded-xl border border-gray-200 text-gray-400 hover:text-[#2d8653] hover:border-[#cdeee3] transition-colors" title="Send melding">
+            <button className="p-2.5 rounded-xl border border-gray-200 text-gray-400 hover:text-[#2d8653] hover:border-[#cdeee3] transition-colors" title={t('clientDetail.hero.sendMessage')}>
               <MessageSquare className="w-4 h-4" />
             </button>
             <ClientSettingsPanel clientId={clientId} clientName={name} />
@@ -171,17 +179,17 @@ export default async function ClientDetailLayout({
               <div className="w-7 h-7 rounded-lg bg-[#cdeee3] flex items-center justify-center">
                 <ClipboardList className="w-3.5 h-3.5 text-[#2d8653]" />
               </div>
-              <span className="text-[10px] font-bold text-[#6ecfb0] uppercase tracking-wider">Check-in</span>
+              <span className="text-[10px] font-bold text-[#6ecfb0] uppercase tracking-wider">{t('clientDetail.hero.checkin')}</span>
             </div>
             {lastCheckinAt ? (
               <>
-                <p className="text-sm font-bold text-[#1a5c3a]">{relDate(lastCheckinAt)}</p>
-                <p className="text-xs text-[#2d8653] mt-0.5">Siste innsending</p>
+                <p className="text-sm font-bold text-[#1a5c3a]">{relDate(lastCheckinAt, t)}</p>
+                <p className="text-xs text-[#2d8653] mt-0.5">{t('clientDetail.hero.lastSubmission')}</p>
               </>
             ) : (
               <>
-                <p className="text-sm font-bold text-[#6ecfb0]">Ingen ennå</p>
-                <p className="text-xs text-[#6ecfb0] mt-0.5">Ikke registrert</p>
+                <p className="text-sm font-bold text-[#6ecfb0]">{t('clientDetail.hero.noneYet')}</p>
+                <p className="text-xs text-[#6ecfb0] mt-0.5">{t('clientDetail.hero.notRegistered')}</p>
               </>
             )}
           </div>
@@ -192,17 +200,17 @@ export default async function ClientDetailLayout({
               <div className="w-7 h-7 rounded-lg bg-[#cdeee3] flex items-center justify-center">
                 <Dumbbell className="w-3.5 h-3.5 text-[#2d8653]" />
               </div>
-              <span className="text-[10px] font-bold text-[#6ecfb0] uppercase tracking-wider">Trening</span>
+              <span className="text-[10px] font-bold text-[#6ecfb0] uppercase tracking-wider">{t('sidebar.training')}</span>
             </div>
             {plan ? (
               <>
-                <p className="text-sm font-bold text-[#1a5c3a] truncate">{nextSession?.title ?? 'Ingen økt'}</p>
+                <p className="text-sm font-bold text-[#1a5c3a] truncate">{nextSession?.title ?? t('clientDetail.hero.noSession')}</p>
                 <p className="text-xs text-[#2d8653] mt-0.5 truncate">{plan.title}</p>
               </>
             ) : (
               <>
-                <p className="text-sm font-bold text-[#6ecfb0]">Ingen plan</p>
-                <p className="text-xs text-[#6ecfb0] mt-0.5">Ikke tildelt</p>
+                <p className="text-sm font-bold text-[#6ecfb0]">{t('clientDetail.hero.noPlan')}</p>
+                <p className="text-xs text-[#6ecfb0] mt-0.5">{t('clientDetail.hero.notAssigned')}</p>
               </>
             )}
           </div>
@@ -213,17 +221,17 @@ export default async function ClientDetailLayout({
               <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center">
                 <UtensilsCrossed className="w-3.5 h-3.5 text-green-600" />
               </div>
-              <span className="text-[10px] font-bold text-green-400 uppercase tracking-wider">Ernæring</span>
+              <span className="text-[10px] font-bold text-green-400 uppercase tracking-wider">{t('clientDetail.hero.nutrition')}</span>
             </div>
             {meal?.calories_target ? (
               <>
                 <p className="text-sm font-bold text-green-900">{meal.calories_target} kcal</p>
-                <p className="text-xs text-green-500 mt-0.5">Daglig mål</p>
+                <p className="text-xs text-green-500 mt-0.5">{t('clientDetail.hero.dailyGoal')}</p>
               </>
             ) : (
               <>
-                <p className="text-sm font-bold text-green-300">Ikke satt</p>
-                <p className="text-xs text-green-400 mt-0.5">Kalorimål mangler</p>
+                <p className="text-sm font-bold text-green-300">{t('clientDetail.hero.notSet')}</p>
+                <p className="text-xs text-green-400 mt-0.5">{t('clientDetail.hero.calorieGoalMissing')}</p>
               </>
             )}
           </div>

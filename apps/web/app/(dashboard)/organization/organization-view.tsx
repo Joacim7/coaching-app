@@ -11,6 +11,8 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { exerciseThumbnail } from '@/lib/video-thumbnail'
 import { ORG_PLANS, type OrgPlanSlug } from '@/lib/orgPlans'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,8 +73,8 @@ function formatBytes(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })
+function formatDate(iso: string, dateLocale: string): string {
+  return new Date(iso).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function getInitials(name: string | null): string {
@@ -126,40 +128,41 @@ function StatCard({
 // ── Shared org plan cards (used when creating a new org and when a pending
 // or existing org needs to pick/upgrade a plan) ─────────────────────────────
 
-const ORG_ADMIN_FEATURES = [
-  'Dele treningsplaner, matplaner, oppskrifter, øvelser og dokumenter med alle coacher',
-  'Oversikt over alle coacher og deres klienter',
-  'Flytte klienter mellom coacher',
-  'Felles maler for check-ins og oppstartsskjema',
-  'Se økonomioversikten til hele teamet',
+const ORG_ADMIN_FEATURE_KEYS: TranslationKey[] = [
+  'organization.planFeatures.admin1',
+  'organization.planFeatures.admin2',
+  'organization.planFeatures.admin3',
+  'organization.planFeatures.admin4',
+  'organization.planFeatures.admin5',
 ]
 
-const ORG_COACH_FEATURES = [
-  'Dele egne treningsplaner, øvelser, matplaner og oppskrifter med resten av organisasjonen',
-  'Se og bruke alle delte ressurser med sine klienter',
+const ORG_COACH_FEATURE_KEYS: TranslationKey[] = [
+  'organization.planFeatures.coach1',
+  'organization.planFeatures.coach2',
 ]
 
 function OrgPlanFeatures() {
+  const { t } = useLocale()
   return (
     <div className="max-w-2xl mx-auto mb-8 bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-left">
       <div className="mb-4">
-        <h3 className="text-sm font-bold text-gray-900 mb-2">Som organisasjonsadmin får du:</h3>
+        <h3 className="text-sm font-bold text-gray-900 mb-2">{t('organization.planFeatures.adminTitle')}</h3>
         <ul className="space-y-1.5">
-          {ORG_ADMIN_FEATURES.map(f => (
-            <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
+          {ORG_ADMIN_FEATURE_KEYS.map(k => (
+            <li key={k} className="flex items-start gap-2 text-sm text-gray-600">
               <Check className="w-4 h-4 text-[#2d8653] flex-shrink-0 mt-0.5" />
-              {f}
+              {t(k)}
             </li>
           ))}
         </ul>
       </div>
       <div>
-        <h3 className="text-sm font-bold text-gray-900 mb-2">Coachene kan:</h3>
+        <h3 className="text-sm font-bold text-gray-900 mb-2">{t('organization.planFeatures.coachTitle')}</h3>
         <ul className="space-y-1.5">
-          {ORG_COACH_FEATURES.map(f => (
-            <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
+          {ORG_COACH_FEATURE_KEYS.map(k => (
+            <li key={k} className="flex items-start gap-2 text-sm text-gray-600">
               <Check className="w-4 h-4 text-[#2d8653] flex-shrink-0 mt-0.5" />
-              {f}
+              {t(k)}
             </li>
           ))}
         </ul>
@@ -174,6 +177,7 @@ function OrgPlanCards({
   onSelect: (plan: OrgPlanSlug) => void
   loadingPlan: OrgPlanSlug | null
 }) {
+  const { t } = useLocale()
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {ORG_PLANS.map(plan => (
@@ -181,10 +185,10 @@ function OrgPlanCards({
           <h3 className="text-lg font-bold text-gray-900">{plan.displayName}</h3>
           <div className="flex items-baseline gap-1 mt-1 mb-4">
             <span className="text-2xl font-bold text-gray-900">{plan.priceKr}</span>
-            <span className="text-sm text-gray-400">kr/mnd</span>
+            <span className="text-sm text-gray-400">{t('organization.perMonth')}</span>
           </div>
           <p className="text-sm text-[#1a5c3a] bg-[#ebf5ef] rounded-lg px-3 py-2 mb-6 text-center font-semibold">
-            Opptil {plan.maxCoaches} coacher
+            {t('organization.planCards.upToCoaches', { n: plan.maxCoaches })}
           </p>
           <button
             onClick={() => onSelect(plan.slug)}
@@ -192,7 +196,7 @@ function OrgPlanCards({
             className="mt-auto h-11 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-all flex items-center justify-center gap-2 [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:brightness-95"
           >
             {loadingPlan === plan.slug && <Loader2 className="w-4 h-4 animate-spin" />}
-            {loadingPlan === plan.slug ? 'Starter betaling...' : 'Velg denne planen'}
+            {loadingPlan === plan.slug ? t('organization.planCards.startingPayment') : t('organization.planCards.selectPlan')}
           </button>
         </div>
       ))}
@@ -203,6 +207,7 @@ function OrgPlanCards({
 // ── Create org panel — name, then plan + payment before the org exists ─────────
 
 function CreateOrgPanel() {
+  const { t } = useLocale()
   const [step, setStep] = useState<'name' | 'plan'>('name')
   const [name, setName] = useState('')
   const [loadingPlan, setLoadingPlan] = useState<OrgPlanSlug | null>(null)
@@ -219,13 +224,13 @@ function CreateOrgPanel() {
       })
       const result = await res.json()
       if (!res.ok) {
-        setError(result.error ?? 'Noe gikk galt')
+        setError(result.error ?? t('common.somethingWentWrong'))
         setLoadingPlan(null)
         return
       }
       window.location.assign(result.url)
     } catch {
-      setError('Noe gikk galt — prøv igjen')
+      setError(t('common.somethingWentWrongRetry'))
       setLoadingPlan(null)
     }
   }
@@ -237,16 +242,16 @@ function CreateOrgPanel() {
           <Building2 className="w-8 h-8 text-[#2d8653]" />
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-bold text-gray-900">Opprett organisasjon</h2>
+          <h2 className="text-xl font-bold text-gray-900">{t('organization.createOrg.title')}</h2>
           <p className="text-sm text-gray-500 mt-1 max-w-sm">
-            Du er ikke koblet til noen organisasjon ennå. Opprett én for å invitere andre coacher og dele ressurser.
+            {t('organization.createOrg.intro')}
           </p>
         </div>
         <div className="flex flex-col gap-3 w-full max-w-sm">
           <input
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder="Organisasjonsnavn"
+            placeholder={t('organization.createOrg.namePlaceholder')}
             autoFocus
             onKeyDown={e => e.key === 'Enter' && name.trim() && setStep('plan')}
             className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
@@ -256,7 +261,7 @@ function CreateOrgPanel() {
             disabled={!name.trim()}
             className="h-11 rounded-xl bg-[#2d8653] text-white text-sm font-semibold hover:bg-[#2d8653] disabled:opacity-50 transition-colors"
           >
-            Neste — velg plan
+            {t('organization.createOrg.nextChoosePlan')}
           </button>
         </div>
       </div>
@@ -269,15 +274,15 @@ function CreateOrgPanel() {
         <div className="w-16 h-16 rounded-2xl bg-[#ebf5ef] flex items-center justify-center mx-auto mb-4">
           <Building2 className="w-8 h-8 text-[#2d8653]" />
         </div>
-        <h2 className="text-xl font-bold text-gray-900">Velg en plan for {name}</h2>
+        <h2 className="text-xl font-bold text-gray-900">{t('organization.createOrg.choosePlanFor', { name })}</h2>
         <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
-          Organisasjonen opprettes så snart betalingen er fullført.
+          {t('organization.createOrg.paymentNotice')}
         </p>
         <button
           onClick={() => setStep('name')}
           className="text-xs text-gray-400 hover:text-gray-600 mt-2 underline"
         >
-          ← Endre navn
+          {t('organization.createOrg.changeName')}
         </button>
       </div>
       {error && (
@@ -293,6 +298,7 @@ function CreateOrgPanel() {
 // is upgrading — see the invite coach-limit prompt in CoachesTab) ──────────────
 
 function OrgPlanSelector({ org }: { org: Org }) {
+  const { t } = useLocale()
   const [loadingPlan, setLoadingPlan] = useState<OrgPlanSlug | null>(null)
   const [error, setError] = useState('')
 
@@ -307,13 +313,13 @@ function OrgPlanSelector({ org }: { org: Org }) {
       })
       const result = await res.json()
       if (!res.ok) {
-        setError(result.error ?? 'Noe gikk galt')
+        setError(result.error ?? t('common.somethingWentWrong'))
         setLoadingPlan(null)
         return
       }
       window.location.assign(result.url)
     } catch {
-      setError('Noe gikk galt — prøv igjen')
+      setError(t('common.somethingWentWrongRetry'))
       setLoadingPlan(null)
     }
   }
@@ -324,9 +330,9 @@ function OrgPlanSelector({ org }: { org: Org }) {
         <div className="w-16 h-16 rounded-2xl bg-[#ebf5ef] flex items-center justify-center mx-auto mb-4">
           <Building2 className="w-8 h-8 text-[#2d8653]" />
         </div>
-        <h2 className="text-xl font-bold text-gray-900">Velg en plan for {org.name}</h2>
+        <h2 className="text-xl font-bold text-gray-900">{t('organization.planSelector.title', { orgName: org.name })}</h2>
         <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
-          Organisasjonen er opprettet, men må ha en aktiv plan før den kan tas i bruk.
+          {t('organization.planSelector.notice')}
         </p>
       </div>
       {error && (
@@ -339,14 +345,15 @@ function OrgPlanSelector({ org }: { org: Org }) {
 }
 
 function PendingPaymentNotice({ orgName }: { orgName: string }) {
+  const { t } = useLocale()
   return (
     <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
       <div className="w-16 h-16 rounded-2xl bg-[#ebf5ef] flex items-center justify-center">
         <Building2 className="w-8 h-8 text-[#2d8653]" />
       </div>
-      <h2 className="text-xl font-bold text-gray-900">Venter på betaling</h2>
+      <h2 className="text-xl font-bold text-gray-900">{t('organization.pendingPayment.title')}</h2>
       <p className="text-sm text-gray-500 max-w-sm">
-        {orgName} er opprettet, men en administrator må velge og betale for en plan før organisasjonen kan tas i bruk.
+        {t('organization.pendingPayment.notice', { orgName })}
       </p>
     </div>
   )
@@ -355,6 +362,8 @@ function PendingPaymentNotice({ orgName }: { orgName: string }) {
 // ── Coaches tab ───────────────────────────────────────────────────────────────
 
 function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolean; userId: string }) {
+  const { t, locale } = useLocale()
+  const dateLocale = locale === 'en' ? 'en-US' : 'nb-NO'
   const [members, setMembers]         = useState<OrgMember[]>([])
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [loading, setLoading]         = useState(true)
@@ -404,11 +413,11 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
       setInvitations(prev => [inv, ...prev])
       setEmail('')
       setShowInvite(false)
-      showToast('Invitasjon sendt')
+      showToast(t('organization.coaches.inviteSent'))
       return
     }
     const d = await res.json().catch(() => ({}))
-    setInviteError(d.error ?? 'Kunne ikke sende invitasjon')
+    setInviteError(d.error ?? t('organization.coaches.couldNotSendInvite'))
     setLimitReached(d.code === 'plan_limit_reached')
   }
 
@@ -422,13 +431,13 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
       })
       const result = await res.json()
       if (!res.ok) {
-        setInviteError(result.error ?? 'Noe gikk galt')
+        setInviteError(result.error ?? t('common.somethingWentWrong'))
         setUpgradingPlan(null)
         return
       }
       window.location.assign(result.url)
     } catch {
-      setInviteError('Noe gikk galt — prøv igjen')
+      setInviteError(t('common.somethingWentWrongRetry'))
       setUpgradingPlan(null)
     }
   }
@@ -443,7 +452,7 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
   }
 
   async function handleRemoveMember(m: OrgMember) {
-    if (!window.confirm(`Fjerne ${m.profiles?.full_name ?? m.profiles?.email ?? 'denne coachen'} fra organisasjonen?`)) return
+    if (!window.confirm(t('organization.coaches.confirmRemove', { name: m.profiles?.full_name ?? m.profiles?.email ?? t('organization.coaches.thisCoach') }))) return
     setRemoving(m.id)
     setRemoveError('')
     const res = await fetch('/api/organization/coaches', {
@@ -454,10 +463,10 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
     setRemoving(null)
     if (res.ok) {
       setMembers(prev => prev.filter(x => x.id !== m.id))
-      showToast('Coach fjernet')
+      showToast(t('organization.coaches.coachRemoved'))
     } else {
       const d = await res.json().catch(() => ({}))
-      setRemoveError(d.error ?? 'Kunne ikke fjerne coach')
+      setRemoveError(d.error ?? t('organization.coaches.couldNotRemove'))
       setTimeout(() => setRemoveError(''), 4000)
     }
   }
@@ -493,7 +502,7 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-800">
-          Coacher <span className="ml-1.5 text-xs font-normal text-gray-400">{members.length} membre(r)</span>
+          {t('organization.coaches.title')} <span className="ml-1.5 text-xs font-normal text-gray-400">{t('organization.coaches.memberCount', { n: members.length })}</span>
         </h2>
         {isAdmin && (
           <button
@@ -501,7 +510,7 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
             className="flex items-center gap-2 h-9 px-4 rounded-xl text-white text-sm font-semibold transition-all [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:brightness-95"
           >
             <UserPlus className="w-4 h-4" />
-            Inviter coach
+            {t('organization.coaches.invite')}
           </button>
         )}
       </div>
@@ -513,7 +522,7 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
           <input
             value={email}
             onChange={e => setEmail(e.target.value)}
-            placeholder="E-postadresse til coach"
+            placeholder={t('organization.coaches.emailPlaceholder')}
             autoFocus
             onKeyDown={e => e.key === 'Enter' && handleInvite()}
             className="flex-1 h-9 px-3 rounded-lg border border-[#cdeee3] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
@@ -524,7 +533,7 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
             className="h-9 px-4 rounded-lg bg-[#2d8653] text-white text-sm font-semibold hover:bg-[#2d8653] disabled:opacity-50 flex items-center gap-1.5 flex-shrink-0"
           >
             {inviting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            Send
+            {t('organization.coaches.send')}
           </button>
           <button onClick={() => { setShowInvite(false); setEmail('') }} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
             <X className="w-4 h-4" />
@@ -544,7 +553,7 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
       {/* Members list */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         {members.length === 0 ? (
-          <div className="py-12 text-center text-sm text-gray-400">Ingen coacher ennå</div>
+          <div className="py-12 text-center text-sm text-gray-400">{t('organization.coaches.noCoachesYet')}</div>
         ) : (
           <div className="divide-y divide-gray-100">
             {members.map(m => (
@@ -555,7 +564,7 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900">{m.profiles?.full_name ?? m.profiles?.email ?? 'Ukjent'}</p>
+                  <p className="text-sm font-medium text-gray-900">{m.profiles?.full_name ?? m.profiles?.email ?? t('common.unknown')}</p>
                   {m.profiles?.email && (
                     <p className="text-xs text-gray-400">{m.profiles.email}</p>
                   )}
@@ -563,15 +572,15 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
                 <span className={`inline-flex items-center h-5 px-2 rounded-full text-xs font-semibold ${
                   m.role === 'admin' ? 'bg-[#ebf5ef] text-[#1a5c3a]' : 'bg-gray-100 text-gray-600'
                 }`}>
-                  {m.role === 'admin' ? 'Admin' : 'Coach'}
+                  {m.role === 'admin' ? t('organization.info.admin') : t('organization.info.coach')}
                 </span>
-                <p className="text-xs text-gray-400 flex-shrink-0 hidden sm:block">{formatDate(m.joined_at)}</p>
+                <p className="text-xs text-gray-400 flex-shrink-0 hidden sm:block">{formatDate(m.joined_at, dateLocale)}</p>
                 {isAdmin && m.user_id !== userId && (
                   <button
                     onClick={() => handleRemoveMember(m)}
                     disabled={removing === m.id}
                     className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors flex-shrink-0"
-                    title="Fjern coach fra organisasjonen"
+                    title={t('organization.coaches.removeFromOrg')}
                   >
                     {removing === m.id
                       ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -587,7 +596,7 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
       {/* Pending invitations — admin-only */}
       {isAdmin && invitations.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-gray-600">Ventende invitasjoner</h3>
+          <h3 className="text-sm font-semibold text-gray-600">{t('organization.coaches.pendingInvitations')}</h3>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100">
             {invitations.map(inv => (
               <div key={inv.id} className="px-5 py-3.5 flex items-center gap-4">
@@ -605,7 +614,7 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900">{inv.email}</p>
                   <p className="text-xs text-gray-400">
-                    Utløper {formatDate(inv.expires_at)}
+                    {t('organization.coaches.expires', { date: formatDate(inv.expires_at, dateLocale) })}
                   </p>
                 </div>
                 <span className={`inline-flex items-center h-5 px-2 rounded-full text-xs font-semibold ${
@@ -613,17 +622,17 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
                   inv.status === 'accepted' ? 'bg-green-50 text-green-700'  :
                   'bg-gray-100 text-gray-500'
                 }`}>
-                  {inv.status === 'pending' ? 'Venter' : inv.status === 'accepted' ? 'Akseptert' : inv.status}
+                  {inv.status === 'pending' ? t('organization.coaches.waiting') : inv.status === 'accepted' ? t('organization.coaches.accepted') : inv.status}
                 </span>
                 {inv.status === 'pending' && (
                   <button
                     onClick={() => {
                       const url = `${window.location.origin}/auth/register?invite=${inv.token}`
                       navigator.clipboard.writeText(url)
-                      showToast('Lenke kopiert')
+                      showToast(t('organization.coaches.linkCopied'))
                     }}
                     className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-[#2d8653] hover:bg-[#ebf5ef] transition-colors flex-shrink-0"
-                    title="Kopier invitasjonslenke"
+                    title={t('organization.coaches.copyInviteLink')}
                   >
                     <Link className="w-3.5 h-3.5" />
                   </button>
@@ -632,7 +641,7 @@ function CoachesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolea
                   <button
                     onClick={() => handleCancelInvite(inv.id)}
                     className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
-                    title="Avbryt invitasjon"
+                    title={t('organization.coaches.cancelInvite')}
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -662,16 +671,18 @@ interface SharedItem {
 }
 interface PickerItem { id: string; name: string }
 
-const TYPE_CONFIG: Record<ResourceType, { label: string; metaLabel: string; icon: React.ReactNode }> = {
-  checkin_template: { label: 'Check-in maler', metaLabel: 'Spørsmål',  icon: <ClipboardList className="w-4 h-4" /> },
-  training_plan:    { label: 'Treningsplaner', metaLabel: 'Økter',     icon: <Dumbbell      className="w-4 h-4" /> },
-  meal_plan:        { label: 'Matplaner',      metaLabel: 'Måltider',  icon: <Utensils      className="w-4 h-4" /> },
-  exercise:         { label: 'Øvelser',        metaLabel: 'Muskler',   icon: <Activity      className="w-4 h-4" /> },
-  recipe:           { label: 'Oppskrifter',    metaLabel: 'Porsjoner', icon: <ChefHat       className="w-4 h-4" /> },
+const TYPE_CONFIG: Record<ResourceType, { labelKey: TranslationKey; metaLabelKey: TranslationKey; icon: React.ReactNode }> = {
+  checkin_template: { labelKey: 'organization.resources.type.checkinTemplates', metaLabelKey: 'organization.resources.meta.questions', icon: <ClipboardList className="w-4 h-4" /> },
+  training_plan:    { labelKey: 'organization.resources.type.trainingPlans',    metaLabelKey: 'organization.resources.meta.sessions',  icon: <Dumbbell      className="w-4 h-4" /> },
+  meal_plan:        { labelKey: 'organization.resources.type.mealPlans',       metaLabelKey: 'organization.resources.meta.meals',      icon: <Utensils      className="w-4 h-4" /> },
+  exercise:         { labelKey: 'organization.resources.type.exercises',       metaLabelKey: 'organization.resources.meta.muscles',    icon: <Activity      className="w-4 h-4" /> },
+  recipe:           { labelKey: 'organization.resources.type.recipes',        metaLabelKey: 'organization.resources.meta.servings',   icon: <ChefHat       className="w-4 h-4" /> },
 }
 const RESOURCE_TYPES = Object.keys(TYPE_CONFIG) as ResourceType[]
 
 function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin: boolean; userId: string }) {
+  const { t, locale } = useLocale()
+  const dateLocale = locale === 'en' ? 'en-US' : 'nb-NO'
   const supabase = createClient()
 
   const [activeType, setActiveType]     = useState<ResourceType>('checkin_template')
@@ -716,7 +727,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
       await Promise.all([
         byType.recipe?.length && supabase
           .from('recipes').select('id,title,servings').in('id', byType.recipe)
-          .then(({ data }) => data?.forEach(r => { infoMap[r.id] = { name: r.title, meta: r.servings ? `${r.servings} porsjoner` : '—' } })),
+          .then(({ data }) => data?.forEach(r => { infoMap[r.id] = { name: r.title, meta: r.servings ? `${r.servings} ${t('organization.resources.meta.servings').toLowerCase()}` : '—' } })),
 
         byType.exercise?.length && supabase
           .from('exercises').select('id,name,muscle_groups,thumbnail_url,video_url').in('id', byType.exercise)
@@ -735,21 +746,21 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
           const { data: sessions } = await supabase.from('training_sessions').select('training_plan_id').in('training_plan_id', byType.training_plan)
           const counts: Record<string, number> = {}
           for (const s of sessions ?? []) counts[s.training_plan_id] = (counts[s.training_plan_id] ?? 0) + 1
-          for (const p of plans ?? []) infoMap[p.id] = { name: p.title, meta: `${counts[p.id] ?? 0} økter` }
+          for (const p of plans ?? []) infoMap[p.id] = { name: p.title, meta: `${counts[p.id] ?? 0} ${t('organization.resources.meta.sessions').toLowerCase()}` }
         })(),
 
         byType.checkin_template?.length && supabase
           .from('checkin_templates').select('id,name,questions').in('id', byType.checkin_template)
           .then(({ data }) => data?.forEach(r => {
             const q = Array.isArray(r.questions) ? r.questions.length : 0
-            infoMap[r.id] = { name: r.name, meta: `${q} spørsmål` }
+            infoMap[r.id] = { name: r.name, meta: `${q} ${t('organization.resources.meta.questions').toLowerCase()}` }
           })),
 
         byType.meal_plan?.length && supabase
           .from('meal_plans').select('id,title,meals').in('id', byType.meal_plan)
           .then(({ data }) => data?.forEach(r => {
             const m = Array.isArray(r.meals) ? r.meals.length : 0
-            infoMap[r.id] = { name: r.title, meta: `${m} måltider` }
+            infoMap[r.id] = { name: r.title, meta: `${m} ${t('organization.resources.meta.meals').toLowerCase()}` }
           })),
       ])
 
@@ -760,7 +771,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
           result[r.resource_type as ResourceType].push({
             shareId:      r.id,
             resourceId:   r.resource_id,
-            name:         info?.name    ?? 'Ukjent',
+            name:         info?.name    ?? t('common.unknown'),
             meta:         info?.meta    ?? '—',
             sharedAt:     r.created_at,
             sharedBy:     r.shared_by,
@@ -828,7 +839,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
       .select('id, created_at')
       .single()
     if (error) {
-      showToast(`Feil: ${error.message}`)
+      showToast(t('documents.errorPrefix', { error: error.message }))
       return
     }
     if (data) {
@@ -864,7 +875,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
         .upload(path, file, { contentType: file.type, upsert: false })
 
       if (storageErr) {
-        setUploadError(`Feil ved opplasting av «${file.name}»: ${storageErr.message}`)
+        setUploadError(t('documents.uploadErrorPrefix', { name: file.name, error: storageErr.message }))
         setUploading(false)
         return
       }
@@ -884,7 +895,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
         const body = await res.json().catch(() => ({}))
         // Clean up the orphaned storage file
         await supabase.storage.from('org-documents').remove([path])
-        setUploadError(`Feil ved lagring av «${file.name}»: ${body.error ?? res.statusText}`)
+        setUploadError(t('organization.resources.saveErrorPrefix', { name: file.name, error: body.error ?? res.statusText }))
         setUploading(false)
         return
       }
@@ -895,7 +906,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
     }
 
     setUploading(false)
-    if (uploadedCount > 0) showToast(`${uploadedCount} dokument${uploadedCount > 1 ? 'er' : ''} lastet opp`)
+    if (uploadedCount > 0) showToast(t('organization.resources.docsUploadedCount', { n: uploadedCount }))
   }
 
   async function handleDeleteDoc(doc: OrgDocument) {
@@ -905,7 +916,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
       setDocs(prev => prev.filter(d => d.id !== doc.id))
     } else {
       const body = await res.json().catch(() => ({}))
-      showToast(`Feil ved sletting: ${body.error ?? res.statusText}`)
+      showToast(t('organization.resources.deleteErrorPrefix', { error: body.error ?? res.statusText }))
     }
     setDeleting(null)
   }
@@ -915,7 +926,8 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
   }
 
   const currentItems = shared[activeType]
-  const { metaLabel } = TYPE_CONFIG[activeType]
+  const metaLabel = t(TYPE_CONFIG[activeType].metaLabelKey)
+  const activeTypeLabel = t(TYPE_CONFIG[activeType].labelKey).toLowerCase()
   const filteredPicker = pickerItems.filter(i =>
     !pickerSearch || i.name.toLowerCase().includes(pickerSearch.toLowerCase())
   )
@@ -936,8 +948,8 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
         <div className="px-6 pt-5 pb-4 border-b border-gray-100">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-base font-semibold text-gray-900">Delte ressurser</h2>
-              <p className="text-sm text-gray-500 mt-0.5">Maler tilgjengelig for alle coacher i organisasjonen</p>
+              <h2 className="text-base font-semibold text-gray-900">{t('organization.resources.title')}</h2>
+              <p className="text-sm text-gray-500 mt-0.5">{t('organization.resources.subtitle')}</p>
             </div>
             <button
               onClick={openPicker}
@@ -948,7 +960,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
               }`}
             >
               {pickerOpen ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-              {pickerOpen ? 'Avbryt' : 'Del eksisterende'}
+              {pickerOpen ? t('common.cancel') : t('organization.resources.shareExisting')}
             </button>
           </div>
 
@@ -968,7 +980,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
                   }`}
                 >
                   {cfg.icon}
-                  {cfg.label}
+                  {t(cfg.labelKey)}
                   {count > 0 && (
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
                       activeType === type ? 'bg-[#cdeee3] text-[#1a5c3a]' : 'bg-gray-100 text-gray-500'
@@ -990,7 +1002,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
                 <input
                   value={pickerSearch}
                   onChange={e => setPickerSearch(e.target.value)}
-                  placeholder={`Søk etter ${TYPE_CONFIG[activeType].label.toLowerCase()}…`}
+                  placeholder={t('organization.resources.searchPlaceholder', { type: activeTypeLabel })}
                   autoFocus
                   className="w-full h-9 pl-3 pr-3 rounded-lg border border-[#cdeee3] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#6ecfb0]"
                 />
@@ -1003,8 +1015,8 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
             ) : filteredPicker.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-4">
                 {pickerItems.length === 0
-                  ? `Ingen ${TYPE_CONFIG[activeType].label.toLowerCase()} å dele`
-                  : 'Ingen treff'}
+                  ? t('organization.resources.noneToShare', { type: activeTypeLabel })
+                  : t('organization.resources.noResults')}
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-52 overflow-y-auto">
@@ -1034,10 +1046,10 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
               {TYPE_CONFIG[activeType].icon}
             </div>
             <p className="text-sm font-medium text-gray-500">
-              Ingen {TYPE_CONFIG[activeType].label.toLowerCase()} er delt ennå
+              {t('organization.resources.noneSharedYet', { type: activeTypeLabel })}
             </p>
             <p className="text-xs text-gray-400 mt-1">
-              Klikk «Del eksisterende» for å legge til
+              {t('organization.resources.clickToAddHint')}
             </p>
           </div>
         ) : (
@@ -1045,10 +1057,10 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Navn</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">{t('organization.resources.table.name')}</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">{metaLabel}</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Opprettet</th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wide">Handlinger</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">{t('organization.resources.table.created')}</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wide">{t('organization.resources.table.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -1076,7 +1088,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
                                   href={item.videoUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  title="Se video"
+                                  title={t('organization.resources.watchVideo')}
                                   className="absolute inset-0 flex items-center justify-center bg-gray-900/0 hover:bg-gray-900/30 transition-colors"
                                 >
                                   <Video className="w-3.5 h-3.5 text-white drop-shadow" />
@@ -1101,19 +1113,19 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
                         </div>
                       </td>
                       <td className="px-6 py-3.5 text-gray-500">{item.meta}</td>
-                      <td className="px-6 py-3.5 text-gray-500">{formatDate(item.sharedAt)}</td>
+                      <td className="px-6 py-3.5 text-gray-500">{formatDate(item.sharedAt, dateLocale)}</td>
                       <td className="px-6 py-3.5 text-right">
                         {canRemove && (
                           <button
                             onClick={() => handleRemove(item.shareId)}
                             disabled={removing === item.shareId}
                             className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
-                            title="Fjern deling"
+                            title={t('organization.resources.removeShare')}
                           >
                             {removing === item.shareId
                               ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                               : <Trash2 className="w-3.5 h-3.5" />}
-                            Fjern
+                            {t('common.remove')}
                           </button>
                         )}
                       </td>
@@ -1130,8 +1142,8 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Organisasjonsdokumenter</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Filer delt med alle coacher i organisasjonen</p>
+            <h2 className="text-base font-semibold text-gray-900">{t('organization.resources.orgDocsTitle')}</h2>
+            <p className="text-sm text-gray-500 mt-0.5">{t('organization.resources.orgDocsSubtitle')}</p>
           </div>
           <button
             onClick={() => docInputRef.current?.click()}
@@ -1140,7 +1152,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
             {uploading
               ? <Loader2 className="w-4 h-4 animate-spin" />
               : <Upload className="w-4 h-4" />}
-            Last opp dokument
+            {t('documents.upload')}
           </button>
         </div>
 
@@ -1158,7 +1170,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
           <div className="mx-6 mt-4 flex items-start gap-3 px-4 py-3 rounded-xl bg-red-50 border border-red-100">
             <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-red-700">Opplasting mislyktes</p>
+              <p className="text-sm font-medium text-red-700">{t('documents.uploadFailed')}</p>
               <p className="text-xs text-red-600 mt-0.5">{uploadError}</p>
             </div>
             <button onClick={() => setUploadError(null)} className="text-red-400 hover:text-red-600 flex-shrink-0">
@@ -1179,7 +1191,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
             className="px-6 py-12 flex flex-col items-center gap-2 text-center cursor-pointer hover:bg-gray-50 transition-colors"
           >
             <Upload className="w-6 h-6 text-gray-300" />
-            <p className="text-sm text-gray-400">Klikk eller dra filer hit for å laste opp</p>
+            <p className="text-sm text-gray-400">{t('organization.resources.dropHint')}</p>
           </div>
         ) : (
           <div
@@ -1188,10 +1200,10 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
           >
             {/* Doc table header */}
             <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-6 py-2 border-b border-gray-50">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Navn</span>
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</span>
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Størrelse</span>
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Dato</span>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{t('organization.resources.docTable.name')}</span>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{t('organization.resources.docTable.status')}</span>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{t('organization.resources.docTable.size')}</span>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{t('organization.resources.docTable.date')}</span>
               <span />
             </div>
             {docs.map(doc => {
@@ -1206,14 +1218,14 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
                   {/* Status badge */}
                   <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-700 whitespace-nowrap">
                     <CheckCircle2 className="w-3 h-3" />
-                    Publisert
+                    {t('documents.published')}
                   </span>
                   {/* File size */}
                   <span className="text-xs text-gray-400 whitespace-nowrap">
                     {formatBytes(doc.file_size_bytes) || '—'}
                   </span>
                   {/* Date */}
-                  <span className="text-xs text-gray-400 whitespace-nowrap">{formatDate(doc.created_at)}</span>
+                  <span className="text-xs text-gray-400 whitespace-nowrap">{formatDate(doc.created_at, dateLocale)}</span>
                   {/* Actions */}
                   <div className="flex items-center gap-1">
                     <a
@@ -1221,7 +1233,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#2d8653] hover:bg-[#ebf5ef] transition-colors"
-                      title="Last ned"
+                      title={t('documents.download')}
                     >
                       <Download className="w-4 h-4" />
                     </a>
@@ -1230,7 +1242,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
                         onClick={() => handleDeleteDoc(doc)}
                         disabled={deleting === doc.id}
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
-                        title="Slett"
+                        title={t('common.delete')}
                       >
                         {deleting === doc.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                       </button>
@@ -1249,6 +1261,7 @@ function SharedResourcesTab({ orgId, isAdmin, userId }: { orgId: string; isAdmin
 // ── Stub tab ──────────────────────────────────────────────────────────────────
 
 function StubTab({ icon, label }: { icon: React.ReactNode; label: string }) {
+  const { t } = useLocale()
   return (
     <div className="flex flex-col items-center justify-center py-24 gap-4">
       <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-300">
@@ -1256,7 +1269,7 @@ function StubTab({ icon, label }: { icon: React.ReactNode; label: string }) {
       </div>
       <div className="text-center">
         <p className="text-base font-semibold text-gray-700">{label}</p>
-        <p className="text-sm text-gray-400 mt-1">Kommer snart</p>
+        <p className="text-sm text-gray-400 mt-1">{t('organization.comingSoon')}</p>
       </div>
     </div>
   )
@@ -1274,14 +1287,14 @@ interface OrgClient {
   joinedAt: string
 }
 
-const CLIENT_STATUS: Record<string, { label: string; pill: string; dot: string }> = {
-  active:     { label: 'Aktiv',       pill: 'bg-[#ebf5ef] text-[#1a5c3a]', dot: 'bg-[#2d8653]' },
-  inactive:   { label: 'Inaktiv',     pill: 'bg-gray-100 text-gray-500',    dot: 'bg-gray-400'  },
-  app_access: { label: 'App tilgang', pill: 'bg-blue-50 text-blue-700',     dot: 'bg-blue-500'  },
-  new:        { label: 'Ny klient',   pill: 'bg-[#ebf5ef] text-[#1a5c3a]', dot: 'bg-[#2d8653]' },
-  onboarding: { label: 'Onboarding',  pill: 'bg-yellow-50 text-yellow-700', dot: 'bg-yellow-500'},
-  course:     { label: 'På kurs',     pill: 'bg-[#ebf5ef] text-[#1a5c3a]', dot: 'bg-[#2d8653]' },
-  followup:   { label: 'Oppfølging',  pill: 'bg-orange-50 text-orange-700', dot: 'bg-orange-400'},
+const CLIENT_STATUS: Record<string, { labelKey: TranslationKey; pill: string; dot: string }> = {
+  active:     { labelKey: 'organization.clients.status.active',     pill: 'bg-[#ebf5ef] text-[#1a5c3a]', dot: 'bg-[#2d8653]' },
+  inactive:   { labelKey: 'organization.clients.status.inactive',   pill: 'bg-gray-100 text-gray-500',    dot: 'bg-gray-400'  },
+  app_access: { labelKey: 'organization.clients.status.appAccess', pill: 'bg-blue-50 text-blue-700',     dot: 'bg-blue-500'  },
+  new:        { labelKey: 'organization.clients.status.new',        pill: 'bg-[#ebf5ef] text-[#1a5c3a]', dot: 'bg-[#2d8653]' },
+  onboarding: { labelKey: 'organization.clients.status.onboarding', pill: 'bg-yellow-50 text-yellow-700', dot: 'bg-yellow-500'},
+  course:     { labelKey: 'organization.clients.status.course',     pill: 'bg-[#ebf5ef] text-[#1a5c3a]', dot: 'bg-[#2d8653]' },
+  followup:   { labelKey: 'organization.clients.status.followup',   pill: 'bg-orange-50 text-orange-700', dot: 'bg-orange-400'},
 }
 
 function getClientInitials(name: string) {
@@ -1290,6 +1303,8 @@ function getClientInitials(name: string) {
 }
 
 function OrgClientsTab() {
+  const { t, locale } = useLocale()
+  const dateLocale = locale === 'en' ? 'en-US' : 'nb-NO'
   const [clients, setClients]   = useState<OrgClient[]>([])
   const [coaches, setCoaches]   = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading]   = useState(true)
@@ -1329,11 +1344,11 @@ function OrgClientsTab() {
     setReassigning(null)
 
     if (res.ok) {
-      showToast('Klienten er flyttet til ny coach')
+      showToast(t('organization.clients.reassignSuccess'))
     } else {
       setClients(prev)
       const data = await res.json().catch(() => ({}))
-      showToast(data.error ?? 'Kunne ikke flytte klienten', 'err')
+      showToast(data.error ?? t('organization.clients.reassignFailed'), 'err')
     }
   }
 
@@ -1370,15 +1385,15 @@ function OrgClientsTab() {
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-[#ebf5ef] text-[#1a5c3a]">
           <span className="w-1.5 h-1.5 rounded-full bg-[#2d8653]" />
-          {activeCount} aktive
+          {t('organization.clients.activeCount', { n: activeCount })}
         </span>
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
           <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-          {appCount} app tilgang
+          {t('organization.clients.appAccessCount', { n: appCount })}
         </span>
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
           <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-          {inactiveCount} inaktive
+          {t('organization.clients.inactiveCount', { n: inactiveCount })}
         </span>
       </div>
 
@@ -1387,7 +1402,7 @@ function OrgClientsTab() {
         <div className="relative flex-1">
           <input
             type="text"
-            placeholder="Søk etter klient eller coach..."
+            placeholder={t('organization.clients.searchPlaceholder')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 h-10 rounded-xl border border-gray-200 bg-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
@@ -1401,21 +1416,21 @@ function OrgClientsTab() {
           onChange={e => setFilterStatus(e.target.value)}
           className="h-10 pl-3 pr-8 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2d8653] appearance-none"
         >
-          <option value="alle">Alle statuser</option>
-          <option value="active">Aktiv</option>
-          <option value="app_access">App tilgang</option>
-          <option value="inactive">Inaktiv</option>
-          <option value="new">Ny klient</option>
-          <option value="onboarding">Onboarding</option>
-          <option value="course">På kurs</option>
-          <option value="followup">Oppfølging</option>
+          <option value="alle">{t('organization.clients.allStatuses')}</option>
+          <option value="active">{t(CLIENT_STATUS.active.labelKey)}</option>
+          <option value="app_access">{t(CLIENT_STATUS.app_access.labelKey)}</option>
+          <option value="inactive">{t(CLIENT_STATUS.inactive.labelKey)}</option>
+          <option value="new">{t(CLIENT_STATUS.new.labelKey)}</option>
+          <option value="onboarding">{t(CLIENT_STATUS.onboarding.labelKey)}</option>
+          <option value="course">{t(CLIENT_STATUS.course.labelKey)}</option>
+          <option value="followup">{t(CLIENT_STATUS.followup.labelKey)}</option>
         </select>
         <select
           value={filterCoach}
           onChange={e => setFilterCoach(e.target.value)}
           className="h-10 pl-3 pr-8 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2d8653] appearance-none"
         >
-          <option value="alle">Alle coacher</option>
+          <option value="alle">{t('organization.clients.allCoaches')}</option>
           {coaches.map(c => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
@@ -1425,15 +1440,15 @@ function OrgClientsTab() {
       {/* List */}
       {displayed.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 py-16 text-center">
-          <p className="text-sm text-gray-400">Ingen klienter funnet</p>
+          <p className="text-sm text-gray-400">{t('organization.clients.noneFound')}</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           {/* Header */}
           <div className="grid grid-cols-[1fr_160px_200px] gap-3 px-5 py-2.5 border-b border-gray-100 bg-gray-50/60">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Klient</span>
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</span>
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Coach</span>
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{t('organization.clients.table.client')}</span>
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{t('organization.clients.table.status')}</span>
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{t('organization.clients.table.coach')}</span>
           </div>
           <div className="divide-y divide-gray-50">
             {displayed.map(client => {
@@ -1448,7 +1463,7 @@ function OrgClientsTab() {
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">{client.name}</p>
                       <p className="text-xs text-gray-400">
-                        {new Date(client.joinedAt).toLocaleDateString('nb-NO', { month: 'short', year: 'numeric' })}
+                        {new Date(client.joinedAt).toLocaleDateString(dateLocale, { month: 'short', year: 'numeric' })}
                       </p>
                     </div>
                   </div>
@@ -1456,7 +1471,7 @@ function OrgClientsTab() {
                   <div>
                     <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${sc.pill}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
-                      {sc.label}
+                      {t(sc.labelKey)}
                     </span>
                   </div>
                   {/* Coach — editable so an admin can reassign the client */}
@@ -1488,13 +1503,13 @@ function OrgClientsTab() {
 
 // ── Main view ─────────────────────────────────────────────────────────────────
 
-const ALL_TABS: { id: Tab; label: string; adminOnly?: boolean }[] = [
-  { id: 'info',      label: 'Organisasjonsinfo' },
-  { id: 'coaches',   label: 'Coacher' },
-  { id: 'resources', label: 'Delte ressurser' },
-  { id: 'clients',   label: 'Alle klienter', adminOnly: true },
-  { id: 'contracts', label: 'Utløpende kontrakter' },
-  { id: 'economics', label: 'Economics' },
+const ALL_TABS: { id: Tab; labelKey: TranslationKey; adminOnly?: boolean }[] = [
+  { id: 'info',      labelKey: 'organization.tabs.info' },
+  { id: 'coaches',   labelKey: 'organization.tabs.coaches' },
+  { id: 'resources', labelKey: 'organization.tabs.resources' },
+  { id: 'clients',   labelKey: 'organization.tabs.clients', adminOnly: true },
+  { id: 'contracts', labelKey: 'organization.tabs.contracts' },
+  { id: 'economics', labelKey: 'organization.tabs.economics' },
 ]
 
 export function OrganizationView({
@@ -1508,6 +1523,8 @@ export function OrganizationView({
   stats: Stats | null
   userId: string
 }) {
+  const { t, locale } = useLocale()
+  const dateLocale = locale === 'en' ? 'en-US' : 'nb-NO'
   const org = initialOrg
   const [tab, setTab]     = useState<Tab>('info')
   const isAdmin = role === 'admin'
@@ -1531,9 +1548,9 @@ export function OrganizationView({
       <div className="space-y-10">
         <OrgPlanSelector org={org} />
         <div className="max-w-4xl mx-auto border-t border-gray-200 pt-8">
-          <h2 className="text-lg font-bold text-gray-900 mb-1">Inviter coacher</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-1">{t('organization.pendingPayment.inviteCoachesTitle')}</h2>
           <p className="text-sm text-gray-500 mb-4">
-            Du kan sette sammen teamet allerede nå — coachene får tilgang så snart organisasjonen har en aktiv plan.
+            {t('organization.pendingPayment.inviteCoachesNotice')}
           </p>
           <CoachesTab orgId={org.id} isAdmin={isAdmin} userId={userId} />
         </div>
@@ -1550,24 +1567,24 @@ export function OrganizationView({
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{org.name}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Administrer organisasjon, coacher og delte ressurser</p>
+          <p className="text-sm text-gray-500 mt-0.5">{t('organization.header.subtitle')}</p>
         </div>
       </div>
 
       {/* Tab bar */}
       <div className="border-b border-gray-200 -mx-1">
         <nav className="flex gap-1 overflow-x-auto">
-          {ALL_TABS.filter(t => !t.adminOnly || isAdmin).map(t => (
+          {ALL_TABS.filter(tabDef => !tabDef.adminOnly || isAdmin).map(tabDef => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={tabDef.id}
+              onClick={() => setTab(tabDef.id)}
               className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                tab === t.id
+                tab === tabDef.id
                   ? 'border-[#2d8653] text-[#2d8653]'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              {t.label}
+              {t(tabDef.labelKey)}
             </button>
           ))}
         </nav>
@@ -1579,50 +1596,50 @@ export function OrganizationView({
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard
-                label="Din rolle"
+                label={t('organization.info.yourRole')}
                 icon={<Shield className="w-5 h-5 text-[#2d8653]" />}
                 color="bg-[#ebf5ef]"
                 badge={
                   isAdmin
-                    ? { text: 'Admin', color: 'bg-[#cdeee3] text-[#1a5c3a]' }
-                    : { text: 'Coach', color: 'bg-gray-100 text-gray-700' }
+                    ? { text: t('organization.info.admin'), color: 'bg-[#cdeee3] text-[#1a5c3a]' }
+                    : { text: t('organization.info.coach'), color: 'bg-gray-100 text-gray-700' }
                 }
               />
               <StatCard
-                label="Coacher"
+                label={t('organization.info.coaches')}
                 icon={<Users className="w-5 h-5 text-[#2d8653]" />}
                 color="bg-[#ebf5ef]"
                 value={stats.coachCount}
-                sub={`av maks ${stats.maxCoaches}`}
+                sub={t('organization.info.ofMax', { n: stats.maxCoaches })}
               />
               <StatCard
-                label="Totalt klienter"
+                label={t('organization.info.totalClients')}
                 icon={<UserPlus className="w-5 h-5 text-green-600" />}
                 color="bg-green-50"
                 value={stats.totalClients}
               />
               <StatCard
-                label="Ventende invitasjoner"
+                label={t('organization.info.pendingInvitations')}
                 icon={<Mail className="w-5 h-5 text-orange-600" />}
                 color="bg-orange-50"
                 value={stats.pendingInvitations}
-                sub={stats.pendingInvitations > 0 ? 'venter på svar' : 'ingen ventende'}
+                sub={stats.pendingInvitations > 0 ? t('organization.info.awaitingResponse') : t('organization.info.noneWaiting')}
               />
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Detaljer</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('organization.info.details')}</h3>
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <dt className="text-gray-500">Navn</dt>
+                  <dt className="text-gray-500">{t('organization.info.name')}</dt>
                   <dd className="font-medium text-gray-900">{org.name}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-gray-500">Opprettet</dt>
-                  <dd className="font-medium text-gray-900">{formatDate(org.created_at)}</dd>
+                  <dt className="text-gray-500">{t('organization.info.created')}</dt>
+                  <dd className="font-medium text-gray-900">{formatDate(org.created_at, dateLocale)}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-gray-500">Maks coacher</dt>
+                  <dt className="text-gray-500">{t('organization.info.maxCoaches')}</dt>
                   <dd className="font-medium text-gray-900">{org.max_coaches}</dd>
                 </div>
               </dl>
@@ -1643,11 +1660,11 @@ export function OrganizationView({
         )}
 
         {tab === 'contracts' && (
-          <StubTab icon={<FileText className="w-6 h-6" />} label="Utløpende kontrakter" />
+          <StubTab icon={<FileText className="w-6 h-6" />} label={t('organization.tabs.contracts')} />
         )}
 
         {tab === 'economics' && (
-          <StubTab icon={<BarChart2 className="w-6 h-6" />} label="Economics" />
+          <StubTab icon={<BarChart2 className="w-6 h-6" />} label={t('organization.tabs.economics')} />
         )}
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CreditCard, TrendingUp, Calendar, Clock, CheckCircle2 } from 'lucide-react'
+import { useLocale } from '@/components/locale-provider'
 
 interface Contract {
   id: string
@@ -22,6 +23,7 @@ function fmt(n: number) {
 }
 
 export function FinanceView({ clientId, coachId, initialContract }: Props) {
+  const { t } = useLocale()
   const [price,     setPrice]     = useState(initialContract?.monthly_price?.toString()   ?? '')
   const [months,    setMonths]    = useState(initialContract?.duration_months?.toString() ?? '')
   const [startDate, setStartDate] = useState(initialContract?.start_date ?? '')
@@ -119,13 +121,13 @@ export function FinanceView({ clientId, coachId, initialContract }: Props) {
       <section className="border border-gray-100 rounded-2xl overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 bg-gray-50/60">
           <CreditCard className="w-4 h-4 text-[#2d8653]" />
-          <h2 className="text-sm font-semibold text-gray-900">Kontraktinformasjon</h2>
+          <h2 className="text-sm font-semibold text-gray-900">{t('clientDetail.finance.contractInfo')}</h2>
         </div>
         <div className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                Månedlig pris (kr)
+                {t('clientDetail.finance.monthlyPrice')}
               </label>
               <input
                 type="number"
@@ -138,7 +140,7 @@ export function FinanceView({ clientId, coachId, initialContract }: Props) {
             </div>
             <div>
               <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                Kontraktslengde (måneder)
+                {t('clientDetail.finance.contractLength')}
               </label>
               <input
                 type="number"
@@ -152,7 +154,7 @@ export function FinanceView({ clientId, coachId, initialContract }: Props) {
           </div>
           <div>
             <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-              Startdato
+              {t('clientDetail.finance.startDate')}
             </label>
             <input
               type="date"
@@ -166,7 +168,7 @@ export function FinanceView({ clientId, coachId, initialContract }: Props) {
             disabled={saving || !price || !months || !startDate}
             className="px-5 py-2.5 bg-[#2d8653] text-white text-sm font-semibold rounded-xl hover:bg-[#1a5c3a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {saving ? 'Lagrer…' : saved ? '✓ Lagret' : 'Lagre endringer'}
+            {saving ? t('common.saving') : saved ? t('clientDetail.finance.saved') : t('clientDetail.finance.saveChanges')}
           </button>
         </div>
       </section>
@@ -181,7 +183,7 @@ export function FinanceView({ clientId, coachId, initialContract }: Props) {
                 <TrendingUp className="w-3.5 h-3.5 text-[#2d8653]" />
               </span>
               <span className="text-[10px] font-bold text-[#6ecfb0] uppercase tracking-wider">
-                Total kontraktsverdi
+                {t('clientDetail.finance.totalContractValue')}
               </span>
             </div>
             <p className="text-2xl font-bold text-[#1a5c3a]">{fmt(totalValue)}</p>
@@ -195,11 +197,11 @@ export function FinanceView({ clientId, coachId, initialContract }: Props) {
                 <Clock className="w-3.5 h-3.5 text-violet-600" />
               </span>
               <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider">
-                Gjenværende verdi
+                {t('clientDetail.finance.remainingValue')}
               </span>
             </div>
             <p className="text-2xl font-bold text-violet-900">{fmt(remainingValue)}</p>
-            <p className="text-xs text-violet-400 mt-0.5">{remainingMonths} måneder igjen</p>
+            <p className="text-xs text-violet-400 mt-0.5">{t('clientDetail.finance.monthsLeft', { n: remainingMonths })}</p>
           </div>
 
           {/* Kontraktslutt */}
@@ -209,7 +211,7 @@ export function FinanceView({ clientId, coachId, initialContract }: Props) {
                 <Calendar className="w-3.5 h-3.5 text-amber-600" />
               </span>
               <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
-                Kontraktslutt
+                {t('clientDetail.finance.contractEnd')}
               </span>
             </div>
             <p className="text-base font-bold text-amber-900 leading-tight">{endDateStr}</p>
@@ -222,7 +224,7 @@ export function FinanceView({ clientId, coachId, initialContract }: Props) {
                 <CheckCircle2 className={`w-3.5 h-3.5 ${isActive ? 'text-[#2d8653]' : 'text-red-500'}`} />
               </span>
               <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-[#6ecfb0]' : 'text-red-300'}`}>
-                Status
+                {t('clientDetail.finance.status')}
               </span>
             </div>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold ${
@@ -231,7 +233,7 @@ export function FinanceView({ clientId, coachId, initialContract }: Props) {
                 : 'bg-red-500 text-white'
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-white' : 'bg-white'}`} />
-              {isActive ? 'Aktiv' : 'Utløpt'}
+              {isActive ? t('clientDetail.finance.active') : t('clientDetail.finance.expired')}
             </span>
           </div>
         </div>
@@ -241,8 +243,8 @@ export function FinanceView({ clientId, coachId, initialContract }: Props) {
       {hasData && monthRows.length > 0 && (
         <section className="border border-gray-100 rounded-2xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/60">
-            <h2 className="text-sm font-semibold text-gray-900">Månedlig oversikt</h2>
-            <span className="text-xs text-gray-400">{monthRows.length} måneder igjen</span>
+            <h2 className="text-sm font-semibold text-gray-900">{t('clientDetail.finance.monthlyOverview')}</h2>
+            <span className="text-xs text-gray-400">{t('clientDetail.finance.monthsLeft', { n: monthRows.length })}</span>
           </div>
           <div className="divide-y divide-gray-50">
             {monthRows.map((row, i) => (
@@ -261,7 +263,7 @@ export function FinanceView({ clientId, coachId, initialContract }: Props) {
                   </span>
                   {row.isCurrent && (
                     <span className="text-[10px] font-bold text-[#2d8653] bg-[#cdeee3] px-1.5 py-0.5 rounded-full">
-                      Nåværende
+                      {t('clientDetail.finance.current')}
                     </span>
                   )}
                 </div>

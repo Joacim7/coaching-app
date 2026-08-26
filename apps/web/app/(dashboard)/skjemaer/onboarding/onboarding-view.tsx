@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { RefreshCw, Bell, Search, X, CheckCircle2, Clock, Minus } from 'lucide-react'
 import type { CheckinQuestion } from '@coaching/types'
 import { OnboardingAnswersModal } from '@/components/onboarding-answers-modal'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -12,7 +14,7 @@ export interface ClientOnboardingRow {
   clientId:     string
   name:         string
   email:        string | null
-  status:       'fullfort' | 'venter' | 'ikke_sendt'
+  status:       'completed' | 'waiting' | 'not_sent'
   templateName: string | null
   submission: {
     id:           string
@@ -43,49 +45,55 @@ function initials(name: string) {
     : name.slice(0, 2).toUpperCase()
 }
 
-function relTime(iso: string): string {
+function relTime(iso: string, t: (key: TranslationKey, vars?: Record<string, string | number>) => string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60_000)
-  if (mins < 2)   return 'Akkurat nå'
-  if (mins < 60)  return `${mins} min siden`
+  if (mins < 2)   return t('onboardingSubmissions.relTime.justNow')
+  if (mins < 60)  return t('onboardingSubmissions.relTime.minutesAgo', { n: mins })
   const hrs = Math.floor(mins / 60)
-  if (hrs  < 24)  return `${hrs}t siden`
+  if (hrs  < 24)  return t('onboardingSubmissions.relTime.hoursAgo', { n: hrs })
   const days = Math.floor(hrs / 24)
-  if (days === 1) return 'I går'
-  if (days  < 7)  return `${days} dager siden`
-  if (days  < 30) return `${Math.floor(days / 7)} uke${Math.floor(days / 7) > 1 ? 'r' : ''} siden`
+  if (days === 1) return t('onboardingSubmissions.relTime.yesterday')
+  if (days  < 7)  return t('onboardingSubmissions.relTime.daysAgo', { n: days })
+  if (days  < 30) {
+    const weeks = Math.floor(days / 7)
+    return weeks > 1
+      ? t('onboardingSubmissions.relTime.weeksAgo', { n: weeks })
+      : t('onboardingSubmissions.relTime.weekAgo', { n: weeks })
+  }
   return new Date(iso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' })
 }
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
-const STATUS_CFG = {
-  fullfort:   { label: 'Fullført',   dot: 'bg-[#2d8653]', bg: 'bg-[#ebf5ef]', text: 'text-[#1a5c3a]' },
-  venter:     { label: 'Venter',     dot: 'bg-yellow-400',bg: 'bg-yellow-50', text: 'text-yellow-700' },
-  ikke_sendt: { label: 'Ikke sendt', dot: 'bg-gray-300',  bg: 'bg-gray-100',  text: 'text-gray-500'  },
-} as const
+const STATUS_CFG: Record<ClientOnboardingRow['status'], { labelKey: TranslationKey; dot: string; bg: string; text: string }> = {
+  completed: { labelKey: 'onboardingSubmissions.status.completed', dot: 'bg-[#2d8653]', bg: 'bg-[#ebf5ef]', text: 'text-[#1a5c3a]' },
+  waiting:   { labelKey: 'onboardingSubmissions.status.waiting',   dot: 'bg-yellow-400',bg: 'bg-yellow-50', text: 'text-yellow-700' },
+  not_sent:  { labelKey: 'onboardingSubmissions.status.notSent',   dot: 'bg-gray-300',  bg: 'bg-gray-100',  text: 'text-gray-500'  },
+}
 
 function StatusBadge({ status }: { status: ClientOnboardingRow['status'] }) {
-  const { label, dot, bg, text } = STATUS_CFG[status]
+  const { t } = useLocale()
+  const { labelKey, dot, bg, text } = STATUS_CFG[status]
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${bg} ${text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-      {label}
+      {t(labelKey)}
     </span>
   )
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
-function StatCard({ label, count, total, color }: {
-  label: string; count: number; total: number; color: string
+function StatCard({ label, count, total, color, isTotal }: {
+  label: string; count: number; total: number; color: string; isTotal?: boolean
 }) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0
   return (
     <div className="bg-white border border-gray-100 rounded-2xl px-5 py-4">
       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{label}</p>
       <p className="text-3xl font-bold text-gray-900">{count}</p>
-      {total > 0 && label !== 'Alle klienter' && (
+      {total > 0 && !isTotal && (
         <div className="mt-2 space-y-1">
           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
@@ -107,15 +115,16 @@ export function OnboardingView({
   templateQuestions: CheckinQuestion[]
 }) {
   const router  = useRouter()
+  const { t } = useLocale()
   const [search,   setSearch]   = useState('')
   const [modal,    setModal]    = useState<ClientOnboardingRow | null>(null)
   const [sending,  setSending]  = useState(false)
   const [sentMsg,  setSentMsg]  = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
-  const waitingCount = rows.filter(r => r.status === 'venter').length
-  const fullfortCount = rows.filter(r => r.status === 'fullfort').length
-  const ikkeSentCount = rows.filter(r => r.status === 'ikke_sendt').length
+  const waitingCount = rows.filter(r => r.status === 'waiting').length
+  const fullfortCount = rows.filter(r => r.status === 'completed').length
+  const ikkeSentCount = rows.filter(r => r.status === 'not_sent').length
 
   const filtered = useMemo(() => {
     if (!search.trim()) return rows
@@ -139,7 +148,9 @@ export function OnboardingView({
     const data = await res.json().catch(() => ({}))
     setSending(false)
     if (res.ok) {
-      setSentMsg(data.sent > 0 ? `${data.sent} påminnelse${data.sent > 1 ? 'r' : ''} sendt` : 'Ingen e-poster å sende')
+      setSentMsg(data.sent > 0
+        ? `${data.sent} ${data.sent > 1 ? t('onboardingSubmissions.reminderSentMany') : t('onboardingSubmissions.reminderSentOne')}`
+        : t('onboardingSubmissions.noEmailsToSend'))
       setTimeout(() => setSentMsg(null), 4000)
     }
   }
@@ -150,9 +161,9 @@ export function OnboardingView({
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a5c3a]">Onboarding-innsendinger</h1>
+          <h1 className="text-2xl font-bold text-[#1a5c3a]">{t('onboardingSubmissions.title')}</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Følg opp og administrer klientenes onboarding-skjemaer
+            {t('onboardingSubmissions.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -162,7 +173,7 @@ export function OnboardingView({
             className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            Oppdater data
+            {t('onboardingSubmissions.refresh')}
           </button>
           <button
             onClick={handleSendReminders}
@@ -170,7 +181,7 @@ export function OnboardingView({
             className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-all [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]"
           >
             <Bell className="w-3.5 h-3.5" />
-            {sending ? 'Sender...' : `Send påminnelser (${waitingCount})`}
+            {sending ? t('onboardingSubmissions.sending') : `${t('onboardingSubmissions.sendReminders')} (${waitingCount})`}
           </button>
         </div>
       </div>
@@ -185,10 +196,10 @@ export function OnboardingView({
 
       {/* Stat cards */}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Alle klienter" count={rows.length}    total={rows.length} color="" />
-        <StatCard label="Fullført"      count={fullfortCount}  total={rows.length} color="bg-[#2d8653]" />
-        <StatCard label="Venter"        count={waitingCount}   total={rows.length} color="bg-yellow-400" />
-        <StatCard label="Ikke sendt"    count={ikkeSentCount}  total={rows.length} color="bg-gray-300" />
+        <StatCard label={t('onboardingSubmissions.statAll')} count={rows.length}    total={rows.length} color="" isTotal />
+        <StatCard label={t('onboardingSubmissions.status.completed')} count={fullfortCount}  total={rows.length} color="bg-[#2d8653]" />
+        <StatCard label={t('onboardingSubmissions.status.waiting')}   count={waitingCount}   total={rows.length} color="bg-yellow-400" />
+        <StatCard label={t('onboardingSubmissions.status.notSent')}   count={ikkeSentCount}  total={rows.length} color="bg-gray-300" />
       </div>
 
       {/* Search */}
@@ -198,7 +209,7 @@ export function OnboardingView({
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Søk etter klient..."
+          placeholder={t('onboardingSubmissions.searchPlaceholder')}
           className="w-full h-10 pl-10 pr-4 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2d8653] bg-white"
         />
         {search && (
@@ -215,23 +226,23 @@ export function OnboardingView({
       {rows.length === 0 ? (
         <div className="border border-gray-100 rounded-2xl py-16 text-center bg-white">
           <Clock className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">Ingen klienter ennå</p>
-          <p className="text-sm text-gray-400 mt-1">Legg til klienter for å se onboarding-status her</p>
+          <p className="text-gray-500 font-medium">{t('onboardingSubmissions.emptyTitle')}</p>
+          <p className="text-sm text-gray-400 mt-1">{t('onboardingSubmissions.emptySub')}</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="border border-gray-100 rounded-2xl py-12 text-center bg-white">
-          <p className="text-gray-500 text-sm">Ingen klienter matcher søket</p>
+          <p className="text-gray-500 text-sm">{t('onboardingSubmissions.noSearchResults')}</p>
         </div>
       ) : (
         <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">Klient</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">Skjema</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">Status</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">Sendt inn</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">Handlinger</th>
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">{t('onboardingSubmissions.col.client')}</th>
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">{t('onboardingSubmissions.col.form')}</th>
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">{t('onboardingSubmissions.col.status')}</th>
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">{t('onboardingSubmissions.col.submittedAt')}</th>
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">{t('onboardingSubmissions.col.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -264,7 +275,7 @@ export function OnboardingView({
                   {/* Sendt inn */}
                   <td className="px-5 py-3.5 text-sm text-gray-500">
                     {row.submission
-                      ? relTime(row.submission.submitted_at)
+                      ? relTime(row.submission.submitted_at, t)
                       : <Minus className="w-4 h-4 text-gray-300" />
                     }
                   </td>
@@ -276,7 +287,7 @@ export function OnboardingView({
                         onClick={() => setModal(row)}
                         className="h-7 px-3 rounded-lg text-xs font-semibold bg-[#ebf5ef] text-[#1a5c3a] hover:bg-[#cdeee3] transition-colors"
                       >
-                        Se svar
+                        {t('onboardingSubmissions.viewAnswers')}
                       </button>
                     ) : (
                       <Minus className="w-4 h-4 text-gray-300" />

@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Plus, Trash2, Save, ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import type { CheckinQuestion, CheckinTemplate, QuestionType } from '@coaching/types'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 interface Props {
   initialTemplate?: CheckinTemplate
@@ -21,14 +23,15 @@ function newQuestion(): CheckinQuestion {
   return { id: crypto.randomUUID(), text: '', type: 'text' }
 }
 
-const questionTypeLabels: Record<QuestionType, string> = {
-  text: 'Fritekst',
-  scale: 'Skala (1–10)',
-  yesno: 'Ja / Nei',
+const questionTypeLabelKeys: Record<QuestionType, TranslationKey> = {
+  text: 'checkinTemplates.editor.questionType.text',
+  scale: 'checkinTemplates.editor.questionType.scale',
+  yesno: 'checkinTemplates.editor.questionType.yesno',
 }
 
 export default function TemplateEditor({ initialTemplate, readOnly = false }: Props) {
   const router = useRouter()
+  const { t } = useLocale()
   const supabase = createClient()
   const [name, setName] = useState(initialTemplate?.name ?? '')
   const [type, setType] = useState<'daily' | 'weekly' | 'onboarding'>(initialTemplate?.type ?? 'daily')
@@ -71,7 +74,7 @@ export default function TemplateEditor({ initialTemplate, readOnly = false }: Pr
           .eq('id', initialTemplate.id))
       } else {
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { setSaveError('Ikke innlogget'); setSaving(false); return }
+        if (!user) { setSaveError(t('checkinTemplates.editor.unauthorized')); setSaving(false); return }
         ;({ error } = await supabase.from('checkin_templates').insert({
           name,
           type,
@@ -90,7 +93,7 @@ export default function TemplateEditor({ initialTemplate, readOnly = false }: Pr
       router.push('/check-in-templates')
       router.refresh()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Ukjent feil'
+      const msg = err instanceof Error ? err.message : t('checkinTemplates.editor.unknownError')
       console.error('[template-editor] unexpected error:', err)
       setSaveError(msg)
     } finally {
@@ -117,13 +120,13 @@ export default function TemplateEditor({ initialTemplate, readOnly = false }: Pr
           <ChevronLeft className="w-5 h-5" />
         </Link>
         <h1 className="text-xl font-bold text-gray-900">
-          {initialTemplate ? 'Rediger mal' : 'Ny check-in mal'}
+          {initialTemplate ? t('checkinTemplates.editor.editTitle') : t('checkinTemplates.editor.newTitle')}
         </h1>
       </div>
 
       {readOnly && (
         <div className="mb-6 px-4 py-3 rounded-xl bg-amber-50 border border-amber-100 text-sm text-amber-700">
-          Denne malen er delt av en annen coach i organisasjonen din — kun eieren kan redigere den.
+          {t('checkinTemplates.editor.readOnlyNotice')}
         </div>
       )}
 
@@ -131,24 +134,24 @@ export default function TemplateEditor({ initialTemplate, readOnly = false }: Pr
         <Card>
           <CardContent className="p-5 space-y-4">
             <div>
-              <Label>Navn på mal</Label>
+              <Label>{t('checkinTemplates.editor.nameLabel')}</Label>
               <Input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                placeholder={type === 'onboarding' ? 'f.eks. Velkomstskjema' : 'f.eks. Daglig velvære-sjekk'}
+                placeholder={type === 'onboarding' ? t('checkinTemplates.editor.namePlaceholderOnboarding') : t('checkinTemplates.editor.namePlaceholderOther')}
               />
             </div>
             <div>
-              <Label>Type</Label>
+              <Label>{t('checkinTemplates.editor.typeLabel')}</Label>
               <Select value={type} onChange={e => setType(e.target.value as 'daily' | 'weekly' | 'onboarding')}>
-                <option value="daily">Daglig innsjekk</option>
-                <option value="weekly">Ukentlig innsjekk</option>
-                <option value="onboarding">Oppstartsskjema</option>
+                <option value="daily">{t('checkinTemplates.editor.typeDaily')}</option>
+                <option value="weekly">{t('checkinTemplates.editor.typeWeekly')}</option>
+                <option value="onboarding">{t('checkinTemplates.editor.typeOnboarding')}</option>
               </Select>
             </div>
             {type === 'onboarding' && (
               <p className="text-xs text-[#2d8653] bg-[#ebf5ef] px-3 py-2 rounded-lg">
-                Oppstartsskjema sendes automatisk på e-post til nye klienter når de legges til.
+                {t('checkinTemplates.editor.onboardingHint')}
               </p>
             )}
           </CardContent>
@@ -157,13 +160,13 @@ export default function TemplateEditor({ initialTemplate, readOnly = false }: Pr
         {type === 'weekly' && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Utsendingstidspunkt</CardTitle>
+              <CardTitle className="text-base">{t('checkinTemplates.editor.scheduleTitle')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
               <div>
-                <Label className="mb-2 block">Dager</Label>
+                <Label className="mb-2 block">{t('checkinTemplates.editor.daysLabel')}</Label>
                 <div className="flex flex-wrap gap-2">
-                  {(['Ma', 'Ti', 'On', 'To', 'Fr', 'Lø', 'Sø'] as const).map((label, idx) => {
+                  {([0, 1, 2, 3, 4, 5, 6] as const).map(idx => {
                     const active = scheduleDays.includes(idx)
                     return (
                       <button
@@ -176,18 +179,18 @@ export default function TemplateEditor({ initialTemplate, readOnly = false }: Pr
                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                         }`}
                       >
-                        {label}
+                        {t(`checkinTemplates.dayAbbr.${idx}` as TranslationKey)}
                       </button>
                     )
                   })}
                 </div>
                 {scheduleDays.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-2">Velg minst én dag</p>
+                  <p className="text-xs text-amber-600 mt-2">{t('checkinTemplates.editor.selectDayWarning')}</p>
                 )}
               </div>
 
               <div>
-                <Label htmlFor="scheduleTime" className="mb-2 block">Tidspunkt</Label>
+                <Label htmlFor="scheduleTime" className="mb-2 block">{t('checkinTemplates.editor.timeLabel')}</Label>
                 <input
                   id="scheduleTime"
                   type="time"
@@ -202,14 +205,14 @@ export default function TemplateEditor({ initialTemplate, readOnly = false }: Pr
 
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-gray-900">Spørsmål</h2>
+            <h2 className="font-semibold text-gray-900">{t('checkinTemplates.editor.questionsTitle')}</h2>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setQuestions(prev => [...prev, newQuestion()])}
             >
               <Plus className="w-4 h-4" />
-              Legg til spørsmål
+              {t('checkinTemplates.editor.addQuestion')}
             </Button>
           </div>
 
@@ -225,7 +228,7 @@ export default function TemplateEditor({ initialTemplate, readOnly = false }: Pr
                       <Input
                         value={q.text}
                         onChange={e => updateQuestion(q.id, 'text', e.target.value)}
-                        placeholder="Skriv spørsmål..."
+                        placeholder={t('checkinTemplates.editor.questionPlaceholder')}
                       />
                       <div className="flex items-center gap-2">
                         <Select
@@ -233,8 +236,8 @@ export default function TemplateEditor({ initialTemplate, readOnly = false }: Pr
                           onChange={e => updateQuestion(q.id, 'type', e.target.value)}
                           className="max-w-[180px]"
                         >
-                          {Object.entries(questionTypeLabels).map(([val, label]) => (
-                            <option key={val} value={val}>{label}</option>
+                          {(Object.entries(questionTypeLabelKeys) as [QuestionType, TranslationKey][]).map(([val, labelKey]) => (
+                            <option key={val} value={val}>{t(labelKey)}</option>
                           ))}
                         </Select>
                         <button
@@ -246,7 +249,7 @@ export default function TemplateEditor({ initialTemplate, readOnly = false }: Pr
                               : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                           }`}
                         >
-                          {q.required ? '● Påkrevd' : 'Valgfri'}
+                          {q.required ? t('checkinTemplates.editor.requiredBadge') : t('checkinTemplates.editor.optionalBadge')}
                         </button>
                       </div>
                     </div>
@@ -276,11 +279,11 @@ export default function TemplateEditor({ initialTemplate, readOnly = false }: Pr
 
           <div className="flex gap-3">
             <Link href="/check-in-templates">
-              <Button variant="outline">Avbryt</Button>
+              <Button variant="outline">{t('common.cancel')}</Button>
             </Link>
             <Button onClick={handleSave} disabled={saving || !name.trim()}>
               <Save className="w-4 h-4" />
-              {saving ? 'Lagrer...' : 'Lagre mal'}
+              {saving ? t('common.saving') : t('checkinTemplates.editor.saveTemplate')}
             </Button>
           </div>
         </div>

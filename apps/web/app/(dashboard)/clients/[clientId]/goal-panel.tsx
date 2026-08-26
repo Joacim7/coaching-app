@@ -6,6 +6,7 @@ import { Target, Plus, Pencil, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useLocale } from '@/components/locale-provider'
 
 export type ClientGoal = {
   id: string
@@ -24,6 +25,7 @@ interface Props {
 
 export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
   const supabase = createClient()
+  const { t } = useLocale()
   const [goal, setGoal]       = useState<ClientGoal | null>(initialGoal)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving]   = useState(false)
@@ -69,7 +71,7 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
         .eq('id', goal.id)
         .select()
         .single()
-      if (err) { setError('Kunne ikke lagre'); setSaving(false); return }
+      if (err) { setError(t('clientDetail.goal.saveFailed')); setSaving(false); return }
       newGoal = data as ClientGoal
     } else {
       const { data, error: err } = await supabase
@@ -77,7 +79,7 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
         .insert(payload)
         .select()
         .single()
-      if (err) { setError('Kunne ikke lagre'); setSaving(false); return }
+      if (err) { setError(t('clientDetail.goal.saveFailed')); setSaving(false); return }
       newGoal = data as ClientGoal
     }
 
@@ -95,7 +97,7 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
       <div className="px-4 py-3.5 border-b border-gray-100 flex items-center justify-between">
         <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-1.5">
           <Target className="w-3.5 h-3.5 text-gray-400" />
-          Mål
+          {t('clientDetail.goal.title')}
         </h3>
         {!showForm && (
           <button
@@ -103,7 +105,7 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
             className="flex items-center gap-1 text-xs text-[#2d8653] hover:text-[#1a5c3a] font-medium"
           >
             {goal ? <Pencil className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-            {goal ? 'Rediger' : 'Legg til'}
+            {goal ? t('clientDetail.goal.edit') : t('clientDetail.goal.add')}
           </button>
         )}
       </div>
@@ -112,7 +114,7 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
         <div className="p-4 space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="text-xs text-gray-500 block mb-1">Startpunkt (kg)</Label>
+              <Label className="text-xs text-gray-500 block mb-1">{t('clientDetail.goal.startPoint')}</Label>
               <Input
                 type="number"
                 value={startWeight}
@@ -124,7 +126,7 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
               />
             </div>
             <div>
-              <Label className="text-xs text-gray-500 block mb-1">Målvekt (kg)</Label>
+              <Label className="text-xs text-gray-500 block mb-1">{t('clientDetail.goal.targetWeight')}</Label>
               <Input
                 type="number"
                 value={targetWeight}
@@ -137,18 +139,18 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
             </div>
           </div>
           <div>
-            <Label className="text-xs text-gray-500 block mb-1">Beskrivelse</Label>
+            <Label className="text-xs text-gray-500 block mb-1">{t('clientDetail.goal.description')}</Label>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="f.eks. Gå ned 5 kg til sommeren, bygge muskelmasse..."
+              placeholder={t('clientDetail.goal.descriptionPlaceholder')}
               rows={2}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="text-xs text-gray-500 block mb-1">Startdato</Label>
+              <Label className="text-xs text-gray-500 block mb-1">{t('clientDetail.goal.startDate')}</Label>
               <Input
                 type="date"
                 value={startDate}
@@ -157,7 +159,7 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
               />
             </div>
             <div>
-              <Label className="text-xs text-gray-500 block mb-1">Måldato</Label>
+              <Label className="text-xs text-gray-500 block mb-1">{t('clientDetail.goal.targetDate')}</Label>
               <Input
                 type="date"
                 value={targetDate}
@@ -171,7 +173,7 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
 
           <div className="flex gap-2 pt-1">
             <Button size="sm" onClick={handleSave} disabled={saving} className="flex-1 bg-[#2d8653] hover:bg-[#1a5c3a]">
-              {saving ? 'Lagrer...' : <><Check className="w-3.5 h-3.5 mr-1" />Lagre</>}
+              {saving ? t('common.saving') : <><Check className="w-3.5 h-3.5 mr-1" />{t('common.save')}</>}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>
               <X className="w-3.5 h-3.5" />
@@ -182,13 +184,13 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
         <div className="p-4 space-y-2.5">
           {goal.start_weight_kg != null && (
             <div className="flex justify-between items-center">
-              <span className="text-xs text-gray-500">Startpunkt</span>
+              <span className="text-xs text-gray-500">{t('clientDetail.goal.startPointLabel')}</span>
               <span className="text-xs font-bold text-gray-700">{goal.start_weight_kg} kg</span>
             </div>
           )}
           {goal.target_weight_kg != null && (
             <div className="flex justify-between items-center">
-              <span className="text-xs text-gray-500">Målvekt</span>
+              <span className="text-xs text-gray-500">{t('clientDetail.goal.targetWeightLabel')}</span>
               <span className="text-xs font-bold text-[#1a5c3a]">{goal.target_weight_kg} kg</span>
             </div>
           )}
@@ -197,14 +199,14 @@ export function GoalPanel({ clientId, coachId, initialGoal }: Props) {
           )}
           {(goal.start_date || goal.target_date) && (
             <div className="flex justify-between items-center text-xs text-gray-400 pt-1 border-t border-gray-50">
-              {goal.start_date && <span>Fra {fmtDate(goal.start_date)}</span>}
-              {goal.target_date && <span>Til {fmtDate(goal.target_date)}</span>}
+              {goal.start_date && <span>{t('clientDetail.goal.from', { date: fmtDate(goal.start_date) })}</span>}
+              {goal.target_date && <span>{t('clientDetail.goal.to', { date: fmtDate(goal.target_date) })}</span>}
             </div>
           )}
         </div>
       ) : (
         <div className="p-4">
-          <p className="text-xs text-gray-400 italic">Ingen mål registrert ennå</p>
+          <p className="text-xs text-gray-400 italic">{t('clientDetail.goal.noneYet')}</p>
         </div>
       )}
     </div>

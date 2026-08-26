@@ -4,10 +4,14 @@ import { useState, useMemo } from 'react'
 import { Search, Video, MoreVertical, Trash2, Pencil, Copy, Dumbbell, Share2 } from 'lucide-react'
 import { ExerciseFormModal, ExerciseModal, type ExerciseRow, type FormMode } from './exercise-form-modal'
 import { exerciseThumbnail } from '@/lib/video-thumbnail'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 type Tab = 'alle' | 'mine' | 'standard'
 
-const FILTER_MUSCLES = ['Alle muskelgrupper', 'Bryst', 'Rygg', 'Skuldre', 'Armer', 'Bein', 'Mage/Core']
+const ALL_MUSCLES = '__all__'
+// These are persisted muscle_groups DB values shared with the mobile app — never translate them.
+const FILTER_MUSCLES = [ALL_MUSCLES, 'Bryst', 'Rygg', 'Skuldre', 'Armer', 'Bein', 'Mage/Core']
 
 const MUSCLE_COLORS: Record<string, string> = {
   'Bryst':     'bg-[#cdeee3] text-[#1a5c3a]',
@@ -28,10 +32,11 @@ interface Props { initialExercises: ExerciseRow[]; orgSharedIds?: Set<string>; i
 type ModalState = { mode: FormMode; exercise?: ExerciseRow }
 
 export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set(), isAdmin = false }: Props) {
+  const { t } = useLocale()
   const [exercises, setExercises] = useState<ExerciseRow[]>(initialExercises)
   const [tab, setTab]               = useState<Tab>('alle')
   const [search, setSearch]         = useState('')
-  const [muscleFilter, setMuscleFilter] = useState('Alle muskelgrupper')
+  const [muscleFilter, setMuscleFilter] = useState(ALL_MUSCLES)
   const [openMenu, setOpenMenu]     = useState<string | null>(null)
   const [deleting, setDeleting]     = useState<string | null>(null)
   const [modal, setModal]           = useState<ModalState | null>(null)
@@ -47,7 +52,7 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
       e.description?.toLowerCase().includes(q) ||
       e.instructions?.toLowerCase().includes(q)
     )
-    if (muscleFilter !== 'Alle muskelgrupper') {
+    if (muscleFilter !== ALL_MUSCLES) {
       base = base.filter(e => e.muscle_groups.includes(muscleFilter))
     }
     return base
@@ -74,8 +79,8 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
 
   async function handleDelete(ex: ExerciseRow) {
     const warning = ex.is_standard
-      ? `Slett standardøvelsen "${ex.name}"? Dette fjerner den for ALLE coacher. Dette kan ikke angres.`
-      : `Slett "${ex.name}"? Dette kan ikke angres.`
+      ? t('exerciseLibrary.deleteConfirmStandard', { name: ex.name })
+      : t('exerciseLibrary.deleteConfirm', { name: ex.name })
     if (!confirm(warning)) return
     setDeleting(ex.id)
     setOpenMenu(null)
@@ -84,10 +89,10 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
     if (res.ok) setExercises(prev => prev.filter(e => e.id !== ex.id))
   }
 
-  const tabs = [
-    { key: 'alle'     as Tab, label: 'Alle',            count: exercises.length },
-    { key: 'mine'     as Tab, label: 'Mine øvelser',    count: mine.length },
-    { key: 'standard' as Tab, label: 'Standardøvelser', count: standard.length },
+  const tabs: { key: Tab; labelKey: TranslationKey; count: number }[] = [
+    { key: 'alle',     labelKey: 'exerciseLibrary.tabAll',      count: exercises.length },
+    { key: 'mine',     labelKey: 'exerciseLibrary.tabMine',     count: mine.length },
+    { key: 'standard', labelKey: 'exerciseLibrary.tabStandard', count: standard.length },
   ]
 
   return (
@@ -96,9 +101,9 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a5c3a]">Øvelsesbibliotek</h1>
+          <h1 className="text-2xl font-bold text-[#1a5c3a]">{t('exerciseLibrary.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Bla gjennom standardøvelser eller legg til dine egne
+            {t('exerciseLibrary.subtitle')}
           </p>
         </div>
         <ExerciseFormModal onCreated={ex => setExercises(prev => [ex, ...prev])} />
@@ -109,7 +114,7 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
         <input
           type="text"
-          placeholder="Søk etter øvelse..."
+          placeholder={t('exerciseLibrary.searchPlaceholder')}
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="w-full pl-10 pr-4 h-10 rounded-xl border border-gray-200 bg-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900"
@@ -119,21 +124,21 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
       {/* Tabs + muscle filter */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-center border-b border-gray-200">
-          {tabs.map(t => (
+          {tabs.map(tb => (
             <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
+              key={tb.key}
+              onClick={() => setTab(tb.key)}
               className={`relative px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
-                tab === t.key
+                tab === tb.key
                   ? 'text-[#2d8653] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-[#2d8653]'
                   : 'text-gray-500 hover:text-gray-800'
               }`}
             >
-              {t.label}
+              {t(tb.labelKey)}
               <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
-                tab === t.key ? 'bg-[#cdeee3] text-[#1a5c3a]' : 'bg-gray-100 text-gray-500'
+                tab === tb.key ? 'bg-[#cdeee3] text-[#1a5c3a]' : 'bg-gray-100 text-gray-500'
               }`}>
-                {t.count}
+                {tb.count}
               </span>
             </button>
           ))}
@@ -150,7 +155,7 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {m}
+              {m === ALL_MUSCLES ? t('exerciseLibrary.allMuscleGroups') : m}
             </button>
           ))}
         </div>
@@ -162,8 +167,8 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
           <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
             <Dumbbell className="w-6 h-6 text-gray-300" />
           </div>
-          <p className="font-semibold text-gray-500">Ingen øvelser funnet</p>
-          <p className="text-sm text-gray-400 mt-1">Prøv et annet søkeord eller filter</p>
+          <p className="font-semibold text-gray-500">{t('exerciseLibrary.noneFound')}</p>
+          <p className="text-sm text-gray-400 mt-1">{t('exerciseLibrary.tryDifferentSearch')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-4">
@@ -207,14 +212,14 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
                         <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
                           <Video className="w-5 h-5" />
                         </div>
-                        <span className="text-[10px] font-medium text-gray-300">Ingen video</span>
+                        <span className="text-[10px] font-medium text-gray-300">{t('exerciseLibrary.noVideo')}</span>
                       </div>
                     )}
 
                     {/* Standard badge */}
                     {ex.is_standard && (
                       <span className="absolute top-2 left-2 text-[9px] font-bold px-2 py-0.5 rounded-full bg-white/90 text-gray-600 shadow-sm">
-                        STANDARD
+                        {t('exerciseLibrary.standardBadge')}
                       </span>
                     )}
 
@@ -249,7 +254,7 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
                               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                             >
                               <Pencil className="w-3.5 h-3.5 text-gray-400" />
-                              Rediger
+                              {t('common.edit')}
                             </button>
                           )}
                           <button
@@ -257,7 +262,7 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
                             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                           >
                             <Copy className="w-3.5 h-3.5 text-gray-400" />
-                            Kopier øvelse
+                            {t('exerciseLibrary.copyExercise')}
                           </button>
                           {canDelete && (
                             <>
@@ -269,8 +274,8 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                                 {deleting === ex.id
-                                  ? 'Sletter...'
-                                  : ex.is_standard ? 'Slett standardøvelse' : 'Slett'}
+                                  ? t('common.deleting')
+                                  : ex.is_standard ? t('exerciseLibrary.deleteStandard') : t('common.delete')}
                               </button>
                             </>
                           )}
@@ -286,7 +291,7 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
                       {orgSharedIds.has(ex.id) && (
                         <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
                           <Share2 className="w-2.5 h-2.5" />
-                          Delt
+                          {t('exerciseLibrary.shared')}
                         </span>
                       )}
                     </div>

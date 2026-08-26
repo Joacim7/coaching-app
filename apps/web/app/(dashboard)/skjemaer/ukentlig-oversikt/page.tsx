@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { WeeklyOverviewView, type ClientRow } from './weekly-view'
+import { getTranslator, normalizeLocale, type TranslationKey } from '@/lib/i18n/translations'
 
 // ── Week helpers ──────────────────────────────────────────────────────────────
 
@@ -20,11 +21,13 @@ function getWeekBounds(offsetWeeks: number) {
   return { monday, sunday }
 }
 
-const MONTHS_NO = ['jan','feb','mar','apr','mai','jun','jul','aug','sep','okt','nov','des']
-
-function weekLabel(monday: Date, sunday: Date) {
-  const md = monday.getUTCDate(), mm = MONTHS_NO[monday.getUTCMonth()]
-  const sd = sunday.getUTCDate(), sm = MONTHS_NO[sunday.getUTCMonth()]
+function weekLabel(
+  monday: Date,
+  sunday: Date,
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string,
+) {
+  const md = monday.getUTCDate(), mm = t(`weeklyOverview.monthShort.${monday.getUTCMonth() + 1}` as TranslationKey)
+  const sd = sunday.getUTCDate(), sm = t(`weeklyOverview.monthShort.${sunday.getUTCMonth() + 1}` as TranslationKey)
   const yr = sunday.getUTCFullYear()
   return monday.getUTCMonth() === sunday.getUTCMonth()
     ? `${md}. – ${sd}. ${sm} ${yr}`
@@ -44,8 +47,15 @@ export default async function UkentligOversiktPage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(profile?.language))
+
   const { monday, sunday } = getWeekBounds(weekOffset)
-  const label = weekLabel(monday, sunday)
+  const label = weekLabel(monday, sunday, t)
 
   // 1. All active clients for this coach (with email for reminders)
   const { data: clientLinks } = await supabase
@@ -56,7 +66,7 @@ export default async function UkentligOversiktPage({
 
   const clients = (clientLinks ?? []).map(l => {
     const p = Array.isArray(l.profile) ? l.profile[0] : l.profile
-    return { id: l.client_id, name: p?.full_name ?? 'Ukjent', email: p?.email ?? null }
+    return { id: l.client_id, name: p?.full_name ?? t('common.unknown'), email: p?.email ?? null }
   })
 
   if (clients.length === 0) {

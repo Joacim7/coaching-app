@@ -3,10 +3,18 @@ import { UserPlus } from 'lucide-react'
 import InviteClientDialog from './invite-client-dialog'
 import { ClientList, type ClientRow } from './client-list'
 import type { ClientStatus } from '@coaching/types'
+import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
 
 export default async function ClientsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: ownProfile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(ownProfile?.language))
 
   // Check org membership — if in an org, include all coaches' clients
   const { data: membership } = await supabase
@@ -28,7 +36,7 @@ export default async function ClientsPage() {
     for (const m of orgMembers ?? []) {
       if (m.user_id === user!.id) continue
       const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles
-      coachNameMap.set(m.user_id, (p as { full_name: string | null } | null)?.full_name ?? 'Ukjent coach')
+      coachNameMap.set(m.user_id, (p as { full_name: string | null } | null)?.full_name ?? t('clients.unknownCoach'))
     }
   }
 
@@ -79,7 +87,7 @@ export default async function ClientsPage() {
     return [{
       id:              rel.id,
       profileId:       profile.id,
-      name:            profile.full_name ?? 'Ukjent',
+      name:            profile.full_name ?? t('clients.unknownClient'),
       joinedAt:        rel.created_at,
       status:          (rel.status ?? 'active') as ClientStatus,
       hasMealPlan:     mealSet.has(profile.id),
@@ -98,19 +106,19 @@ export default async function ClientsPage() {
     <div>
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a5c3a]">Klienter</h1>
+          <h1 className="text-2xl font-bold text-[#1a5c3a]">{t('sidebar.clients')}</h1>
           <div className="flex items-center gap-2 mt-1.5">
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-[#ebf5ef] text-[#1a5c3a]">
               <span className="w-1.5 h-1.5 rounded-full bg-[#2d8653]" />
-              {activeCount} aktive
+              {activeCount} {t('clients.countBadge.active')}
             </span>
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-              {appCount} app tilgang
+              {appCount} {t('clients.countBadge.appAccess')}
             </span>
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
               <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-              {inactiveCount} inaktive
+              {inactiveCount} {t('clients.countBadge.inactive')}
             </span>
           </div>
         </div>
@@ -121,8 +129,8 @@ export default async function ClientsPage() {
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
             <UserPlus className="w-7 h-7 text-gray-400" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">Ingen klienter ennå</h3>
-          <p className="text-sm text-gray-500 mb-6">Inviter din første klient for å komme i gang</p>
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">{t('clients.empty.title')}</h3>
+          <p className="text-sm text-gray-500 mb-6">{t('clients.empty.subtitle')}</p>
           <InviteClientDialog coachId={user!.id} triggerVariant="success" />
         </div>
       ) : (

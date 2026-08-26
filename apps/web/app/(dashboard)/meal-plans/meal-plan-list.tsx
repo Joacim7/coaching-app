@@ -6,8 +6,15 @@ import Link from 'next/link'
 import {
   UtensilsCrossed, MoreVertical, UserPlus, Pencil, Copy, Trash2, X, CheckCircle2, Search,
 } from 'lucide-react'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 type Tab = 'maler' | 'alle'
+
+const TABS: Array<{ key: Tab; labelKey: TranslationKey }> = [
+  { key: 'maler', labelKey: 'mealPlans.tabMyTemplates' },
+  { key: 'alle',  labelKey: 'mealPlans.tabAllPlans' },
+]
 
 export interface MealPlanRow {
   id: string
@@ -28,6 +35,8 @@ interface Props {
 
 export function MealPlanList({ plans, clients }: Props) {
   const router = useRouter()
+  const { t, locale } = useLocale()
+  const dateLocale = locale === 'en' ? 'en-US' : 'nb-NO'
   const [tab, setTab]                   = useState<Tab>('maler')
   const [openMenu, setOpenMenu]         = useState<string | null>(null)
   const [deleting, setDeleting]         = useState<string | null>(null)
@@ -55,13 +64,13 @@ export function MealPlanList({ plans, clients }: Props) {
   }, [clients, clientQuery])
 
   async function handleDelete(plan: MealPlanRow) {
-    if (!confirm(`Slett "${plan.title}"? Dette kan ikke angres.`)) return
+    if (!confirm(t('mealPlans.deleteConfirm', { title: plan.title }))) return
     setDeleting(plan.id)
     setOpenMenu(null)
     const res = await fetch(`/api/meal-plans/${plan.id}`, { method: 'DELETE' })
     setDeleting(null)
-    if (res.ok) { showToast('Matplan slettet'); router.refresh() }
-    else        { showToast('Kunne ikke slette planen', 'err') }
+    if (res.ok) { showToast(t('mealPlans.deleted')); router.refresh() }
+    else        { showToast(t('mealPlans.deleteFailed'), 'err') }
   }
 
   async function handleDuplicate(plan: MealPlanRow) {
@@ -75,10 +84,10 @@ export function MealPlanList({ plans, clients }: Props) {
     setDuplicating(null)
     if (res.ok) {
       const { newPlanId } = await res.json()
-      showToast('Plan duplisert')
+      showToast(t('mealPlans.duplicated'))
       router.push(`/meal-plans/${newPlanId}`)
     } else {
-      showToast('Kunne ikke duplisere', 'err')
+      showToast(t('mealPlans.duplicateFailed'), 'err')
     }
   }
 
@@ -96,7 +105,7 @@ export function MealPlanList({ plans, clients }: Props) {
     setSelected('')
     setClientQuery('')
     if (data.newPlanId) { router.push(`/meal-plans/${data.newPlanId}`) }
-    else                { showToast('Kunne ikke bruke mal', 'err') }
+    else                { showToast(t('mealPlans.useTemplateFailed'), 'err') }
   }
 
   return (
@@ -113,27 +122,27 @@ export function MealPlanList({ plans, clients }: Props) {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-gray-200">
-        {([
-          { key: 'maler', label: 'Mine maler', count: maler.length },
-          { key: 'alle',  label: 'Alle planer', count: alle.length },
-        ] as const).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`relative px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap ${
-              tab === t.key
-                ? 'text-[#2d8653] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-[#2d8653]'
-                : 'text-gray-500 hover:text-gray-800'
-            }`}
-          >
-            {t.label}
-            <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
-              tab === t.key ? 'bg-[#cdeee3] text-[#1a5c3a]' : 'bg-gray-100 text-gray-500'
-            }`}>
-              {t.count}
-            </span>
-          </button>
-        ))}
+        {TABS.map(tabCfg => {
+          const count = tabCfg.key === 'maler' ? maler.length : alle.length
+          return (
+            <button
+              key={tabCfg.key}
+              onClick={() => setTab(tabCfg.key)}
+              className={`relative px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap ${
+                tab === tabCfg.key
+                  ? 'text-[#2d8653] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-[#2d8653]'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {t(tabCfg.labelKey)}
+              <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+                tab === tabCfg.key ? 'bg-[#cdeee3] text-[#1a5c3a]' : 'bg-gray-100 text-gray-500'
+              }`}>
+                {count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       {/* List */}
@@ -143,12 +152,12 @@ export function MealPlanList({ plans, clients }: Props) {
             <UtensilsCrossed className="w-6 h-6 text-gray-300" />
           </div>
           <h3 className="text-base font-semibold text-gray-900 mb-1">
-            {tab === 'maler' ? 'Ingen maler ennå' : 'Ingen matplaner'}
+            {tab === 'maler' ? t('mealPlans.noTemplatesYet') : t('mealPlans.noMealPlans')}
           </h3>
           <p className="text-sm text-gray-400">
             {tab === 'maler'
-              ? 'Opprett en mal for å gjenbruke den for flere klienter'
-              : 'Lag din første matplan'}
+              ? t('mealPlans.emptySub')
+              : t('mealPlans.createFirst')}
           </p>
         </div>
       ) : (
@@ -176,7 +185,7 @@ export function MealPlanList({ plans, clients }: Props) {
                       <span className="font-semibold text-gray-900 text-sm">{plan.title}</span>
                       {isTemplate && (
                         <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#cdeee3] text-[#1a5c3a]">
-                          MAL
+                          {t('mealPlans.templateBadge')}
                         </span>
                       )}
                       {plan.client_name && (
@@ -191,11 +200,11 @@ export function MealPlanList({ plans, clients }: Props) {
                         <span>{plan.calories_target} kcal</span>
                       )}
                       {plan.protein_g && (
-                        <span>{plan.protein_g}g protein</span>
+                        <span>{plan.protein_g}g {t('mealPlans.proteinSuffix')}</span>
                       )}
-                      <span>{plan.meal_count} måltider</span>
+                      <span>{plan.meal_count} {t('mealPlans.mealCountSuffix')}</span>
                       <span>·</span>
-                      <span>{new Date(plan.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      <span>{new Date(plan.created_at).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                     </p>
 
                     {/* Assign inline form */}
@@ -210,14 +219,14 @@ export function MealPlanList({ plans, clients }: Props) {
                               value={selectedClientObj ? selectedClientObj.name : clientQuery}
                               onChange={e => { setClientQuery(e.target.value); setSelected('') }}
                               onFocus={() => setSelected('')}
-                              placeholder="Søk klient..."
+                              placeholder={t('mealPlans.searchClient')}
                               className="h-8 w-44 text-xs border border-gray-200 rounded-lg pl-7 pr-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
                             />
                           </div>
                           {!selectedClient && (
                             <div className="absolute z-20 mt-1 w-44 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
                               {filteredClients.length === 0 ? (
-                                <p className="px-3 py-2 text-xs text-gray-400">Ingen treff</p>
+                                <p className="px-3 py-2 text-xs text-gray-400">{t('mealPlans.noMatches')}</p>
                               ) : (
                                 filteredClients.map(c => (
                                   <button
@@ -238,7 +247,7 @@ export function MealPlanList({ plans, clients }: Props) {
                           disabled={!selectedClient || assigning}
                           className="h-8 px-3 rounded-lg bg-[#1a5c3a] text-white text-xs font-semibold hover:bg-[#2d8653] disabled:opacity-50 transition-colors"
                         >
-                          {assigning ? 'Bruker...' : 'Bekreft'}
+                          {assigning ? t('mealPlans.applying') : t('mealPlans.confirm')}
                         </button>
                         <button
                           onClick={() => { setAssigning(null); setSelected(''); setClientQuery('') }}
@@ -259,7 +268,7 @@ export function MealPlanList({ plans, clients }: Props) {
                           className="h-8 px-3 rounded-lg border border-[#cdeee3] bg-[#ebf5ef] text-[#1a5c3a] text-xs font-semibold hover:bg-[#cdeee3] transition-colors flex items-center gap-1.5"
                         >
                           <UserPlus className="w-3.5 h-3.5" />
-                          Bruk mal
+                          {t('mealPlans.useTemplate')}
                         </button>
                       )}
 
@@ -280,14 +289,14 @@ export function MealPlanList({ plans, clients }: Props) {
                               onClick={() => setOpenMenu(null)}
                             >
                               <Pencil className="w-3.5 h-3.5 text-gray-400" />
-                              Rediger
+                              {t('mealPlans.edit')}
                             </Link>
                             <button
                               onClick={() => handleDuplicate(plan)}
                               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                             >
                               <Copy className="w-3.5 h-3.5 text-gray-400" />
-                              {duplicating === plan.id ? 'Dupliserer...' : 'Dupliser'}
+                              {duplicating === plan.id ? t('mealPlans.duplicating') : t('mealPlans.duplicate')}
                             </button>
                             <div className="mx-2 my-1 border-t border-gray-100" />
                             <button
@@ -295,7 +304,7 @@ export function MealPlanList({ plans, clients }: Props) {
                               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                              {deleting === plan.id ? 'Sletter...' : 'Slett'}
+                              {deleting === plan.id ? t('mealPlans.deleting') : t('mealPlans.delete')}
                             </button>
                           </div>
                         )}

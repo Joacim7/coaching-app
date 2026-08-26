@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { Camera } from 'lucide-react'
 import { PhotosGrid } from './photos-grid'
+import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
 
 export default async function PhotosPage({
   params,
@@ -20,6 +21,13 @@ export default async function PhotosPage({
     .single()
 
   if (!rel) notFound()
+
+  const { data: coachProfile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(coachProfile?.language))
 
   const { data: photoRows } = await supabase
     .from('progress_photos')
@@ -43,9 +51,9 @@ export default async function PhotosPage({
         <div className="w-14 h-14 rounded-2xl bg-pink-100 flex items-center justify-center mb-4">
           <Camera className="w-7 h-7 text-pink-600" />
         </div>
-        <h3 className="text-base font-semibold text-gray-900 mb-1">Progresjonsbilder</h3>
+        <h3 className="text-base font-semibold text-gray-900 mb-1">{t('clientDetail.photos.title')}</h3>
         <p className="text-sm text-gray-400 max-w-xs">
-          Klienten har ikke lastet opp noen fremgangsbilder ennå.
+          {t('clientDetail.photos.noneYet')}
         </p>
       </div>
     )

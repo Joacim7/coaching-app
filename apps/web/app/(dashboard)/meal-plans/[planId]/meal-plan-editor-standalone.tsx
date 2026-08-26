@@ -18,6 +18,8 @@ import {
   parseAmountDisplay, unitToGrams, gramsToUnit, smartUnitFor,
   type IngredientUnit,
 } from '@/lib/ingredient-units'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 interface Props {
   clientId: string | null
@@ -35,14 +37,14 @@ const MEAL_OPTIONS: { name: string; emoji: string; time: string }[] = [
   { name: 'Kveldsmat', emoji: '🌙', time: '20:30' },
 ]
 
-const ALLERGEN_OPTIONS = [
-  { id: 'glutenfri',    label: 'Glutenfri' },
-  { id: 'melkefri',    label: 'Melkefri' },
-  { id: 'laktosefri',  label: 'Laktosefri' },
-  { id: 'nøttefri',   label: 'Nøttefri' },
-  { id: 'eggfri',     label: 'Eggfri' },
-  { id: 'skalldyrfri', label: 'Skalldyrfri' },
-  { id: 'uten-fisk',   label: 'Uten fisk' },
+const ALLERGEN_OPTIONS: { id: string; labelKey: TranslationKey }[] = [
+  { id: 'glutenfri',   labelKey: 'clientDetail.nutrition.allergy.glutenFree' },
+  { id: 'melkefri',    labelKey: 'clientDetail.nutrition.allergy.dairyFree' },
+  { id: 'laktosefri',  labelKey: 'clientDetail.nutrition.allergy.lactoseFree' },
+  { id: 'nøttefri',    labelKey: 'clientDetail.nutrition.allergy.nutFree' },
+  { id: 'eggfri',      labelKey: 'clientDetail.nutrition.allergy.eggFree' },
+  { id: 'skalldyrfri', labelKey: 'clientDetail.nutrition.allergy.shellfishFree' },
+  { id: 'uten-fisk',   labelKey: 'clientDetail.nutrition.allergy.noFish' },
 ]
 
 function normaliseSplits(meals: string[], splits: Record<string, number>): Record<string, number> {
@@ -67,9 +69,9 @@ function emptyAlternative(): MealAlternative {
 }
 
 /** Derive a display name from a list of foods. Never returns a generic fallback. */
-function deriveMealName(foods: Food[]): string {
+function deriveMealName(foods: Food[], fallback: string): string {
   const named = foods.filter(f => f.name?.trim())
-  if (named.length === 0) return 'Måltidsalternativ'
+  if (named.length === 0) return fallback
   const short = (n: string) => n.trim().split(/\s+/).slice(0, 2).join(' ')
   if (named.length === 1) return named[0].name.trim()
   return `${short(named[0].name)} med ${short(named[1].name)}`
@@ -87,6 +89,7 @@ interface FoodRowProps {
 const UNITS: IngredientUnit[] = ['g', 'stk', 'dl', 'ml', 'ss', 'ts']
 
 function FoodRow({ food, onUpdate, onRemove, onFoodSelect }: FoodRowProps) {
+  const { t } = useLocale()
   const [searching, setSearching] = useState(!food.name)
 
   const parsedDisplay  = parseAmountDisplay(food.amount_display)
@@ -185,15 +188,15 @@ function FoodRow({ food, onUpdate, onRemove, onFoodSelect }: FoodRowProps) {
                 className="text-xs text-[#2d8653] hover:text-[#1a5c3a] flex items-center gap-1 flex-shrink-0"
               >
                 <Search className="w-3 h-3" />
-                Endre
+                {t('clientDetail.nutrition.foodRow.change')}
               </button>
             </div>
           ) : (
             <div className="space-y-1">
-              <FoodSearchInput onSelect={handleSelect} placeholder="Søk ingrediens..." />
+              <FoodSearchInput onSelect={handleSelect} placeholder={t('clientDetail.nutrition.foodRow.searchPlaceholder')} />
               {food.name && (
                 <button onClick={() => setSearching(false)} className="text-xs text-gray-400 hover:text-gray-600">
-                  Avbryt
+                  {t('common.cancel')}
                 </button>
               )}
             </div>
@@ -233,9 +236,9 @@ function FoodRow({ food, onUpdate, onRemove, onFoodSelect }: FoodRowProps) {
       {/* Row 2: read-only macro display + delete */}
       <div className="flex items-center justify-between px-0.5">
         <div className="flex items-center gap-3 text-xs">
-          <span className="text-green-600">P <strong>{food.protein_g.toFixed(1)}</strong>g</span>
-          <span className="text-orange-500">K <strong>{food.carbs_g.toFixed(1)}</strong>g</span>
-          <span className="text-violet-500">F <strong>{food.fat_g.toFixed(1)}</strong>g</span>
+          <span className="text-green-600">{t('clientDetail.nutrition.abbrevProtein')} <strong>{food.protein_g.toFixed(1)}</strong>g</span>
+          <span className="text-orange-500">{t('clientDetail.nutrition.abbrevCarbs')} <strong>{food.carbs_g.toFixed(1)}</strong>g</span>
+          <span className="text-violet-500">{t('clientDetail.nutrition.abbrevFat')} <strong>{food.fat_g.toFixed(1)}</strong>g</span>
           <span className="font-semibold text-gray-600">{food.calories} kcal</span>
         </div>
         <button onClick={onRemove} className="text-gray-300 hover:text-red-500">
@@ -279,9 +282,10 @@ export default function StandaloneMealPlanEditor({
 }: Props) {
   const supabase = createClient()
   const router = useRouter()
+  const { t } = useLocale()
 
   // Plan settings
-  const [title, setTitle] = useState(initialPlan?.title ?? 'Ny matplan')
+  const [title, setTitle] = useState(initialPlan?.title ?? t('mealPlans.newPlan'))
   const [days, setDays] = useState<7 | 14 | 21>(7)
 
   // Macro goals
@@ -335,7 +339,10 @@ export default function StandaloneMealPlanEditor({
     setError(null)
     try {
       const orderedMeals = MEAL_OPTIONS.filter(m => selectedMeals.includes(m.name)).map(m => m.name)
-      const allergyStr   = [...selectedAllergies].map(a => ALLERGEN_OPTIONS.find(o => o.id === a)?.label ?? a).join(', ')
+      const allergyStr   = [...selectedAllergies].map(a => {
+        const opt = ALLERGEN_OPTIONS.find(o => o.id === a)
+        return opt ? t(opt.labelKey) : a
+      }).join(', ')
       const fullPrefs    = [allergyStr, preferences].filter(Boolean).join('. ')
 
       const res = await fetch('/api/ai/generate-meal-plan', {
@@ -360,7 +367,7 @@ export default function StandaloneMealPlanEditor({
         setExpandedAlt(null)
       }
     } catch {
-      setError('Nettverksfeil ved AI-generering')
+      setError(t('mealPlans.networkErrorAI'))
     } finally {
       setGenerating(false)
     }
@@ -531,7 +538,7 @@ export default function StandaloneMealPlanEditor({
         </Link>
         <div className="flex-1">
           {clientName && <p className="text-sm text-gray-500">{clientName}</p>}
-          <h1 className="text-xl font-bold text-[#1a5c3a]">Matplan</h1>
+          <h1 className="text-xl font-bold text-[#1a5c3a]">{t('mealPlans.editorTitle')}</h1>
         </div>
         <div className="flex items-center gap-2">
           {!clientId && initialPlan?.id && (
@@ -546,14 +553,14 @@ export default function StandaloneMealPlanEditor({
                       value={selectedAssignClient ? selectedAssignClient.name : assignQuery}
                       onChange={e => { setAssignQuery(e.target.value); setSelectedClientId('') }}
                       onFocus={() => setSelectedClientId('')}
-                      placeholder="Søk klient..."
+                      placeholder={t('mealPlans.searchClient')}
                       className="h-9 w-48 text-sm border border-gray-300 rounded-md pl-7 pr-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#6ecfb0]"
                     />
                   </div>
                   {!selectedClientId && (
                     <div className="absolute z-20 mt-1 w-48 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-md shadow-lg">
                       {filteredAssignClients.length === 0 ? (
-                        <p className="px-3 py-2 text-xs text-gray-400">Ingen treff</p>
+                        <p className="px-3 py-2 text-xs text-gray-400">{t('mealPlans.noMatches')}</p>
                       ) : (
                         filteredAssignClients.map(c => (
                           <button
@@ -570,7 +577,7 @@ export default function StandaloneMealPlanEditor({
                   )}
                 </div>
                 <Button size="sm" onClick={handleAssign} disabled={!selectedClientId || assigning}>
-                  {assigning ? 'Tildeler...' : 'Tildel'}
+                  {assigning ? t('mealPlans.assigning') : t('mealPlans.assignConfirm')}
                 </Button>
                 <button onClick={() => { setAssignOpen(false); setAssignQuery(''); setSelectedClientId('') }} className="text-gray-400 hover:text-gray-600">
                   <X className="w-4 h-4" />
@@ -579,13 +586,13 @@ export default function StandaloneMealPlanEditor({
             ) : (
               <Button variant="outline" onClick={() => setAssignOpen(true)}>
                 <UserPlus className="w-4 h-4" />
-                Tildel til klient
+                {t('mealPlans.assignToClient')}
               </Button>
             )
           )}
           <Button onClick={handleSave} disabled={saving}>
             <Save className="w-4 h-4" />
-            {saved ? 'Lagret!' : saving ? 'Lagrer...' : 'Lagre'}
+            {saved ? t('mealPlans.saved') : saving ? t('mealPlans.saving') : t('mealPlans.save')}
           </Button>
         </div>
       </div>
@@ -599,11 +606,11 @@ export default function StandaloneMealPlanEditor({
           <Card>
             <CardContent className="p-4 space-y-3">
               <div>
-                <Label className="text-xs text-gray-500 block mb-1">Navn på plan</Label>
+                <Label className="text-xs text-gray-500 block mb-1">{t('mealPlans.planName')}</Label>
                 <Input value={title} onChange={e => setTitle(e.target.value)} />
               </div>
               <div>
-                <Label className="text-xs text-gray-500 block mb-1.5">Antall dager</Label>
+                <Label className="text-xs text-gray-500 block mb-1.5">{t('mealPlans.numberOfDays')}</Label>
                 <div className="grid grid-cols-3 gap-2">
                   {DAY_OPTIONS.map(d => (
                     <button
@@ -615,7 +622,7 @@ export default function StandaloneMealPlanEditor({
                           : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                       }`}
                     >
-                      {d} dager
+                      {t('mealPlans.dayCount', { n: d })}
                     </button>
                   ))}
                 </div>
@@ -626,7 +633,7 @@ export default function StandaloneMealPlanEditor({
           {/* 2. Måltidsforslag */}
           <Card>
             <CardHeader className="pb-0 pt-4 px-4">
-              <CardTitle className="text-sm">Måltidsforslag</CardTitle>
+              <CardTitle className="text-sm">{t('mealPlans.mealSuggestions')}</CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-3 space-y-4">
               {/* Meal type chips */}
@@ -670,7 +677,7 @@ export default function StandaloneMealPlanEditor({
               {/* Suggestions per meal slider */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <Label className="text-xs text-gray-500">Forslag per måltid</Label>
+                  <Label className="text-xs text-gray-500">{t('mealPlans.suggestionsPerMeal')}</Label>
                   <span className="text-sm font-bold text-gray-900">{suggestionsPerMeal}</span>
                 </div>
                 <input
@@ -687,8 +694,8 @@ export default function StandaloneMealPlanEditor({
               {selectedMeals.length > 0 && (
                 <div className="flex items-center justify-between bg-[#ebf5ef] rounded-xl px-4 py-3">
                   <div>
-                    <p className="text-xs text-[#2d8653] font-medium">Totalt oppskrifter som genereres</p>
-                    <p className="text-xs text-[#6ecfb0] mt-0.5">{selectedMeals.length} måltider × {suggestionsPerMeal} forslag</p>
+                    <p className="text-xs text-[#2d8653] font-medium">{t('mealPlans.totalRecipesGenerated')}</p>
+                    <p className="text-xs text-[#6ecfb0] mt-0.5">{t('clientDetail.nutrition.mealsTimesSuggestions', { meals: selectedMeals.length, sugg: suggestionsPerMeal })}</p>
                   </div>
                   <span className="text-2xl font-bold text-[#1a5c3a]">{selectedMeals.length * suggestionsPerMeal}</span>
                 </div>
@@ -700,7 +707,7 @@ export default function StandaloneMealPlanEditor({
           <Card>
             <CardHeader className="pb-0 pt-4 px-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">Makromål per dag</CardTitle>
+                <CardTitle className="text-sm">{t('mealPlans.macroTargetsPerDay')}</CardTitle>
                 <div className="flex bg-gray-100 rounded-lg p-0.5">
                   {(['gram', 'pct'] as const).map(m => (
                     <button
@@ -710,7 +717,7 @@ export default function StandaloneMealPlanEditor({
                         macroMode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                       }`}
                     >
-                      {m === 'gram' ? 'Gram' : '%'}
+                      {m === 'gram' ? t('mealPlans.gram') : '%'}
                     </button>
                   ))}
                 </div>
@@ -721,9 +728,9 @@ export default function StandaloneMealPlanEditor({
                 <>
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { label: 'Protein', val: protein, set: setProtein, color: 'text-green-600' },
-                      { label: 'Karbs',   val: carbs,   set: setCarbs,   color: 'text-orange-500' },
-                      { label: 'Fett',    val: fat,     set: setFat,     color: 'text-violet-500' },
+                      { label: t('mealPlans.protein'), val: protein, set: setProtein, color: 'text-green-600' },
+                      { label: t('mealPlans.carbs'),   val: carbs,   set: setCarbs,   color: 'text-orange-500' },
+                      { label: t('mealPlans.fat'),     val: fat,     set: setFat,     color: 'text-violet-500' },
                     ].map(({ label, val, set, color }) => (
                       <div key={label}>
                         <Label className={`text-xs font-medium block mb-1 ${color}`}>{label} (g)</Label>
@@ -733,7 +740,7 @@ export default function StandaloneMealPlanEditor({
                   </div>
                   <div className="bg-gray-50 rounded-lg px-3 py-2 flex items-center justify-between">
                     <span className="text-xs text-gray-500 flex items-center gap-1.5">
-                      <Flame className="w-3.5 h-3.5 text-orange-400" /> Kalorier
+                      <Flame className="w-3.5 h-3.5 text-orange-400" /> {t('clientDetail.nutrition.calories')}
                     </span>
                     <span className="font-bold text-gray-900">{caloriesFromGrams} kcal</span>
                   </div>
@@ -741,20 +748,20 @@ export default function StandaloneMealPlanEditor({
               ) : (
                 <>
                   <div>
-                    <Label className="text-xs text-gray-500 block mb-1">Totalt kcal per dag</Label>
+                    <Label className="text-xs text-gray-500 block mb-1">{t('mealPlans.totalKcalPerDay')}</Label>
                     <div className="flex items-center gap-2">
                       <Input
                         type="number" value={targetKcal} min={500} max={6000}
                         onChange={e => setTargetKcal(Number(e.target.value))}
                         className="h-8 text-sm"
                       />
-                      <span className="text-xs text-gray-400 flex-shrink-0">kcal</span>
+                      <span className="text-xs text-gray-400 flex-shrink-0">{t('mealPlans.kcal')}</span>
                     </div>
                   </div>
                   {[
-                    { label: 'Protein', pct: proteinPct, set: (v: number) => setProteinPct(Math.min(v, 95 - carbsPct)), color: 'bg-green-500', kcalPer: 4 },
-                    { label: 'Karbs',   pct: carbsPct,   set: (v: number) => setCarbsPct(Math.min(v, 95 - proteinPct)), color: 'bg-orange-400', kcalPer: 4 },
-                    { label: 'Fett',    pct: fatPct,     set: null,                                                      color: 'bg-violet-400', kcalPer: 9 },
+                    { label: t('mealPlans.protein'), pct: proteinPct, set: (v: number) => setProteinPct(Math.min(v, 95 - carbsPct)), color: 'bg-green-500', kcalPer: 4 },
+                    { label: t('mealPlans.carbs'),   pct: carbsPct,   set: (v: number) => setCarbsPct(Math.min(v, 95 - proteinPct)), color: 'bg-orange-400', kcalPer: 4 },
+                    { label: t('mealPlans.fat'),     pct: fatPct,     set: null,                                                      color: 'bg-violet-400', kcalPer: 9 },
                   ].map(({ label, pct, set, color, kcalPer }) => (
                     <div key={label}>
                       <div className="flex items-center justify-between mb-1.5">
@@ -777,7 +784,7 @@ export default function StandaloneMealPlanEditor({
                     </div>
                   ))}
                   {proteinPct + carbsPct + fatPct !== 100 && (
-                    <p className="text-xs text-red-500">Sum: {proteinPct + carbsPct + fatPct}% (må være 100%)</p>
+                    <p className="text-xs text-red-500">{t('mealPlans.macroSumWarning', { n: proteinPct + carbsPct + fatPct })}</p>
                   )}
                 </>
               )}
@@ -788,7 +795,7 @@ export default function StandaloneMealPlanEditor({
           {selectedMeals.length > 0 && (
             <Card>
               <CardHeader className="pb-0 pt-4 px-4">
-                <CardTitle className="text-sm">Måltidsfordeling</CardTitle>
+                <CardTitle className="text-sm">{t('mealPlans.mealDistribution')}</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-3 space-y-2">
                 {MEAL_OPTIONS.filter(m => selectedMeals.includes(m.name)).map(m => {
@@ -814,7 +821,7 @@ export default function StandaloneMealPlanEditor({
                     onClick={() => setMealSplits(normaliseSplits(selectedMeals, Object.fromEntries(selectedMeals.map(m => [m, 1 / selectedMeals.length]))))}
                     className="text-xs text-[#2d8653] hover:text-[#1a5c3a]"
                   >
-                    Fordel likt
+                    {t('clientDetail.nutrition.distributeEqually')}
                   </button>
                   <span className={`text-xs font-medium ${splitOk ? 'text-green-600' : 'text-red-500'}`}>
                     {Math.round(selectedMeals.reduce((s, m) => s + (mealSplits[m] ?? 0), 0) * 100)}%
@@ -828,7 +835,7 @@ export default function StandaloneMealPlanEditor({
           {/* 5. Allergier og restriksjoner */}
           <Card>
             <CardHeader className="pb-0 pt-4 px-4">
-              <CardTitle className="text-sm">Allergier og restriksjoner</CardTitle>
+              <CardTitle className="text-sm">{t('clientDetail.nutrition.allergiesRestrictions')}</CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-3">
               <div className="flex flex-wrap gap-2">
@@ -848,7 +855,7 @@ export default function StandaloneMealPlanEditor({
                           : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                       }`}
                     >
-                      {a.label}
+                      {t(a.labelKey)}
                     </button>
                   )
                 })}
@@ -862,17 +869,17 @@ export default function StandaloneMealPlanEditor({
               onClick={() => setShowAdvanced(a => !a)}
               className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <span>Avanserte innstillinger</span>
+              <span>{t('mealPlans.advancedSettings')}</span>
               {showAdvanced ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
             </button>
             {showAdvanced && (
               <div className="px-4 pb-4 border-t border-gray-100 space-y-3">
                 <div className="mt-3">
-                  <Label className="text-xs text-gray-500 block mb-1">Ekstra preferanser</Label>
+                  <Label className="text-xs text-gray-500 block mb-1">{t('mealPlans.extraPreferences')}</Label>
                   <Input
                     value={preferences}
                     onChange={e => setPreferences(e.target.value)}
-                    placeholder="Norsk mat, middelhavskjøkken, rask tilberedning..."
+                    placeholder={t('mealPlans.extraPreferencesPlaceholder')}
                     className="text-sm"
                   />
                 </div>
@@ -893,11 +900,11 @@ export default function StandaloneMealPlanEditor({
               disabled={generating || selectedMeals.length === 0 || !splitOk}
             >
               <Sparkles className="w-4 h-4" />
-              {generating ? 'Genererer matplan...' : 'Generer med AI'}
+              {generating ? t('mealPlans.generating') : t('mealPlans.generateWithAI')}
             </Button>
             {generating && (
               <p className="text-xs text-[#2d8653] text-center">
-                {suggestionsPerMeal} forslag × {selectedMeals.length} måltider — ca. {selectedMeals.length * 5}s...
+                {t('clientDetail.nutrition.generatingEta', { sugg: suggestionsPerMeal, meals: selectedMeals.length, sec: selectedMeals.length * 5 })}
               </p>
             )}
           </div>
@@ -909,23 +916,23 @@ export default function StandaloneMealPlanEditor({
           {meals.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-72 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50">
               <Sparkles className="w-10 h-10 text-gray-300 mb-3" />
-              <p className="font-medium text-gray-500">Ingen matplan ennå</p>
-              <p className="text-sm text-gray-400 mt-1">Bruk AI-generatoren til venstre</p>
+              <p className="font-medium text-gray-500">{t('mealPlans.noneYet')}</p>
+              <p className="text-sm text-gray-400 mt-1">{t('mealPlans.useAIGenerator')}</p>
             </div>
           ) : (
             <>
               {/* ── Daglig oversikt ── */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Daglig oversikt</p>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{t('mealPlans.dailyOverview')}</p>
                 <div className="flex items-center gap-2 mb-4">
                   <Flame className="w-5 h-5 text-orange-400" />
                   <span className="text-2xl font-bold text-gray-900">{totalCals > 0 ? totalCals : effectiveCalories} kcal</span>
-                  <span className="text-sm text-gray-400 ml-1">/ {effectiveCalories} mål</span>
+                  <span className="text-sm text-gray-400 ml-1">{t('mealPlans.kcalOfGoal', { n: effectiveCalories })}</span>
                 </div>
                 <div className="space-y-3">
-                  <MacroBar label="Protein" value={totalProtein > 0 ? totalProtein : effectiveProtein} target={effectiveProtein} unit="g" color="bg-green-500" pct={displayProteinPct} />
-                  <MacroBar label="Karbohydrater" value={totalCarbs > 0 ? totalCarbs : effectiveCarbs} target={effectiveCarbs} unit="g" color="bg-orange-400" pct={displayCarbsPct} />
-                  <MacroBar label="Fett" value={totalFat > 0 ? totalFat : effectiveFat} target={effectiveFat} unit="g" color="bg-violet-400" pct={displayFatPct} />
+                  <MacroBar label={t('mealPlans.protein')} value={totalProtein > 0 ? totalProtein : effectiveProtein} target={effectiveProtein} unit="g" color="bg-green-500" pct={displayProteinPct} />
+                  <MacroBar label={t('mealPlans.carbohydrates')} value={totalCarbs > 0 ? totalCarbs : effectiveCarbs} target={effectiveCarbs} unit="g" color="bg-orange-400" pct={displayCarbsPct} />
+                  <MacroBar label={t('mealPlans.fat')} value={totalFat > 0 ? totalFat : effectiveFat} target={effectiveFat} unit="g" color="bg-violet-400" pct={displayFatPct} />
                 </div>
 
                 {/* Per-meal breakdown */}
@@ -934,7 +941,7 @@ export default function StandaloneMealPlanEditor({
                     <div className="border-t border-gray-100 my-4" />
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-xs text-gray-500">
-                        Viser makroer for: <span className="font-semibold text-gray-700">{activeMeal.name}</span>
+                        {t('mealPlans.showingMacrosFor')} <span className="font-semibold text-gray-700">{activeMeal.name}</span>
                       </p>
                     </div>
                     <div className="flex items-center gap-2 mb-3">
@@ -954,9 +961,9 @@ export default function StandaloneMealPlanEditor({
                       const mCal = alt0.foods.reduce((s, f) => s + f.calories, 0)
                       return (
                         <div className="space-y-2">
-                          <MacroBar label="Protein" value={mP} target={effectiveProtein} unit="g" color="bg-green-500" pct={mCal > 0 ? (mP * 4 / mCal) * 100 : 0} />
-                          <MacroBar label="Karbohydrater" value={mK} target={effectiveCarbs} unit="g" color="bg-orange-400" pct={mCal > 0 ? (mK * 4 / mCal) * 100 : 0} />
-                          <MacroBar label="Fett" value={mF} target={effectiveFat} unit="g" color="bg-violet-400" pct={mCal > 0 ? (mF * 9 / mCal) * 100 : 0} />
+                          <MacroBar label={t('mealPlans.protein')} value={mP} target={effectiveProtein} unit="g" color="bg-green-500" pct={mCal > 0 ? (mP * 4 / mCal) * 100 : 0} />
+                          <MacroBar label={t('mealPlans.carbohydrates')} value={mK} target={effectiveCarbs} unit="g" color="bg-orange-400" pct={mCal > 0 ? (mK * 4 / mCal) * 100 : 0} />
+                          <MacroBar label={t('mealPlans.fat')} value={mF} target={effectiveFat} unit="g" color="bg-violet-400" pct={mCal > 0 ? (mF * 9 / mCal) * 100 : 0} />
                         </div>
                       )
                     })()}
@@ -994,7 +1001,7 @@ export default function StandaloneMealPlanEditor({
                   <div className="flex items-center justify-between px-1">
                     <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                       {activeMeal.name}
-                      <span className="text-sm font-normal text-gray-400">{activeMealAlts.length} alternativer</span>
+                      <span className="text-sm font-normal text-gray-400">{t('mealPlans.alternativesCount', { n: activeMealAlts.length })}</span>
                     </h3>
                     <Button
                       variant="outline"
@@ -1002,7 +1009,7 @@ export default function StandaloneMealPlanEditor({
                       onClick={() => { addAlternative(safeMealTab); setExpandedAlt(activeMealAlts.length) }}
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      Nytt alternativ
+                      {t('clientDetail.nutrition.newAlternative')}
                     </Button>
                   </div>
 
@@ -1011,7 +1018,7 @@ export default function StandaloneMealPlanEditor({
                     const altP = alt.foods.reduce((s, f) => s + f.protein_g, 0)
                     const altK = alt.foods.reduce((s, f) => s + f.carbs_g, 0)
                     const altF = alt.foods.reduce((s, f) => s + f.fat_g, 0)
-                    const name = alt.name ?? deriveMealName(alt.foods)
+                    const name = alt.name ?? deriveMealName(alt.foods, t('mealPlans.mealAlternativeFallback'))
                     const isExpanded = expandedAlt === altIdx
                     const imgUrl = alt.image_url
 
@@ -1044,9 +1051,9 @@ export default function StandaloneMealPlanEditor({
                             <div className="flex items-center gap-2 text-xs text-gray-600">
                               <Flame className="w-3 h-3 text-orange-400 flex-shrink-0" />
                               <span className="font-medium">{Math.round(altCals)}</span>
-                              <span className="text-green-600">P {Math.round(altP)}g</span>
-                              <span className="text-orange-500">K {Math.round(altK)}g</span>
-                              <span className="text-violet-500">F {Math.round(altF)}g</span>
+                              <span className="text-green-600">{t('clientDetail.nutrition.abbrevProtein')} {Math.round(altP)}g</span>
+                              <span className="text-orange-500">{t('clientDetail.nutrition.abbrevCarbs')} {Math.round(altK)}g</span>
+                              <span className="text-violet-500">{t('clientDetail.nutrition.abbrevFat')} {Math.round(altF)}g</span>
                             </div>
                           </div>
 
@@ -1074,7 +1081,7 @@ export default function StandaloneMealPlanEditor({
                             {/* Recipe */}
                             {alt.recipe && alt.recipe.length > 0 && (
                               <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-lg">
-                                <p className="text-xs font-semibold text-amber-800 mb-2">Fremgangsmåte</p>
+                                <p className="text-xs font-semibold text-amber-800 mb-2">{t('mealPlans.method')}</p>
                                 <ol className="space-y-1">
                                   {alt.recipe.map((step, si) => (
                                     <li key={si} className="flex gap-2 text-sm text-amber-900">
@@ -1092,7 +1099,7 @@ export default function StandaloneMealPlanEditor({
                             <div className="flex gap-2 mt-3 flex-wrap">
                               <Button variant="outline" size="sm" onClick={() => addFood(safeMealTab, altIdx)}>
                                 <Plus className="w-3.5 h-3.5" />
-                                Legg til matvare
+                                {t('clientDetail.nutrition.addFood')}
                               </Button>
                               <Button
                                 variant="ghost" size="sm"
@@ -1100,7 +1107,7 @@ export default function StandaloneMealPlanEditor({
                                 onClick={() => removeAlternative(safeMealTab, altIdx)}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
-                                Slett alternativ
+                                {t('mealPlans.deleteAlternative')}
                               </Button>
                             </div>
                           </div>
@@ -1118,7 +1125,7 @@ export default function StandaloneMealPlanEditor({
                         const nextIdx = meals.length
                         const usedNames = meals.map(m => m.name)
                         const slot = MEAL_OPTIONS.find(m => !usedNames.includes(m.name))
-                          ?? { name: `Måltid ${nextIdx + 1}`, time: '12:00' }
+                          ?? { name: t('mealPlans.mealFallbackName', { n: nextIdx + 1 }), time: '12:00' }
                         setMeals(prev => [...prev, {
                           name: slot.name, time: slot.time,
                           foods: [newFood()], alternatives: [{ foods: [newFood()] }],
@@ -1128,7 +1135,7 @@ export default function StandaloneMealPlanEditor({
                       }}
                     >
                       <Plus className="w-4 h-4" />
-                      Legg til måltid
+                      {t('mealPlans.addMeal')}
                     </Button>
                     {meals.length > 1 && (
                       <Button
@@ -1141,7 +1148,7 @@ export default function StandaloneMealPlanEditor({
                         }}
                       >
                         <Trash2 className="w-4 h-4" />
-                        Slett {activeMeal.name}
+                        {t('mealPlans.deleteMealPrefix', { name: activeMeal.name })}
                       </Button>
                     )}
                   </div>

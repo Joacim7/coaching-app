@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Settings, Loader2, Mail, Phone, Shield, Users, ExternalLink, AlertTriangle, Trash2 } from 'lucide-react'
 import Link from 'next/link'
+import { useLocale } from '@/components/locale-provider'
 
 interface Coach {
   id: string
@@ -51,6 +52,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
 
 export function ClientSettingsPanel({ clientId, clientName }: Props) {
   const router = useRouter()
+  const { t } = useLocale()
   const [open, setOpen]         = useState(false)
   const [loading, setLoading]   = useState(false)
   const [saving, setSaving]     = useState(false)
@@ -113,10 +115,10 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
     setSaving(false)
     if (res.ok) {
       setOrigCoachId(coachId)
-      showToast('Innstillinger lagret')
+      showToast(t('clientDetail.settingsPanel.settingsSaved'))
     } else {
       const j = await res.json()
-      showToast(j.error ?? 'Noe gikk galt', false)
+      showToast(j.error ?? t('common.somethingWentWrong'), false)
     }
   }
 
@@ -140,7 +142,7 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
     } else {
       setDeleting(false)
       const j = await res.json().catch(() => ({}))
-      setDeleteError(j.error ?? 'Kunne ikke slette klienten')
+      setDeleteError(j.error ?? t('clientDetail.settingsPanel.deleteFailed'))
     }
   }
 
@@ -150,7 +152,7 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
       <button
         onClick={() => setOpen(true)}
         className="p-2.5 rounded-xl border border-gray-200 text-gray-400 hover:text-gray-700 hover:border-gray-300 transition-colors"
-        title="Klientinnstillinger"
+        title={t('clientDetail.settingsPanel.header')}
       >
         <Settings className="w-4 h-4" />
       </button>
@@ -171,7 +173,7 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Klientinnstillinger</h2>
+            <h2 className="text-base font-semibold text-gray-900">{t('clientDetail.settingsPanel.header')}</h2>
             <p className="text-xs text-gray-400 mt-0.5">{clientName}</p>
           </div>
           <button
@@ -194,28 +196,28 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
             <section className="px-6 py-5 border-b border-gray-100">
               <div className="flex items-center gap-2 mb-4">
                 <Mail className="w-4 h-4 text-gray-400" />
-                <h3 className="text-sm font-semibold text-gray-700">Kontaktinformasjon</h3>
+                <h3 className="text-sm font-semibold text-gray-700">{t('clientDetail.settingsPanel.contact')}</h3>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">E-post</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">{t('clientDetail.settingsPanel.email')}</label>
                   <input
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder="klient@epost.no"
+                    placeholder={t('clientDetail.settingsPanel.emailPlaceholder')}
                     className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653] focus:bg-white transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Telefonnummer</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">{t('clientDetail.settingsPanel.phone')}</label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
                     <input
                       type="tel"
                       value={phone}
                       onChange={e => setPhone(e.target.value)}
-                      placeholder="+47 000 00 000"
+                      placeholder={t('clientDetail.settingsPanel.phonePlaceholder')}
                       className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653] focus:bg-white transition-colors"
                     />
                   </div>
@@ -227,15 +229,15 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
             <section className="px-6 py-5 border-b border-gray-100">
               <div className="flex items-center gap-2 mb-4">
                 <Shield className="w-4 h-4 text-gray-400" />
-                <h3 className="text-sm font-semibold text-gray-700">Apptilgang</h3>
+                <h3 className="text-sm font-semibold text-gray-700">{t('clientDetail.settingsPanel.appAccess')}</h3>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm text-gray-800">Klienten kan logge inn i appen</p>
+                  <p className="text-sm text-gray-800">{t('clientDetail.settingsPanel.canLogIn')}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {appAccess
-                      ? 'Klienten har tilgang til klientportalen'
-                      : 'Tilgangen er deaktivert for denne klienten'}
+                      ? t('clientDetail.settingsPanel.hasAccess')
+                      : t('clientDetail.settingsPanel.accessDisabled')}
                   </p>
                 </div>
                 <Toggle checked={appAccess} onChange={setAppAccess} />
@@ -246,20 +248,20 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
             <section className="px-6 py-5 border-b border-gray-100">
               <div className="flex items-center gap-2 mb-4">
                 <Users className="w-4 h-4 text-gray-400" />
-                <h3 className="text-sm font-semibold text-gray-700">Ansvarlig coach</h3>
+                <h3 className="text-sm font-semibold text-gray-700">{t('clientDetail.settingsPanel.responsibleCoach')}</h3>
               </div>
               {coaches.length <= 1 ? (
                 <div className="bg-gray-50 rounded-xl px-4 py-3">
                   <p className="text-sm text-gray-600">
-                    {coaches[0]?.full_name ?? 'Deg'}
+                    {coaches[0]?.full_name ?? t('clientDetail.settingsPanel.you')}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    Legg til organisasjon for å gi klienter til andre coacher
+                    {t('clientDetail.settingsPanel.addOrgHint')}
                   </p>
                 </div>
               ) : (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Velg coach</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">{t('clientDetail.settingsPanel.chooseCoach')}</label>
                   <select
                     value={coachId}
                     onChange={e => setCoachId(e.target.value)}
@@ -281,7 +283,7 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
                 href={`/clients/${clientId}/edit`}
                 className="flex items-center justify-between w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:border-[#cdeee3] hover:bg-[#ebf5ef] hover:text-[#1a5c3a] transition-colors group"
               >
-                <span>Rediger klientinfo</span>
+                <span>{t('clientDetail.settingsPanel.editClientInfo')}</span>
                 <ExternalLink className="w-4 h-4 text-gray-300 group-hover:text-[#6ecfb0] transition-colors" />
               </Link>
             </section>
@@ -290,7 +292,7 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
             <section className="px-6 py-5">
               <div className="flex items-center gap-2 mb-4">
                 <AlertTriangle className="w-4 h-4 text-red-400" />
-                <h3 className="text-sm font-semibold text-red-600">Farlig sone</h3>
+                <h3 className="text-sm font-semibold text-red-600">{t('clientDetail.settingsPanel.dangerZone')}</h3>
               </div>
 
               {!deleteOpen ? (
@@ -299,17 +301,16 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
                   className="flex items-center gap-2 w-full px-4 py-3 rounded-xl border border-red-200 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
-                  Slett klient
+                  {t('clientDetail.settingsPanel.deleteClient')}
                 </button>
               ) : (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
                   <p className="text-sm text-red-700">
-                    Dette sletter <strong>{clientName}</strong> permanent, inkludert treningsplaner,
-                    matplaner, check-ins, logger og kontrakter. Dette kan ikke angres.
+                    {t('clientDetail.settingsPanel.deleteWarning', { name: clientName })}
                   </p>
                   <div>
                     <label className="block text-xs font-medium text-red-700 mb-1">
-                      Skriv inn «{clientName}» for å bekrefte
+                      {t('clientDetail.settingsPanel.confirmTypeNamePrefix', { name: clientName })}
                     </label>
                     <input
                       type="text"
@@ -327,7 +328,7 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
                       onClick={() => { setDeleteOpen(false); setDeleteConfirm(''); setDeleteError('') }}
                       className="flex-1 h-9 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
                     >
-                      Avbryt
+                      {t('common.cancel')}
                     </button>
                     <button
                       onClick={handleDelete}
@@ -335,7 +336,7 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
                       className="flex-1 h-9 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                     >
                       {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      Slett for godt
+                      {t('clientDetail.settingsPanel.deleteForever')}
                     </button>
                   </div>
                 </div>
@@ -359,7 +360,7 @@ export function ClientSettingsPanel({ clientId, clientName }: Props) {
             className="w-full h-10 rounded-xl bg-[#2d8653] text-white text-sm font-semibold hover:bg-[#2d8653] disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            Lagre innstillinger
+            {t('clientDetail.settingsPanel.saveSettings')}
           </button>
         </div>
       </div>

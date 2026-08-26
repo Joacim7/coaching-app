@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useLocale } from '@/components/locale-provider'
 
 export interface ChartPoint {
   date: string   // YYYY-MM-DD
@@ -19,6 +20,7 @@ const W = 560
 const PAD = { top: 24, right: 16, bottom: 28, left: 44 }
 
 export function LineChart({ data, color, unit, height = 160, decimals = 1 }: Props) {
+  const { t } = useLocale()
   const [hovered, setHovered] = useState<number | null>(null)
 
   if (data.length === 0) {
@@ -30,7 +32,7 @@ export function LineChart({ data, color, unit, height = 160, decimals = 1 }: Pro
         <svg viewBox="0 0 40 24" className="w-10 h-6 opacity-30">
           <polyline points="0,20 10,12 20,16 30,8 40,4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
-        <span className="text-xs text-gray-400">Ingen data ennå</span>
+        <span className="text-xs text-gray-400">{t('clientDetail.progression.noDataYetChart')}</span>
       </div>
     )
   }

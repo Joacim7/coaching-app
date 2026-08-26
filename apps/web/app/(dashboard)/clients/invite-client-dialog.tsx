@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { UserPlus, X, CheckCircle2, Sparkles } from 'lucide-react'
+import { useLocale } from '@/components/locale-provider'
 
 export default function InviteClientDialog({
   coachId,
@@ -16,6 +17,7 @@ export default function InviteClientDialog({
   triggerVariant?: 'default' | 'success'
 }) {
   const router = useRouter()
+  const { t } = useLocale()
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
@@ -50,7 +52,7 @@ export default function InviteClientDialog({
       if (result.limitReached) {
         setLimitReached(true)
       } else {
-        setError(result.error ?? 'Noe gikk galt')
+        setError(result.error ?? t('common.somethingWentWrong'))
       }
       return
     }
@@ -68,7 +70,7 @@ export default function InviteClientDialog({
     <>
       <Button variant={triggerVariant} onClick={() => setOpen(true)}>
         <UserPlus className="w-4 h-4" />
-        Inviter klient
+        {t('clients.inviteClient')}
       </Button>
 
       {open && (
@@ -76,8 +78,8 @@ export default function InviteClientDialog({
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Legg til klient</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Send en invitasjon til klientens e-post</p>
+                <h2 className="text-lg font-bold text-gray-900">{t('clients.inviteDialog.title')}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{t('clients.inviteDialog.subtitle')}</p>
               </div>
               <button
                 onClick={() => { setOpen(false); reset() }}
@@ -92,13 +94,13 @@ export default function InviteClientDialog({
                 <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
                   <CheckCircle2 className="w-7 h-7 text-green-600" />
                 </div>
-                <p className="font-semibold text-gray-900">Klient lagt til!</p>
+                <p className="font-semibold text-gray-900">{t('clients.inviteDialog.successTitle')}</p>
                 <p className="text-gray-500 text-sm mt-1">
-                  Klienten er nå synlig i klientlisten
+                  {t('clients.inviteDialog.successSubtitle')}
                 </p>
                 {emailSent && (
                   <p className="text-[#2d8653] text-xs mt-2 bg-[#ebf5ef] px-3 py-1.5 rounded-lg">
-                    Oppstartsskjema sendt til {email}
+                    {t('clients.inviteDialog.emailSentPrefix')} {email}
                   </p>
                 )}
               </div>
@@ -107,9 +109,9 @@ export default function InviteClientDialog({
                 <div className="w-14 h-14 bg-[#ebf5ef] rounded-full flex items-center justify-center mx-auto mb-3">
                   <Sparkles className="w-7 h-7 text-[#2d8653]" />
                 </div>
-                <p className="font-semibold text-gray-900">Du har nådd klientgrensen din</p>
+                <p className="font-semibold text-gray-900">{t('clients.inviteDialog.limitTitle')}</p>
                 <p className="text-gray-500 text-sm mt-1">
-                  Oppgrader planen din for å legge til flere klienter
+                  {t('clients.inviteDialog.limitSubtitle')}
                 </p>
                 <div className="flex gap-3 pt-5">
                   <Button
@@ -118,11 +120,11 @@ export default function InviteClientDialog({
                     className="flex-1"
                     onClick={() => { setOpen(false); reset() }}
                   >
-                    Lukk
+                    {t('common.close')}
                   </Button>
                   <Link href="/pricing" className="flex-1">
                     <Button type="button" className="w-full">
-                      Se priser
+                      {t('clients.inviteDialog.seePricing')}
                     </Button>
                   </Link>
                 </div>
@@ -130,18 +132,18 @@ export default function InviteClientDialog({
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <Label htmlFor="email">E-post</Label>
+                  <Label htmlFor="email">{t('settings.profile.email')}</Label>
                   <Input
                     id="email"
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder="ola@eksempel.no"
+                    placeholder={t('clients.inviteDialog.emailPlaceholder')}
                     required
                     autoFocus
                   />
                   <p className="text-xs text-gray-400 mt-1">
-                    Brukes til å sende oppstartsskjema — klienten setter sitt eget navn der
+                    {t('clients.inviteDialog.emailHint')}
                   </p>
                 </div>
 
@@ -156,10 +158,10 @@ export default function InviteClientDialog({
                     className="flex-1"
                     onClick={() => { setOpen(false); reset() }}
                   >
-                    Avbryt
+                    {t('common.cancel')}
                   </Button>
                   <Button type="submit" className="flex-1" disabled={loading || !email.trim()}>
-                    {loading ? 'Legger til...' : 'Legg til klient'}
+                    {loading ? t('clients.inviteDialog.submitting') : t('clients.inviteDialog.title')}
                   </Button>
                 </div>
               </form>

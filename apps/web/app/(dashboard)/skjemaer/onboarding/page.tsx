@@ -1,10 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
 import { OnboardingView, type ClientOnboardingRow } from './onboarding-view'
 import { getEffectiveOnboardingTemplate } from '@/lib/onboarding-template'
+import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
 
 export default async function OnboardingSubmissionsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(profile?.language))
 
   // 1. All non-inactive clients
   const { data: clientLinks } = await supabase
@@ -15,7 +23,7 @@ export default async function OnboardingSubmissionsPage() {
 
   const clients = (clientLinks ?? []).map(l => {
     const p = Array.isArray(l.profile) ? l.profile[0] : l.profile
-    return { id: l.client_id, status: l.status as string, name: p?.full_name ?? 'Ukjent', email: p?.email ?? null }
+    return { id: l.client_id, status: l.status as string, name: p?.full_name ?? t('common.unknown'), email: p?.email ?? null }
   })
 
   // 2. Onboarding submissions for those clients
@@ -42,10 +50,10 @@ export default async function OnboardingSubmissionsPage() {
     const templateName = tRaw?.name ?? template?.name ?? null
 
     const status: ClientOnboardingRow['status'] = sub
-      ? 'fullfort'
+      ? 'completed'
       : cl.status === 'onboarding'
-      ? 'venter'
-      : 'ikke_sendt'
+      ? 'waiting'
+      : 'not_sent'
 
     return {
       clientId:     cl.id,

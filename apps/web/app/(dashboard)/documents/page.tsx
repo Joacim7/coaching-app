@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
 import { DocumentsView } from './documents-view'
 
 export const metadata = { title: 'Dokumenter' }
@@ -6,6 +7,13 @@ export const metadata = { title: 'Dokumenter' }
 export default async function DocumentsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: coachProfile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(coachProfile?.language))
 
   // ── Coach's own documents ──────────────────────────────────────────────────
   const { data: rawDocs } = await supabase
@@ -97,7 +105,7 @@ export default async function DocumentsPage() {
     const p = Array.isArray(r.profile) ? r.profile[0] : r.profile
     return {
       id:        r.client_id,
-      full_name: (p as { full_name: string | null } | null)?.full_name ?? 'Ukjent klient',
+      full_name: (p as { full_name: string | null } | null)?.full_name ?? t('dashboard.clientFallback'),
     }
   })
 

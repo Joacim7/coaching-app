@@ -17,6 +17,8 @@ import {
   parseAmountDisplay, unitToGrams, gramsToUnit, smartUnitFor,
   type IngredientUnit,
 } from '@/lib/ingredient-units'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 type FoodLogEntry = {
   id: string
@@ -120,14 +122,14 @@ const MEAL_OPTIONS: { name: string; emoji: string; time: string }[] = [
   { name: 'Kveldsmat', emoji: '🌙', time: '20:30' },
 ]
 
-const ALLERGEN_OPTIONS = [
-  { id: 'glutenfri',    label: 'Glutenfri' },
-  { id: 'melkefri',    label: 'Melkefri' },
-  { id: 'laktosefri',  label: 'Laktosefri' },
-  { id: 'nøttefri',   label: 'Nøttefri' },
-  { id: 'eggfri',      label: 'Eggfri' },
-  { id: 'skalldyrfri', label: 'Skalldyrfri' },
-  { id: 'uten-fisk',   label: 'Uten fisk' },
+const ALLERGEN_OPTIONS: { id: string; labelKey: TranslationKey }[] = [
+  { id: 'glutenfri',   labelKey: 'clientDetail.nutrition.allergy.glutenFree' },
+  { id: 'melkefri',    labelKey: 'clientDetail.nutrition.allergy.dairyFree' },
+  { id: 'laktosefri',  labelKey: 'clientDetail.nutrition.allergy.lactoseFree' },
+  { id: 'nøttefri',    labelKey: 'clientDetail.nutrition.allergy.nutFree' },
+  { id: 'eggfri',      labelKey: 'clientDetail.nutrition.allergy.eggFree' },
+  { id: 'skalldyrfri', labelKey: 'clientDetail.nutrition.allergy.shellfishFree' },
+  { id: 'uten-fisk',   labelKey: 'clientDetail.nutrition.allergy.noFish' },
 ]
 
 const DAY_OPTIONS = [7, 14, 21] as const
@@ -194,6 +196,7 @@ interface NutritionFoodRowProps {
 const UNITS: IngredientUnit[] = ['g', 'stk', 'dl', 'ml', 'ss', 'ts']
 
 function NutritionFoodRow({ food, mealIdx, altIdx, foodIdx, updateFood, removeFood }: NutritionFoodRowProps) {
+  const { t } = useLocale()
   const [searching, setSearching] = useState(!food.name)
 
   const parsedDisplay  = parseAmountDisplay(food.amount_display)
@@ -295,15 +298,15 @@ function NutritionFoodRow({ food, mealIdx, altIdx, foodIdx, updateFood, removeFo
                 className="text-xs text-[#2d8653] hover:text-[#1a5c3a] flex items-center gap-1 flex-shrink-0"
               >
                 <Search className="w-3 h-3" />
-                Endre
+                {t('clientDetail.nutrition.foodRow.change')}
               </button>
             </div>
           ) : (
             <div className="space-y-1">
-              <FoodSearchInput onSelect={handleFoodSelect} placeholder="Søk ingrediens..." />
+              <FoodSearchInput onSelect={handleFoodSelect} placeholder={t('clientDetail.nutrition.foodRow.searchPlaceholder')} />
               {food.name && (
                 <button onClick={() => setSearching(false)} className="text-xs text-gray-400 hover:text-gray-600">
-                  Avbryt
+                  {t('common.cancel')}
                 </button>
               )}
             </div>
@@ -341,9 +344,9 @@ function NutritionFoodRow({ food, mealIdx, altIdx, foodIdx, updateFood, removeFo
       </div>
       <div className="flex items-center justify-between px-0.5">
         <div className="flex items-center gap-3 text-xs">
-          <span className="text-green-600">P <strong>{food.protein_g.toFixed(1)}</strong>g</span>
-          <span className="text-orange-500">K <strong>{food.carbs_g.toFixed(1)}</strong>g</span>
-          <span className="text-violet-500">F <strong>{food.fat_g.toFixed(1)}</strong>g</span>
+          <span className="text-green-600">{t('clientDetail.nutrition.abbrevProtein')} <strong>{food.protein_g.toFixed(1)}</strong>g</span>
+          <span className="text-orange-500">{t('clientDetail.nutrition.abbrevCarbs')} <strong>{food.carbs_g.toFixed(1)}</strong>g</span>
+          <span className="text-violet-500">{t('clientDetail.nutrition.abbrevFat')} <strong>{food.fat_g.toFixed(1)}</strong>g</span>
           <span className="font-semibold text-gray-600">{food.calories} kcal</span>
         </div>
         <button onClick={removeFood} className="text-gray-300 hover:text-red-500">
@@ -358,6 +361,7 @@ function NutritionFoodRow({ food, mealIdx, altIdx, foodIdx, updateFood, removeFo
 
 export default function NutritionEditor({ clientId, clientName, coachId, initialPlans, initialFoodLogs, initialFavoriteMeals }: Props) {
   const supabase = createClient()
+  const { t } = useLocale()
 
   // ── Top-level view state ──────────────────────────────────────────────────
   type View = 'list' | 'choose' | 'edit'
@@ -374,7 +378,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const [showFavorites,   setShowFavorites]   = useState(false)
 
   // ── Editor state ──────────────────────────────────────────────────────────
-  const [title,    setTitle]   = useState('Ny matplan')
+  const [title,    setTitle]   = useState(t('clientDetail.nutrition.newPlan'))
   const [protein,  setProtein] = useState('150')
   const [carbs,    setCarbs]   = useState('200')
   const [fat,      setFat]     = useState('80')
@@ -515,7 +519,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
 
   function startNewPlan() {
     setEditingPlan(null)
-    setTitle('Ny matplan')
+    setTitle(t('clientDetail.nutrition.newPlan'))
     setProtein('150')
     setCarbs('200')
     setFat('80')
@@ -612,7 +616,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
     setSavingTemplate(false)
     if (insertError) {
       console.error('Lagre som mal feilet:', insertError.message, insertError.code)
-      setError('Kunne ikke lagre mal: ' + insertError.message)
+      setError(t('clientDetail.nutrition.saveTemplateFailed', { error: insertError.message }))
       return
     }
     setTemplateSaved(true)
@@ -676,7 +680,10 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
     setError(null)
     try {
       const orderedMeals = MEAL_OPTIONS.filter(m => selectedMeals.includes(m.name)).map(m => m.name)
-      const allergyStr   = [...selectedAllergies].map(a => ALLERGEN_OPTIONS.find(o => o.id === a)?.label ?? a).join(', ')
+      const allergyStr   = [...selectedAllergies].map(a => {
+        const opt = ALLERGEN_OPTIONS.find(o => o.id === a)
+        return opt ? t(opt.labelKey) : a
+      }).join(', ')
       const fullPrefs    = [allergyStr, preferences].filter(Boolean).join('. ')
 
       const res = await fetch('/api/ai/generate-meal-plan', {
@@ -701,7 +708,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
         setExpandedMeal(0)
       }
     } catch {
-      setError('Nettverksfeil ved AI-generering')
+      setError(t('clientDetail.nutrition.networkErrorGenerating'))
     } finally {
       setGenerating(false)
     }
@@ -778,11 +785,11 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
           </Link>
           <div className="flex-1">
             <p className="text-sm text-gray-500">{clientName}</p>
-            <h1 className="text-xl font-bold text-gray-900">Matplaner</h1>
+            <h1 className="text-xl font-bold text-gray-900">{t('clientDetail.nutrition.mealPlans')}</h1>
           </div>
           <Button onClick={startNewPlan}>
             <Plus className="w-4 h-4" />
-            Ny matplan
+            {t('clientDetail.nutrition.newPlan')}
           </Button>
         </div>
 
@@ -790,11 +797,11 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
           <Card className="flex items-center justify-center h-64">
             <CardContent className="text-center text-gray-400">
               <PenLine className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-              <p className="font-medium">Ingen matplaner ennå</p>
-              <p className="text-sm mt-1">Opprett en matplan for {clientName}</p>
+              <p className="font-medium">{t('clientDetail.nutrition.noPlansYet')}</p>
+              <p className="text-sm mt-1">{t('clientDetail.nutrition.createPlanFor', { name: clientName })}</p>
               <Button className="mt-4" onClick={startNewPlan}>
                 <Plus className="w-4 h-4" />
-                Opprett matplan
+                {t('clientDetail.nutrition.createPlan')}
               </Button>
             </CardContent>
           </Card>
@@ -817,7 +824,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                           {plan.is_active && (
                             <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
                               <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                              Aktiv
+                              {t('clientDetail.nutrition.active')}
                             </span>
                           )}
                           <h3 className="font-semibold text-gray-900 truncate">{plan.title}</h3>
@@ -826,11 +833,11 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                           {plan.calories_target && (
                             <span className="font-medium text-gray-700">{plan.calories_target} kcal</span>
                           )}
-                          {plan.protein_g  && <span className="text-green-600">{plan.protein_g}g P</span>}
-                          {plan.carbs_g    && <span className="text-orange-500">{plan.carbs_g}g K</span>}
-                          {plan.fat_g      && <span className="text-violet-500">{plan.fat_g}g F</span>}
-                          {mealCount > 0   && <span>{mealCount} måltider</span>}
-                          {altCount  > 1   && <span>{altCount} alt. per måltid</span>}
+                          {plan.protein_g  && <span className="text-green-600">{plan.protein_g}g {t('clientDetail.nutrition.abbrevProtein')}</span>}
+                          {plan.carbs_g    && <span className="text-orange-500">{plan.carbs_g}g {t('clientDetail.nutrition.abbrevCarbs')}</span>}
+                          {plan.fat_g      && <span className="text-violet-500">{plan.fat_g}g {t('clientDetail.nutrition.abbrevFat')}</span>}
+                          {mealCount > 0   && <span>{t('clientDetail.nutrition.mealsCount', { n: mealCount })}</span>}
+                          {altCount  > 1   && <span>{t('clientDetail.nutrition.altsPerMeal', { n: altCount })}</span>}
                         </div>
                         <p className="text-xs text-gray-400 mt-1.5">{fmtDate(plan.created_at)}</p>
                       </div>
@@ -842,7 +849,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                         className="flex-shrink-0"
                       >
                         <PenLine className="w-3.5 h-3.5" />
-                        Rediger
+                        {t('clientDetail.nutrition.editPlan')}
                       </Button>
                     </div>
 
@@ -855,7 +862,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                           className="text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-red-600 hover:border-red-200"
                         >
                           <EyeOff className="w-3.5 h-3.5" />
-                          Gjør inaktiv
+                          {t('clientDetail.nutrition.makeInactive')}
                         </Button>
                       ) : (
                         <Button
@@ -865,20 +872,20 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                           className="text-green-700 border-green-200 hover:bg-green-50"
                         >
                           <Check className="w-3.5 h-3.5" />
-                          Sett aktiv
+                          {t('clientDetail.nutrition.setActive')}
                         </Button>
                       )}
 
                       {isConfirming ? (
                         <div className="flex items-center gap-2 ml-auto">
-                          <span className="text-xs text-red-600">Slett denne planen?</span>
+                          <span className="text-xs text-red-600">{t('clientDetail.nutrition.deletePlanConfirm')}</span>
                           <Button
                             size="sm"
                             variant="ghost"
                             className="text-red-600 hover:bg-red-50 h-7 px-2 text-xs"
                             onClick={() => handleDeletePlan(plan.id)}
                           >
-                            Ja, slett
+                            {t('clientDetail.nutrition.yesDelete')}
                           </Button>
                           <Button
                             size="sm"
@@ -886,7 +893,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                             className="h-7 px-2 text-xs"
                             onClick={() => setConfirmDeleteId(null)}
                           >
-                            Avbryt
+                            {t('common.cancel')}
                           </Button>
                         </div>
                       ) : (
@@ -895,7 +902,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                           className="ml-auto text-xs text-gray-400 hover:text-red-500 flex items-center gap-1"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          Slett
+                          {t('common.delete')}
                         </button>
                       )}
                     </div>
@@ -913,7 +920,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             className="w-full flex items-center justify-between bg-white rounded-xl px-4 py-3.5 border border-gray-100 hover:border-[#cdeee3] hover:bg-[#ebf5ef] transition-colors"
           >
             <span className="text-sm font-bold text-gray-700">
-              Loggede måltider
+              {t('clientDetail.nutrition.loggedMeals')}
               <span className="ml-2 text-xs font-semibold text-gray-400">{foodLogs.length}</span>
             </span>
             {showLoggedMeals ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
@@ -922,7 +929,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
           {!showLoggedMeals ? null : foodLogs.length === 0 ? (
             <Card className="mt-3">
               <CardContent className="py-10 text-center text-gray-400 text-sm">
-                Ingen måltider logget ennå
+                {t('clientDetail.nutrition.noMealsLoggedYet')}
               </CardContent>
             </Card>
           ) : (() => {
@@ -943,7 +950,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                     <div key={date}>
                       <div className="flex items-center justify-between mb-1.5">
                         <p className="text-xs font-semibold text-gray-500 capitalize">{label}</p>
-                        <p className="text-xs text-gray-400">{Math.round(dayKcal)} kcal · {Math.round(dayProt)}g P</p>
+                        <p className="text-xs text-gray-400">{Math.round(dayKcal)} kcal · {Math.round(dayProt)}g {t('clientDetail.nutrition.abbrevProtein')}</p>
                       </div>
                       <div className="space-y-1.5">
                         {entries.map(entry => (
@@ -962,9 +969,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                               {entry.calories != null && (
                                 <span className="font-semibold text-gray-700">{entry.calories} kcal</span>
                               )}
-                              {entry.protein_g != null && <span className="text-[#2d8653]">{entry.protein_g}g P</span>}
-                              {entry.carbs_g   != null && <span className="text-yellow-600">{entry.carbs_g}g K</span>}
-                              {entry.fat_g     != null && <span className="text-orange-500">{entry.fat_g}g F</span>}
+                              {entry.protein_g != null && <span className="text-[#2d8653]">{entry.protein_g}g {t('clientDetail.nutrition.abbrevProtein')}</span>}
+                              {entry.carbs_g   != null && <span className="text-yellow-600">{entry.carbs_g}g {t('clientDetail.nutrition.abbrevCarbs')}</span>}
+                              {entry.fat_g     != null && <span className="text-orange-500">{entry.fat_g}g {t('clientDetail.nutrition.abbrevFat')}</span>}
                               <span className="text-gray-300">›</span>
                             </div>
                           </button>
@@ -985,7 +992,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             className="w-full flex items-center justify-between bg-white rounded-xl px-4 py-3.5 border border-gray-100 hover:border-[#cdeee3] hover:bg-[#ebf5ef] transition-colors"
           >
             <span className="text-sm font-bold text-gray-700">
-              Favorittmåltider
+              {t('clientDetail.nutrition.favoriteMeals')}
               <span className="ml-2 text-xs font-semibold text-gray-400">{favoriteMeals.length}</span>
             </span>
             {showFavorites ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
@@ -994,7 +1001,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
           {!showFavorites ? null : favoriteMeals.length === 0 ? (
             <Card className="mt-3">
               <CardContent className="py-10 text-center text-gray-400 text-sm">
-                Klienten har ikke lagret noen favorittmåltider ennå
+                {t('clientDetail.nutrition.noFavoritesYet')}
               </CardContent>
             </Card>
           ) : (
@@ -1011,9 +1018,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0 text-xs text-gray-500">
                     <span className="font-semibold text-gray-700">{fav.calories} kcal</span>
-                    <span className="text-[#2d8653]">{fav.protein_g}g P</span>
-                    <span className="text-yellow-600">{fav.carbs_g}g K</span>
-                    <span className="text-orange-500">{fav.fat_g}g F</span>
+                    <span className="text-[#2d8653]">{fav.protein_g}g {t('clientDetail.nutrition.abbrevProtein')}</span>
+                    <span className="text-yellow-600">{fav.carbs_g}g {t('clientDetail.nutrition.abbrevCarbs')}</span>
+                    <span className="text-orange-500">{fav.fat_g}g {t('clientDetail.nutrition.abbrevFat')}</span>
                     <span className="text-gray-300">›</span>
                   </div>
                 </button>
@@ -1049,9 +1056,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             <div className="flex items-center justify-around px-5 py-3 bg-[#ebf5ef]">
               {[
                 { label: 'kcal',    val: selectedFoodLog.calories },
-                { label: 'Protein', val: selectedFoodLog.protein_g != null ? `${selectedFoodLog.protein_g}g` : null },
-                { label: 'Karbo',   val: selectedFoodLog.carbs_g   != null ? `${selectedFoodLog.carbs_g}g`   : null },
-                { label: 'Fett',    val: selectedFoodLog.fat_g     != null ? `${selectedFoodLog.fat_g}g`     : null },
+                { label: t('clientDetail.nutrition.protein'), val: selectedFoodLog.protein_g != null ? `${selectedFoodLog.protein_g}g` : null },
+                { label: t('clientDetail.nutrition.carbs'),   val: selectedFoodLog.carbs_g   != null ? `${selectedFoodLog.carbs_g}g`   : null },
+                { label: t('clientDetail.nutrition.fat'),     val: selectedFoodLog.fat_g     != null ? `${selectedFoodLog.fat_g}g`     : null },
               ].map(({ label, val }) => (
                 <div key={label} className="text-center">
                   <p className="text-lg font-bold text-[#1a5c3a]">{val ?? '–'}</p>
@@ -1063,7 +1070,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             <div className="flex-1 overflow-y-auto px-5 py-4">
               {selectedFoodLog.ingredients && selectedFoodLog.ingredients.length > 0 ? (
                 <>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Ingredienser</p>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{t('clientDetail.nutrition.ingredients')}</p>
                   <div className="space-y-2">
                     {selectedFoodLog.ingredients.map((ing, i) => (
                       <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
@@ -1073,14 +1080,14 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                         </div>
                         <div className="text-right text-xs text-gray-500 space-y-0.5">
                           <p className="font-semibold text-gray-700">{ing.calories} kcal</p>
-                          <p>P {ing.protein_g}g · K {ing.carbs_g}g · F {ing.fat_g}g</p>
+                          <p>{t('clientDetail.nutrition.abbrevProtein')} {ing.protein_g}g · {t('clientDetail.nutrition.abbrevCarbs')} {ing.carbs_g}g · {t('clientDetail.nutrition.abbrevFat')} {ing.fat_g}g</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-gray-400 text-center py-8">Ingen ingredienser registrert</p>
+                <p className="text-sm text-gray-400 text-center py-8">{t('clientDetail.nutrition.noIngredients')}</p>
               )}
             </div>
           </div>
@@ -1111,9 +1118,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             <div className="flex items-center justify-around px-5 py-3 bg-[#ebf5ef]">
               {[
                 { label: 'kcal',    val: selectedFavorite.calories },
-                { label: 'Protein', val: `${selectedFavorite.protein_g}g` },
-                { label: 'Karbo',   val: `${selectedFavorite.carbs_g}g` },
-                { label: 'Fett',    val: `${selectedFavorite.fat_g}g` },
+                { label: t('clientDetail.nutrition.protein'), val: `${selectedFavorite.protein_g}g` },
+                { label: t('clientDetail.nutrition.carbs'),   val: `${selectedFavorite.carbs_g}g` },
+                { label: t('clientDetail.nutrition.fat'),     val: `${selectedFavorite.fat_g}g` },
               ].map(({ label, val }) => (
                 <div key={label} className="text-center">
                   <p className="text-lg font-bold text-[#1a5c3a]">{val ?? '–'}</p>
@@ -1125,7 +1132,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             <div className="flex-1 overflow-y-auto px-5 py-4">
               {selectedFavorite.ingredients && selectedFavorite.ingredients.length > 0 ? (
                 <>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Ingredienser</p>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{t('clientDetail.nutrition.ingredients')}</p>
                   <div className="space-y-2">
                     {selectedFavorite.ingredients.map((ing, i) => (
                       <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
@@ -1135,14 +1142,14 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                         </div>
                         <div className="text-right text-xs text-gray-500 space-y-0.5">
                           <p className="font-semibold text-gray-700">{ing.calories} kcal</p>
-                          <p>P {ing.protein_g}g · K {ing.carbs_g}g · F {ing.fat_g}g</p>
+                          <p>{t('clientDetail.nutrition.abbrevProtein')} {ing.protein_g}g · {t('clientDetail.nutrition.abbrevCarbs')} {ing.carbs_g}g · {t('clientDetail.nutrition.abbrevFat')} {ing.fat_g}g</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-gray-400 text-center py-8">Ingen ingredienser registrert</p>
+                <p className="text-sm text-gray-400 text-center py-8">{t('clientDetail.nutrition.noIngredients')}</p>
               )}
             </div>
           </div>
@@ -1166,13 +1173,13 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
           </button>
           <div>
             <p className="text-sm text-gray-500">{clientName}</p>
-            <h1 className="text-xl font-bold text-gray-900">Opprett matplan</h1>
+            <h1 className="text-xl font-bold text-gray-900">{t('clientDetail.nutrition.createPlan')}</h1>
           </div>
         </div>
 
         <div className="max-w-xl mx-auto mt-8 space-y-4">
           <p className="text-center text-gray-500 text-sm mb-6">
-            Hvordan vil du opprette matplanen?
+            {t('clientDetail.nutrition.createPlanQuestion')}
           </p>
 
           <button
@@ -1184,11 +1191,11 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900 text-lg">Bruk AI</p>
+                <p className="font-semibold text-gray-900 text-lg">{t('clientDetail.nutrition.useAi')}</p>
                 <p className="text-sm text-gray-600 mt-1">
-                  AI genererer en komplett matplan med flere alternativer per måltid basert på makromål, preferanser og allergier.
+                  {t('clientDetail.nutrition.useAiDesc')}
                 </p>
-                <p className="text-xs text-[#2d8653] font-medium mt-2">Rask og automatisk → du justerer etterpå</p>
+                <p className="text-xs text-[#2d8653] font-medium mt-2">{t('clientDetail.nutrition.useAiHint')}</p>
               </div>
             </div>
           </button>
@@ -1202,11 +1209,11 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                 <PenLine className="w-6 h-6 text-gray-600" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900 text-lg">Lag manuelt</p>
+                <p className="font-semibold text-gray-900 text-lg">{t('clientDetail.nutrition.manual')}</p>
                 <p className="text-sm text-gray-600 mt-1">
-                  Legg til måltider og matvarer selv — full kontroll over innhold, gram og næringsinnhold.
+                  {t('clientDetail.nutrition.manualDesc')}
                 </p>
-                <p className="text-xs text-gray-500 font-medium mt-2">Total kontroll → ideelt for spesifikke kostplaner</p>
+                <p className="text-xs text-gray-500 font-medium mt-2">{t('clientDetail.nutrition.manualHint')}</p>
               </div>
             </div>
           </button>
@@ -1247,7 +1254,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
           <input
             value={title}
             onChange={e => setTitle(e.target.value)}
-            placeholder="Navn på plan"
+            placeholder={t('clientDetail.nutrition.planNamePlaceholder')}
             className="text-xl font-bold text-gray-900 bg-transparent border-none outline-none focus:ring-2 focus:ring-emerald-200 rounded px-1 -mx-1 w-full"
           />
         </div>
@@ -1260,7 +1267,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
               className="text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 flex items-center gap-1.5 bg-white"
             >
               {mode === 'ai' ? <PenLine className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
-              {mode === 'ai' ? 'Bytt til manuell' : 'Bytt til AI'}
+              {mode === 'ai' ? t('clientDetail.nutrition.switchToManual') : t('clientDetail.nutrition.switchToAi')}
             </button>
           )}
           {/* Regenerate button when plan is loaded in AI mode */}
@@ -1270,7 +1277,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
               className="text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 flex items-center gap-1.5 bg-white"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              Regenerer
+              {t('clientDetail.nutrition.regenerate')}
             </button>
           )}
 
@@ -1278,17 +1285,17 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
           {editingPlan && (
             confirmDeleteId === editingPlan.id ? (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-red-600">Slett denne planen?</span>
+                <span className="text-xs text-red-600">{t('clientDetail.nutrition.deletePlanConfirm')}</span>
                 <Button
                   size="sm"
                   variant="ghost"
                   className="text-red-600 hover:bg-red-50"
                   onClick={() => handleDeletePlan(editingPlan.id)}
                 >
-                  Ja, slett
+                  {t('clientDetail.nutrition.yesDelete')}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteId(null)}>
-                  Avbryt
+                  {t('common.cancel')}
                 </Button>
               </div>
             ) : (
@@ -1297,7 +1304,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                 className="text-sm text-gray-400 hover:text-red-500 border border-gray-200 rounded-lg px-3 py-1.5 flex items-center gap-1.5 bg-white"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                Slett plan
+                {t('clientDetail.nutrition.deletePlan')}
               </button>
             )
           )}
@@ -1308,12 +1315,12 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             className="text-sm font-medium text-[#2d8653] border border-[#cdeee3] bg-[#ebf5ef] hover:bg-[#cdeee3] rounded-lg px-3 py-1.5 flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <BookmarkPlus className="w-3.5 h-3.5" />
-            {templateSaved ? 'Mal lagret ✓' : savingTemplate ? 'Lagrer...' : 'Lagre som mal'}
+            {templateSaved ? t('clientDetail.nutrition.templateSaved') : savingTemplate ? t('common.saving') : t('clientDetail.nutrition.saveAsTemplate')}
           </button>
 
           <Button onClick={handleSave} disabled={saving}>
             <Save className="w-4 h-4" />
-            {saved ? 'Lagret ✓' : saving ? 'Lagrer...' : 'Lagre'}
+            {saved ? t('clientDetail.nutrition.saved') : saving ? t('common.saving') : t('common.save')}
           </Button>
         </div>
       </div>
@@ -1326,9 +1333,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
           {/* Left: all alternatives */}
           <aside className="w-72 border-r border-gray-100 overflow-y-auto flex-shrink-0 flex flex-col">
             <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 z-10">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Alle alternativer</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{t('clientDetail.nutrition.allAlternatives')}</p>
               <p className="text-xs text-gray-400 mt-0.5">
-                {meals.reduce((s, m) => s + getAlts(m).length, 0)} totalt
+                {t('clientDetail.nutrition.totalCount', { n: meals.reduce((s, m) => s + getAlts(m).length, 0) })}
               </p>
             </div>
             {meals.flatMap((meal, mi) =>
@@ -1345,7 +1352,12 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                     key={`${mi}-${ai}`}
                     onClick={() => {
                       setExpandedMeal(mi)
-                      setExpandedAlt(isSelected ? null : { mi, ai })
+                      if (isSelected) {
+                        setExpandedAlt(null)
+                      } else {
+                        setExpandedAlt({ mi, ai })
+                        setActiveAlt(prev => ({ ...prev, [mi]: ai }))
+                      }
                     }}
                     className={`w-full flex items-center gap-3 p-3 border-b border-gray-50 hover:bg-gray-50 text-left transition-colors ${
                       isSelected ? 'bg-[#ebf5ef] border-l-4 border-l-[#2d8653]' : expandedMeal === mi ? 'bg-gray-50/80' : ''
@@ -1385,17 +1397,17 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
               <div className="flex items-start justify-between mb-5">
                 <div>
                   <p className="text-3xl font-bold text-gray-900">{Math.round(totalCals)}</p>
-                  <p className="text-sm text-gray-400 mt-0.5">kcal per dag</p>
+                  <p className="text-sm text-gray-400 mt-0.5">{t('clientDetail.nutrition.kcalPerDay')}</p>
                 </div>
                 <div className="text-right text-sm text-gray-500">
-                  <p>Mål: {targetCals} kcal</p>
+                  <p>{t('clientDetail.nutrition.goalKcal', { n: targetCals })}</p>
                 </div>
               </div>
               <div className="space-y-3.5">
                 {[
-                  { label: 'Protein', val: Math.round(totalProtein), target: targetProt, color: 'bg-[#2d8653]',   kcalPer: 4 },
-                  { label: 'Karbo',   val: Math.round(totalCarbs),   target: targetCarb, color: 'bg-yellow-400', kcalPer: 4 },
-                  { label: 'Fett',    val: Math.round(totalFat),     target: targetFat,  color: 'bg-orange-400', kcalPer: 9 },
+                  { label: t('clientDetail.nutrition.protein'), val: Math.round(totalProtein), target: targetProt, color: 'bg-[#2d8653]',   kcalPer: 4 },
+                  { label: t('clientDetail.nutrition.carbs'),   val: Math.round(totalCarbs),   target: targetCarb, color: 'bg-yellow-400', kcalPer: 4 },
+                  { label: t('clientDetail.nutrition.fat'),     val: Math.round(totalFat),     target: targetFat,  color: 'bg-orange-400', kcalPer: 9 },
                 ].map(({ label, val, target, color, kcalPer }) => {
                   const pct = Math.round(val * kcalPer / Math.max(totalCals, 1) * 100)
                   return (
@@ -1449,7 +1461,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                           className={`outline-none bg-transparent font-medium text-sm w-20 border-b ${isActive ? 'text-white border-white/40' : 'text-gray-700 border-gray-400'}`}
                         />
                       ) : (
-                        <span title="Dobbeltklikk for å endre navn">{meal.name}</span>
+                        <span title={t('clientDetail.nutrition.doubleClickRename')}>{meal.name}</span>
                       )}
                       <span className={`inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs font-bold ${
                         isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
@@ -1458,7 +1470,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                       </span>
                       <button
                         onClick={e => { e.stopPropagation(); deleteMeal(mi) }}
-                        title="Slett måltid"
+                        title={t('clientDetail.nutrition.deleteMealTooltip')}
                         className={`rounded-full p-0.5 transition-colors ${
                           isActive ? 'text-white/70 hover:text-white hover:bg-white/20' : 'text-gray-300 hover:text-red-500 hover:bg-red-50'
                         }`}
@@ -1472,7 +1484,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                   <button
                     key={opt.name}
                     onClick={() => addMealOfType(opt)}
-                    title={`Legg til ${opt.name}`}
+                    title={t('clientDetail.nutrition.addMealPrefix', { name: opt.name })}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-dashed border-gray-300 text-gray-400 hover:text-[#2d8653] hover:border-[#2d8653] transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -1502,7 +1514,12 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                           className="flex items-center gap-4 p-4 cursor-pointer"
                           onClick={e => {
                             if ((e.target as HTMLElement).closest('input')) return
-                            setExpandedAlt(isOpen ? null : { mi: expandedMeal!, ai })
+                            if (isOpen) {
+                              setExpandedAlt(null)
+                            } else {
+                              setExpandedAlt({ mi: expandedMeal!, ai })
+                              setActiveAlt(prev => ({ ...prev, [expandedMeal!]: ai }))
+                            }
                           }}
                         >
                           {altT.image_url ? (
@@ -1548,8 +1565,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                                     e.stopPropagation()
                                     setEditingAltName({ mi: expandedMeal!, ai })
                                     setExpandedAlt({ mi: expandedMeal!, ai })
+                                    setActiveAlt(prev => ({ ...prev, [expandedMeal!]: ai }))
                                   }}
-                                  title="Klikk for å endre navn"
+                                  title={t('clientDetail.nutrition.clickToRename')}
                                 >
                                   {altName}
                                 </p>
@@ -1559,15 +1577,15 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                                 <button
                                   onClick={e => { e.stopPropagation(); openReplaceModal(expandedMeal!, ai, meals[expandedMeal!].name, mealTargetCals(meals[expandedMeal!])) }}
                                   className="inline-flex items-center gap-1 text-xs text-[#2d8653] hover:text-[#1a5c3a] border border-[#cdeee3] hover:border-[#6ecfb0] bg-[#ebf5ef] hover:bg-[#cdeee3] px-2 py-0.5 rounded-md transition-colors"
-                                  title="Bytt ut med oppskrift fra biblioteket"
+                                  title={t('clientDetail.nutrition.swapWithLibraryTooltip')}
                                 >
                                   <ArrowLeftRight className="w-3 h-3" />
-                                  Bytt ut
+                                  {t('clientDetail.nutrition.swapOut')}
                                 </button>
                                 <button
                                   onClick={e => { e.stopPropagation(); removeAlternative(expandedMeal!, ai) }}
                                   className="text-gray-300 hover:text-red-500"
-                                  title="Slett dette alternativet"
+                                  title={t('clientDetail.nutrition.deleteAlternativeTooltip')}
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1578,9 +1596,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                             </div>
                             <p className="text-xs text-gray-400 mt-1 truncate">{alt.foods.map(f => f.name).join(' · ')}</p>
                             <div className="flex items-center gap-2 mt-2.5">
-                              <span className="text-xs font-semibold text-[#2d8653] bg-[#ebf5ef] px-2.5 py-1 rounded-full">P {Math.round(prot)}g</span>
-                              <span className="text-xs font-semibold text-yellow-600 bg-yellow-50 px-2.5 py-1 rounded-full">K {Math.round(carb)}g</span>
-                              <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full">F {Math.round(fat)}g</span>
+                              <span className="text-xs font-semibold text-[#2d8653] bg-[#ebf5ef] px-2.5 py-1 rounded-full">{t('clientDetail.nutrition.abbrevProtein')} {Math.round(prot)}g</span>
+                              <span className="text-xs font-semibold text-yellow-600 bg-yellow-50 px-2.5 py-1 rounded-full">{t('clientDetail.nutrition.abbrevCarbs')} {Math.round(carb)}g</span>
+                              <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full">{t('clientDetail.nutrition.abbrevFat')} {Math.round(fat)}g</span>
                             </div>
                           </div>
                         </div>
@@ -1611,7 +1629,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                             ))}
                             {altT.recipe && altT.recipe.length > 0 && (
                               <div className="mt-3 mb-2 p-3 bg-amber-50 border border-amber-100 rounded-lg">
-                                <p className="text-xs font-semibold text-amber-800 mb-2">Fremgangsmåte</p>
+                                <p className="text-xs font-semibold text-amber-800 mb-2">{t('clientDetail.nutrition.method')}</p>
                                 <ol className="space-y-1.5">
                                   {altT.recipe.map((step, si) => (
                                     <li key={si} className="flex gap-2 text-sm text-amber-900">
@@ -1639,7 +1657,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                               }}
                             >
                               <Plus className="w-3.5 h-3.5" />
-                              Legg til matvare
+                              {t('clientDetail.nutrition.addFood')}
                             </Button>
                           </div>
                         )}
@@ -1651,7 +1669,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                     onClick={() => openNewAlternativeModal(expandedMeal, meals[expandedMeal].name, 500)}
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    Nytt alternativ
+                    {t('clientDetail.nutrition.newAlternative')}
                   </Button>
                 </div>
               )}
@@ -1672,11 +1690,11 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             <Card>
               <CardContent className="p-4 space-y-3">
                 <div>
-                  <Label className="text-xs text-gray-500 block mb-1">Navn på plan</Label>
+                  <Label className="text-xs text-gray-500 block mb-1">{t('clientDetail.nutrition.planNamePlaceholder')}</Label>
                   <Input value={title} onChange={e => setTitle(e.target.value)} />
                 </div>
                 <div>
-                  <Label className="text-xs text-gray-500 block mb-1.5">Antall dager</Label>
+                  <Label className="text-xs text-gray-500 block mb-1.5">{t('clientDetail.nutrition.days')}</Label>
                   <div className="grid grid-cols-3 gap-2">
                     {DAY_OPTIONS.map(d => (
                       <button
@@ -1688,7 +1706,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                             : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                         }`}
                       >
-                        {d} dager
+                        {t('clientDetail.nutrition.daysOption', { n: d })}
                       </button>
                     ))}
                   </div>
@@ -1698,7 +1716,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
 
             <Card>
               <CardHeader className="pb-0 pt-4 px-4">
-                <CardTitle className="text-sm">Måltidsforslag</CardTitle>
+                <CardTitle className="text-sm">{t('clientDetail.nutrition.mealSuggestions')}</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-3 space-y-4">
                 <div className="flex flex-wrap gap-2">
@@ -1742,7 +1760,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
 
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <Label className="text-xs text-gray-500">Forslag per måltid</Label>
+                    <Label className="text-xs text-gray-500">{t('clientDetail.nutrition.suggestionsPerMeal')}</Label>
                     <span className="text-sm font-bold text-gray-900">{suggestionsPerMeal}</span>
                   </div>
                   <input
@@ -1758,9 +1776,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                 {selectedMeals.length > 0 && (
                   <div className="flex items-center justify-between bg-[#ebf5ef] rounded-xl px-4 py-3">
                     <div>
-                      <p className="text-xs text-[#2d8653] font-medium">Totalt oppskrifter</p>
+                      <p className="text-xs text-[#2d8653] font-medium">{t('clientDetail.nutrition.totalRecipes')}</p>
                       <p className="text-xs text-[#6ecfb0] mt-0.5">
-                        {selectedMeals.length} måltider × {suggestionsPerMeal} forslag
+                        {t('clientDetail.nutrition.mealsTimesSuggestions', { meals: selectedMeals.length, sugg: suggestionsPerMeal })}
                       </p>
                     </div>
                     <span className="text-2xl font-bold text-[#1a5c3a]">
@@ -1774,7 +1792,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             <Card>
               <CardHeader className="pb-0 pt-4 px-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">Makromål per dag</CardTitle>
+                  <CardTitle className="text-sm">{t('clientDetail.nutrition.dailyMacroTargets')}</CardTitle>
                   <div className="flex bg-gray-100 rounded-lg p-0.5">
                     {(['gram', 'pct'] as const).map(m => (
                       <button
@@ -1784,7 +1802,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                           macroMode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                         }`}
                       >
-                        {m === 'gram' ? 'Gram' : '%'}
+                        {m === 'gram' ? t('clientDetail.nutrition.gram') : '%'}
                       </button>
                     ))}
                   </div>
@@ -1795,9 +1813,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                   <>
                     <div className="grid grid-cols-3 gap-2">
                       {[
-                        { label: 'Protein', val: protein, set: setProtein, color: 'text-green-600' },
-                        { label: 'Karbs',   val: carbs,   set: setCarbs,   color: 'text-orange-500' },
-                        { label: 'Fett',    val: fat,     set: setFat,     color: 'text-violet-500' },
+                        { label: t('clientDetail.nutrition.protein'), val: protein, set: setProtein, color: 'text-green-600' },
+                        { label: t('clientDetail.nutrition.carbs'),   val: carbs,   set: setCarbs,   color: 'text-orange-500' },
+                        { label: t('clientDetail.nutrition.fat'),     val: fat,     set: setFat,     color: 'text-violet-500' },
                       ].map(({ label, val, set, color }) => (
                         <div key={label}>
                           <Label className={`text-xs font-medium block mb-1 ${color}`}>{label} (g)</Label>
@@ -1807,7 +1825,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                     </div>
                     <div className="bg-gray-50 rounded-lg px-3 py-2 flex items-center justify-between">
                       <span className="text-xs text-gray-500 flex items-center gap-1.5">
-                        <Flame className="w-3.5 h-3.5 text-orange-400" /> Kalorier
+                        <Flame className="w-3.5 h-3.5 text-orange-400" /> {t('clientDetail.nutrition.calories')}
                       </span>
                       <span className="font-bold text-gray-900">{caloriesFromGrams} kcal</span>
                     </div>
@@ -1815,16 +1833,16 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                 ) : (
                   <>
                     <div>
-                      <Label className="text-xs text-gray-500 block mb-1">Totalt kcal per dag</Label>
+                      <Label className="text-xs text-gray-500 block mb-1">{t('clientDetail.nutrition.totalKcalPerDay')}</Label>
                       <div className="flex items-center gap-2">
                         <Input type="number" value={targetKcal} min={500} max={6000} onChange={e => setTargetKcal(Number(e.target.value))} className="h-8 text-sm" />
                         <span className="text-xs text-gray-400 flex-shrink-0">kcal</span>
                       </div>
                     </div>
                     {[
-                      { label: 'Protein', pct: proteinPct, set: (v: number) => setProteinPct(Math.min(v, 95 - carbsPct)), color: 'bg-green-500', kcalPer: 4 },
-                      { label: 'Karbs',   pct: carbsPct,   set: (v: number) => setCarbsPct(Math.min(v, 95 - proteinPct)), color: 'bg-orange-400', kcalPer: 4 },
-                      { label: 'Fett',    pct: fatPct,     set: null,                                                      color: 'bg-violet-400', kcalPer: 9 },
+                      { label: t('clientDetail.nutrition.protein'), pct: proteinPct, set: (v: number) => setProteinPct(Math.min(v, 95 - carbsPct)), color: 'bg-green-500', kcalPer: 4 },
+                      { label: t('clientDetail.nutrition.carbs'),   pct: carbsPct,   set: (v: number) => setCarbsPct(Math.min(v, 95 - proteinPct)), color: 'bg-orange-400', kcalPer: 4 },
+                      { label: t('clientDetail.nutrition.fat'),     pct: fatPct,     set: null,                                                      color: 'bg-violet-400', kcalPer: 9 },
                     ].map(({ label, pct, set, color, kcalPer }) => (
                       <div key={label}>
                         <div className="flex items-center justify-between mb-1.5">
@@ -1850,7 +1868,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             {selectedMeals.length > 0 && (
               <Card>
                 <CardHeader className="pb-0 pt-4 px-4">
-                  <CardTitle className="text-sm">Måltidsfordeling</CardTitle>
+                  <CardTitle className="text-sm">{t('clientDetail.nutrition.mealDistribution')}</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 pt-3 space-y-2">
                   {MEAL_OPTIONS.filter(m => selectedMeals.includes(m.name)).map(m => {
@@ -1879,7 +1897,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                       ))}
                       className="text-xs text-[#2d8653] hover:text-[#1a5c3a]"
                     >
-                      Fordel likt
+                      {t('clientDetail.nutrition.distributeEqually')}
                     </button>
                     <span className={`text-xs font-medium ${splitOk ? 'text-green-600' : 'text-red-500'}`}>
                       {Math.round(selectedMeals.reduce((s, m) => s + (mealSplits[m] ?? 0), 0) * 100)}%
@@ -1892,7 +1910,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
 
             <Card>
               <CardHeader className="pb-0 pt-4 px-4">
-                <CardTitle className="text-sm">Allergier og restriksjoner</CardTitle>
+                <CardTitle className="text-sm">{t('clientDetail.nutrition.allergiesRestrictions')}</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-3">
                 <div className="flex flex-wrap gap-2">
@@ -1912,7 +1930,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                             : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                         }`}
                       >
-                        {a.label}
+                        {t(a.labelKey)}
                       </button>
                     )
                   })}
@@ -1925,14 +1943,14 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                 onClick={() => setShowAdvanced(a => !a)}
                 className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
               >
-                <span>Avanserte innstillinger</span>
+                <span>{t('clientDetail.nutrition.advancedSettings')}</span>
                 {showAdvanced ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
               </button>
               {showAdvanced && (
                 <div className="px-4 pb-4 border-t border-gray-100">
                   <div className="mt-3">
-                    <Label className="text-xs text-gray-500 block mb-1">Ekstra preferanser</Label>
-                    <Input value={preferences} onChange={e => setPreferences(e.target.value)} placeholder="Norsk mat, middelhavskjøkken..." className="text-sm" />
+                    <Label className="text-xs text-gray-500 block mb-1">{t('clientDetail.nutrition.extraPreferences')}</Label>
+                    <Input value={preferences} onChange={e => setPreferences(e.target.value)} placeholder={t('clientDetail.nutrition.preferencesPlaceholder')} className="text-sm" />
                   </div>
                 </div>
               )}
@@ -1950,11 +1968,11 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                 disabled={generating || selectedMeals.length === 0 || !splitOk}
               >
                 <Sparkles className="w-4 h-4" />
-                {generating ? 'Genererer matplan...' : 'Generer med AI'}
+                {generating ? t('clientDetail.nutrition.generating') : t('clientDetail.nutrition.generateWithAi')}
               </Button>
               {generating && (
                 <p className="text-xs text-[#2d8653] text-center">
-                  {suggestionsPerMeal} forslag × {selectedMeals.length} måltider — ca. {selectedMeals.length * 5}s...
+                  {t('clientDetail.nutrition.generatingEta', { sugg: suggestionsPerMeal, meals: selectedMeals.length, sec: selectedMeals.length * 5 })}
                 </p>
               )}
             </div>
@@ -1966,32 +1984,32 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
           <div className="space-y-4">
             <Card>
               <CardContent className="p-4">
-                <Label>Plannavn</Label>
+                <Label>{t('clientDetail.nutrition.planNameLabel')}</Label>
                 <Input value={title} onChange={e => setTitle(e.target.value)} className="mt-1" />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Makromål (per dag)</CardTitle>
+                <CardTitle className="text-sm">{t('clientDetail.nutrition.dailyMacroTargets')}</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0 space-y-3">
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <Label className="text-xs">Protein (g)</Label>
+                    <Label className="text-xs">{t('clientDetail.nutrition.protein')} (g)</Label>
                     <Input type="number" value={protein} onChange={e => setProtein(e.target.value)} className="mt-1" min={0} />
                   </div>
                   <div>
-                    <Label className="text-xs">Karbo (g)</Label>
+                    <Label className="text-xs">{t('clientDetail.nutrition.carbs')} (g)</Label>
                     <Input type="number" value={carbs} onChange={e => setCarbs(e.target.value)} className="mt-1" min={0} />
                   </div>
                   <div>
-                    <Label className="text-xs">Fett (g)</Label>
+                    <Label className="text-xs">{t('clientDetail.nutrition.fat')} (g)</Label>
                     <Input type="number" value={fat} onChange={e => setFat(e.target.value)} className="mt-1" min={0} />
                   </div>
                 </div>
                 <div className="bg-gray-50 rounded-lg px-3 py-2 text-sm flex items-center justify-between">
-                  <span className="text-gray-500">Kalorier (beregnet)</span>
+                  <span className="text-gray-500">{t('clientDetail.nutrition.caloriesCalculated')}</span>
                   <span className="font-semibold">{manualCalories} kcal</span>
                 </div>
               </CardContent>
@@ -1999,14 +2017,14 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
 
             {meals.length > 0 && (
               <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm">Totalt daglig</CardTitle></CardHeader>
+                <CardHeader className="pb-2"><CardTitle className="text-sm">{t('clientDetail.nutrition.totalPerDay')}</CardTitle></CardHeader>
                 <CardContent className="p-4 pt-0">
                   <div className="space-y-2">
                     {[
-                      { label: 'Kalorier', val: totalCals,    target: targetCals, unit: 'kcal' },
-                      { label: 'Protein',  val: totalProtein, target: targetProt, unit: 'g' },
-                      { label: 'Karbo',    val: totalCarbs,   target: targetCarb, unit: 'g' },
-                      { label: 'Fett',     val: totalFat,     target: targetFat,  unit: 'g' },
+                      { label: t('clientDetail.nutrition.calories'), val: totalCals,    target: targetCals, unit: 'kcal' },
+                      { label: t('clientDetail.nutrition.protein'),  val: totalProtein, target: targetProt, unit: 'g' },
+                      { label: t('clientDetail.nutrition.carbs'),    val: totalCarbs,   target: targetCarb, unit: 'g' },
+                      { label: t('clientDetail.nutrition.fat'),      val: totalFat,     target: targetFat,  unit: 'g' },
                     ].map(({ label, val, target, unit }) => {
                       const pct     = Math.min(val / Math.max(target, 1) * 100, 100)
                       const over    = val / target > 1.05
@@ -2039,14 +2057,14 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
               {mode === 'ai' ? (
                 <>
                   <Sparkles className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-                  <p className="font-medium">Ingen matplan ennå</p>
-                  <p className="text-sm mt-1">Konfigurer innstillingene og trykk «Generer med AI»</p>
+                  <p className="font-medium">{t('clientDetail.nutrition.noMealPlanYet')}</p>
+                  <p className="text-sm mt-1">{t('clientDetail.nutrition.configureAndGenerate')}</p>
                 </>
               ) : (
                 <>
                   <PenLine className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-                  <p className="font-medium">Ingen måltider ennå</p>
-                  <p className="text-sm mt-1">Legg til måltider og matvarer manuelt</p>
+                  <p className="font-medium">{t('clientDetail.nutrition.noMealsYet')}</p>
+                  <p className="text-sm mt-1">{t('clientDetail.nutrition.addMealsManually')}</p>
                   <div className="flex flex-wrap gap-2 justify-center mt-4">
                     {MEAL_OPTIONS.map(opt => (
                       <Button key={opt.name} variant="outline" size="sm" onClick={() => addMealOfType(opt)}>
@@ -2079,10 +2097,10 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
               <div>
                 <p className="font-semibold text-gray-900">
-                  {replaceModal.pickerMode === 'new' ? 'Nytt alternativ' : 'Bytt ut alternativ'}
+                  {replaceModal.pickerMode === 'new' ? t('clientDetail.nutrition.newAlternativeModalTitle') : t('clientDetail.nutrition.replaceAlternativeModalTitle')}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Velg oppskrift fra {replaceModal.mealName}-biblioteket
+                  {t('clientDetail.nutrition.pickFromLibrary', { meal: replaceModal.mealName })}
                 </p>
               </div>
               <button onClick={() => setReplaceModal(null)} className="text-gray-400 hover:text-gray-600">
@@ -2098,7 +2116,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                   autoFocus
                   value={librarySearch}
                   onChange={e => setLibrarySearch(e.target.value)}
-                  placeholder="Søk etter oppskrift..."
+                  placeholder={t('clientDetail.nutrition.searchRecipePlaceholder')}
                   className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
                 />
               </div>
@@ -2108,7 +2126,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                   className="w-full flex items-center justify-center gap-1.5 py-2 text-sm font-medium text-gray-500 border border-dashed border-gray-300 rounded-lg hover:text-[#2d8653] hover:border-[#2d8653] transition-colors"
                 >
                   <PenLine className="w-3.5 h-3.5" />
-                  Start blankt i stedet
+                  {t('clientDetail.nutrition.startBlankInstead')}
                 </button>
               )}
             </div>
@@ -2117,7 +2135,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             <div className="flex-1 overflow-y-auto">
               {libraryLoading ? (
                 <div className="flex items-center justify-center py-16 text-sm text-gray-400">
-                  Laster oppskrifter...
+                  {t('clientDetail.nutrition.loadingRecipes')}
                 </div>
               ) : (() => {
                 const q = librarySearch.toLowerCase()
@@ -2126,7 +2144,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                   : libraryRecipes
                 return filtered.length === 0 ? (
                   <div className="flex items-center justify-center py-16 text-sm text-gray-400">
-                    {librarySearch ? 'Ingen oppskrifter matcher søket' : `Ingen ${replaceModal.mealName}-oppskrifter i biblioteket`}
+                    {librarySearch ? t('clientDetail.nutrition.noRecipesMatchSearch') : t('clientDetail.nutrition.noRecipesInLibrary', { meal: replaceModal.mealName })}
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-50">
@@ -2154,12 +2172,12 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-gray-900 text-sm leading-snug">{recipe.title}</p>
                             <p className="text-xs text-gray-400 mt-0.5">
-                              {Math.round(recipe.calories_per_serving ?? 0)} kcal → {scaledCals} kcal (skalert)
+                              {t('clientDetail.nutrition.scaledKcal', { orig: Math.round(recipe.calories_per_serving ?? 0), scaled: scaledCals })}
                             </p>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs text-[#2d8653]">P {Math.round(recipe.protein_per_serving ?? 0)}g</span>
-                              <span className="text-xs text-yellow-600">K {Math.round(recipe.carbs_per_serving ?? 0)}g</span>
-                              <span className="text-xs text-orange-600">F {Math.round(recipe.fat_per_serving ?? 0)}g</span>
+                              <span className="text-xs text-[#2d8653]">{t('clientDetail.nutrition.abbrevProtein')} {Math.round(recipe.protein_per_serving ?? 0)}g</span>
+                              <span className="text-xs text-yellow-600">{t('clientDetail.nutrition.abbrevCarbs')} {Math.round(recipe.carbs_per_serving ?? 0)}g</span>
+                              <span className="text-xs text-orange-600">{t('clientDetail.nutrition.abbrevFat')} {Math.round(recipe.fat_per_serving ?? 0)}g</span>
                             </div>
                           </div>
                           <ArrowLeftRight className="w-4 h-4 text-gray-300 flex-shrink-0" />

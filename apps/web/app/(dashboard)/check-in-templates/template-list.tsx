@@ -8,6 +8,8 @@ import {
   Plus, ClipboardList, Clock, Copy, Check, X,
   Share2, ExternalLink,
 } from 'lucide-react'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,12 +25,14 @@ interface Template {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const DAY_ABBR = ['Ma', 'Ti', 'On', 'To', 'Fr', 'Lø', 'Sø']
-
-function formatSchedule(days: number[] | null, time: string | null): string | null {
+function formatSchedule(
+  days: number[] | null,
+  time: string | null,
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string,
+): string | null {
   if (!days?.length && !time) return null
   const daysStr = days?.length
-    ? [...days].sort((a, b) => a - b).map(d => DAY_ABBR[d]).join(', ')
+    ? [...days].sort((a, b) => a - b).map(d => t(`checkinTemplates.dayAbbr.${d}` as TranslationKey)).join(', ')
     : null
   const timeStr = time ? time.slice(0, 5) : null
   return [daysStr, timeStr].filter(Boolean).join(' · ')
@@ -50,6 +54,7 @@ function ShareModal({
   coachId:      string
   onClose:      () => void
 }) {
+  const { t } = useLocale()
   const [copied, setCopied] = useState(false)
   const url = intakeUrl(coachId)
 
@@ -69,7 +74,7 @@ function ShareModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Del skjema</h2>
+            <h2 className="text-base font-semibold text-gray-900">{t('checkinTemplates.share.title')}</h2>
             <p className="text-xs text-gray-400 mt-0.5">{templateName}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -80,8 +85,7 @@ function ShareModal({
         {/* Body */}
         <div className="px-6 py-5 space-y-4">
           <p className="text-sm text-gray-500">
-            Del denne lenken med potensielle klienter. Når noen fyller ut skjemaet dukker
-            de automatisk opp som en lead med status <span className="font-semibold text-[#1a5c3a]">Ny</span>.
+            {t('checkinTemplates.share.description')}
           </p>
 
           {/* URL row */}
@@ -98,8 +102,8 @@ function ShareModal({
               }`}
             >
               {copied
-                ? <><Check className="w-4 h-4" />Kopiert</>
-                : <><Copy className="w-4 h-4" />Kopier</>
+                ? <><Check className="w-4 h-4" />{t('common.copied')}</>
+                : <><Copy className="w-4 h-4" />{t('checkinTemplates.copyLink')}</>
               }
             </button>
           </div>
@@ -112,7 +116,7 @@ function ShareModal({
             className="inline-flex items-center gap-1.5 text-xs text-[#2d8653] hover:underline"
           >
             <ExternalLink className="w-3.5 h-3.5" />
-            Forhåndsvis skjemaet
+            {t('checkinTemplates.share.preview')}
           </a>
         </div>
 
@@ -121,7 +125,7 @@ function ShareModal({
             onClick={onClose}
             className="w-full h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
           >
-            Lukk
+            {t('common.close')}
           </button>
         </div>
       </div>
@@ -140,6 +144,7 @@ export function TemplateList({
   coachId:   string
   sharedSet: Set<string>
 }) {
+  const { t } = useLocale()
   const [shareModal,     setShareModal]     = useState<Template | null>(null)
   const [copiedId,       setCopiedId]       = useState<string | null>(null)
 
@@ -163,16 +168,16 @@ export function TemplateList({
       <Card>
         <CardContent className="py-16 text-center">
           <ClipboardList className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Ingen maler ennå</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{t('checkinTemplates.empty.title')}</h3>
           <p className="text-gray-500 text-sm mb-6">
-            Lag din første check-in mal for å begynne å samle inn data
+            {t('checkinTemplates.empty.sub')}
           </p>
           <Link
             href="/check-in-templates/new"
             className="inline-flex items-center gap-2 h-9 px-4 text-white text-sm font-semibold rounded-lg transition-all [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]"
           >
             <Plus className="w-4 h-4" />
-            Lag mal
+            {t('checkinTemplates.empty.cta')}
           </Link>
         </CardContent>
       </Card>
@@ -185,7 +190,7 @@ export function TemplateList({
         {templates.map(template => {
           const isOnboarding = template.type === 'onboarding'
           const sched = template.type === 'weekly'
-            ? formatSchedule(template.schedule_days, template.schedule_time)
+            ? formatSchedule(template.schedule_days, template.schedule_time, t)
             : null
 
           return (
@@ -204,11 +209,11 @@ export function TemplateList({
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-gray-900 truncate">{template.name}</p>
                       {sharedSet.has(template.id) && template.coach_id !== coachId && (
-                        <Badge variant="secondary" className="text-xs shrink-0">Delt</Badge>
+                        <Badge variant="secondary" className="text-xs shrink-0">{t('checkinTemplates.shared')}</Badge>
                       )}
                     </div>
                     <p className="text-sm text-gray-500">
-                      {template.questions?.length ?? 0} spørsmål
+                      {template.questions?.length ?? 0} {t('checkinTemplates.questionCount')}
                     </p>
                     {sched && (
                       <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
@@ -226,7 +231,7 @@ export function TemplateList({
                       {/* Inline copy button */}
                       <button
                         onClick={handleCopy}
-                        title="Kopier lenke til oppstartsskjema"
+                        title={t('checkinTemplates.copyLinkTitle')}
                         className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold transition-colors ${
                           copiedId === 'copying'
                             ? 'bg-[#cdeee3] text-[#1a5c3a]'
@@ -234,19 +239,19 @@ export function TemplateList({
                         }`}
                       >
                         {copiedId === 'copying'
-                          ? <><Check className="w-3.5 h-3.5" />Kopiert</>
-                          : <><Copy className="w-3.5 h-3.5" />Kopier link</>
+                          ? <><Check className="w-3.5 h-3.5" />{t('common.copied')}</>
+                          : <><Copy className="w-3.5 h-3.5" />{t('checkinTemplates.copyLink')}</>
                         }
                       </button>
 
                       {/* Del skjema button */}
                       <button
                         onClick={e => handleShare(e, template)}
-                        title="Del oppstartsskjema"
+                        title={t('checkinTemplates.shareFormTitle')}
                         className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold bg-[#ebf5ef] text-[#1a5c3a] hover:bg-[#cdeee3] transition-colors"
                       >
                         <Share2 className="w-3.5 h-3.5" />
-                        Del skjema
+                        {t('checkinTemplates.shareForm')}
                       </button>
                     </>
                   )}
@@ -255,8 +260,8 @@ export function TemplateList({
                     template.type === 'daily'    ? 'default'   :
                     template.type === 'onboarding' ? 'warning' : 'secondary'
                   }>
-                    {template.type === 'daily'      ? 'Daglig'   :
-                     template.type === 'onboarding' ? 'Oppstart' : 'Ukentlig'}
+                    {template.type === 'daily'      ? t('checkinTemplates.type.daily')   :
+                     template.type === 'onboarding' ? t('checkinTemplates.type.onboarding') : t('checkinTemplates.type.weekly')}
                   </Badge>
                 </div>
               </CardContent>

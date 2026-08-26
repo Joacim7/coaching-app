@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ClipboardList, CheckCircle2, Send } from 'lucide-react'
 import type { CheckinQuestion } from '@coaching/types'
 import { OnboardingAnswersModal } from '@/components/onboarding-answers-modal'
+import { useLocale } from '@/components/locale-provider'
 
 export interface OnboardingSubmissionInfo {
   submitted_at: string
@@ -27,6 +28,7 @@ export function OnboardingPanel({
   submission,
   emailSentAt,
 }: Props) {
+  const { t } = useLocale()
   const [showModal, setShowModal] = useState(false)
   const [sending, setSending] = useState(false)
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null)
@@ -46,9 +48,9 @@ export function OnboardingPanel({
     setSending(false)
     if (res.ok) {
       setSentAt(data.sentAt ?? new Date().toISOString())
-      setFeedback({ ok: true, message: 'Skjema sendt på nytt' })
+      setFeedback({ ok: true, message: t('clientDetail.onboarding.resendSuccess') })
     } else {
-      setFeedback({ ok: false, message: data.error ?? 'Kunne ikke sende skjema' })
+      setFeedback({ ok: false, message: data.error ?? t('clientDetail.onboarding.resendFailed') })
     }
     setTimeout(() => setFeedback(null), 4000)
   }
@@ -58,25 +60,25 @@ export function OnboardingPanel({
       <div className="px-4 py-3.5 border-b border-gray-100">
         <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-1.5">
           <ClipboardList className="w-3.5 h-3.5 text-gray-400" />
-          Onboarding
+          {t('clientDetail.onboarding.title')}
         </h3>
       </div>
 
       <div className="p-4 space-y-3">
         <div className="flex justify-between items-center">
-          <span className="text-xs text-gray-500">Status</span>
+          <span className="text-xs text-gray-500">{t('clientDetail.onboarding.status')}</span>
           <span
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
               completed ? 'bg-[#ebf5ef] text-[#1a5c3a]' : sent ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-500'
             }`}
           >
             <span className={`w-1.5 h-1.5 rounded-full ${completed ? 'bg-[#2d8653]' : sent ? 'bg-blue-500' : 'bg-gray-300'}`} />
-            {completed ? 'Fullført' : sent ? 'Sendt' : 'Ikke sendt'}
+            {completed ? t('clientDetail.onboarding.completed') : sent ? t('clientDetail.onboarding.sent') : t('clientDetail.onboarding.notSent')}
           </span>
         </div>
 
         <div className="flex justify-between items-center">
-          <span className="text-xs text-gray-500">Skjema</span>
+          <span className="text-xs text-gray-500">{t('clientDetail.onboarding.form')}</span>
           <span className="text-xs font-semibold text-gray-900 truncate max-w-[60%] text-right">
             {templateName ?? '—'}
           </span>
@@ -95,7 +97,7 @@ export function OnboardingPanel({
             className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-xl text-xs font-semibold bg-[#ebf5ef] text-[#1a5c3a] hover:bg-[#cdeee3] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
-            Se svar
+            {t('clientDetail.onboarding.seeAnswers')}
           </button>
           <button
             onClick={handleResend}
@@ -103,7 +105,7 @@ export function OnboardingPanel({
             className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-xl text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
           >
             <Send className="w-3.5 h-3.5" />
-            {sending ? 'Sender...' : 'Send på nytt'}
+            {sending ? t('clientDetail.onboarding.sending') : t('clientDetail.onboarding.resend')}
           </button>
         </div>
       </div>

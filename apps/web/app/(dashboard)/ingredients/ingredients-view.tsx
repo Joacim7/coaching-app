@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Search, Plus, Trash2, Loader2, X, Leaf, Check } from 'lucide-react'
 import type { FoodSearchResult } from '@coaching/types'
+import { useLocale } from '@/components/locale-provider'
 
 export interface CustomIngredient {
   id: string
@@ -21,13 +22,14 @@ interface Props {
 // ── Macro chip ────────────────────────────────────────────────────────────────
 
 function MacroRow({ item }: { item: { calories_per_100g: number; protein_per_100g: number; carbs_per_100g: number; fat_per_100g: number } }) {
+  const { t } = useLocale()
   return (
     <div className="flex items-center gap-3 text-xs text-gray-500">
       <span className="text-orange-600 font-medium">{Math.round(item.calories_per_100g)} kcal</span>
-      <span>{item.protein_per_100g.toFixed(1)}g protein</span>
-      <span>{item.carbs_per_100g.toFixed(1)}g karbo</span>
-      <span>{item.fat_per_100g.toFixed(1)}g fett</span>
-      <span className="text-gray-400">per 100g</span>
+      <span>{t('ingredients.proteinSuffix', { n: item.protein_per_100g.toFixed(1) })}</span>
+      <span>{t('ingredients.carbsSuffix', { n: item.carbs_per_100g.toFixed(1) })}</span>
+      <span>{t('ingredients.fatSuffix', { n: item.fat_per_100g.toFixed(1) })}</span>
+      <span className="text-gray-400">{t('ingredients.per100g')}</span>
     </div>
   )
 }
@@ -43,6 +45,7 @@ function SearchResultRow({
   alreadySaved: boolean
   onSave: (ing: CustomIngredient) => void
 }) {
+  const { t } = useLocale()
   const [saving,  setSaving]  = useState(false)
   const [saved,   setSavedFl] = useState(false)
 
@@ -78,7 +81,7 @@ function SearchResultRow({
       <button
         onClick={handleSave}
         disabled={saving || isSaved}
-        title={isSaved ? 'Allerede lagret' : 'Lagre til Mine ingredienser'}
+        title={isSaved ? t('ingredients.alreadySaved') : t('ingredients.saveToMine')}
         className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold transition-colors flex-shrink-0 ${
           isSaved
             ? 'bg-[#ebf5ef] text-[#1a5c3a] cursor-default'
@@ -90,12 +93,12 @@ function SearchResultRow({
         ) : isSaved ? (
           <>
             <Check className="w-3.5 h-3.5" />
-            Lagret
+            {t('ingredients.saved')}
           </>
         ) : (
           <>
             <Plus className="w-3.5 h-3.5" />
-            Lagre
+            {t('common.save')}
           </>
         )}
       </button>
@@ -106,6 +109,7 @@ function SearchResultRow({
 // ── Add custom ingredient form ────────────────────────────────────────────────
 
 function AddForm({ onSaved }: { onSaved: (ing: CustomIngredient) => void }) {
+  const { t } = useLocale()
   const [open,    setOpen]    = useState(false)
   const [saving,  setSaving]  = useState(false)
   const [name,    setName]    = useState('')
@@ -144,7 +148,7 @@ function AddForm({ onSaved }: { onSaved: (ing: CustomIngredient) => void }) {
         className="inline-flex items-center gap-2 h-9 px-4 rounded-xl border border-dashed border-gray-300 text-sm text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
       >
         <Plus className="w-4 h-4" />
-        Legg til ingrediens
+        {t('ingredients.addIngredient')}
       </button>
     )
   }
@@ -152,27 +156,27 @@ function AddForm({ onSaved }: { onSaved: (ing: CustomIngredient) => void }) {
   return (
     <div className="bg-[#ebf5ef] border border-[#cdeee3] rounded-2xl p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-gray-800">Ny egendefinert ingrediens</p>
+        <p className="text-sm font-semibold text-gray-800">{t('ingredients.newCustom')}</p>
         <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600">
           <X className="w-4 h-4" />
         </button>
       </div>
-      <p className="text-xs text-gray-500">Verdier per 100g</p>
+      <p className="text-xs text-gray-500">{t('ingredients.valuesPer100g')}</p>
 
       <div className="space-y-2">
         <input
           value={name}
           onChange={e => setName(e.target.value)}
-          placeholder="Navn på ingrediens *"
+          placeholder={t('ingredients.namePlaceholder')}
           className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
           autoFocus
         />
         <div className="grid grid-cols-4 gap-2">
           {([
-            { placeholder: 'Kcal',    value: kcal,    setter: setKcal    },
-            { placeholder: 'Protein', value: protein, setter: setProtein },
-            { placeholder: 'Karbo',   value: carbs,   setter: setCarbs   },
-            { placeholder: 'Fett',    value: fat,     setter: setFat     },
+            { placeholder: t('ingredients.kcal'),    value: kcal,    setter: setKcal    },
+            { placeholder: t('ingredients.protein'), value: protein, setter: setProtein },
+            { placeholder: t('ingredients.carbs'),   value: carbs,   setter: setCarbs   },
+            { placeholder: t('ingredients.fat'),     value: fat,     setter: setFat     },
           ]).map(f => (
             <input
               key={f.placeholder}
@@ -192,7 +196,7 @@ function AddForm({ onSaved }: { onSaved: (ing: CustomIngredient) => void }) {
           onClick={() => setOpen(false)}
           className="h-8 px-3 text-sm text-gray-500 hover:text-gray-700 transition-colors"
         >
-          Avbryt
+          {t('common.cancel')}
         </button>
         <button
           onClick={handleSave}
@@ -200,7 +204,7 @@ function AddForm({ onSaved }: { onSaved: (ing: CustomIngredient) => void }) {
           className="h-8 px-4 rounded-lg bg-[#2d8653] text-white text-sm font-semibold hover:bg-[#2d8653] disabled:opacity-50 transition-colors flex items-center gap-1.5"
         >
           {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-          Lagre
+          {t('common.save')}
         </button>
       </div>
     </div>
@@ -210,6 +214,7 @@ function AddForm({ onSaved }: { onSaved: (ing: CustomIngredient) => void }) {
 // ── Main view ─────────────────────────────────────────────────────────────────
 
 export function IngredientsView({ initialCustom }: Props) {
+  const { t } = useLocale()
   const [query,       setQuery]     = useState('')
   const [results,     setResults]   = useState<FoodSearchResult[]>([])
   const [searching,   setSearching] = useState(false)
@@ -249,9 +254,9 @@ export function IngredientsView({ initialCustom }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a5c3a]">Ingredienser</h1>
+          <h1 className="text-2xl font-bold text-[#1a5c3a]">{t('ingredients.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Søk i Matvaretabellen eller legg til egne ingredienser
+            {t('ingredients.subtitle')}
           </p>
         </div>
         <AddForm onSaved={ing => setCustom(prev => [ing, ...prev])} />
@@ -263,7 +268,7 @@ export function IngredientsView({ initialCustom }: Props) {
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Søk i Matvaretabellen (f.eks. laks, havregryn)..."
+          placeholder={t('ingredients.searchPlaceholder')}
           className="w-full h-11 pl-10 pr-10 rounded-2xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
         />
         {searching && (
@@ -283,8 +288,8 @@ export function IngredientsView({ initialCustom }: Props) {
       {showSearch && (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Matvaretabellen</p>
-            {!searching && <p className="text-xs text-gray-400">{results.length} resultater</p>}
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('ingredients.foodTableSection')}</p>
+            {!searching && <p className="text-xs text-gray-400">{t('ingredients.resultsCount', { n: results.length })}</p>}
           </div>
           {searching ? (
             <div className="py-8 flex items-center justify-center text-gray-400">
@@ -292,7 +297,7 @@ export function IngredientsView({ initialCustom }: Props) {
             </div>
           ) : results.length === 0 ? (
             <div className="py-8 text-center text-sm text-gray-400">
-              Ingen resultater for &quot;{query}&quot;
+              {t('ingredients.noResultsFor', { query })}
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
@@ -312,8 +317,8 @@ export function IngredientsView({ initialCustom }: Props) {
       {/* Custom ingredients */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-700">Mine ingredienser</h2>
-          <span className="text-xs text-gray-400">{custom.length} ingredienser</span>
+          <h2 className="text-sm font-semibold text-gray-700">{t('ingredients.myIngredients')}</h2>
+          <span className="text-xs text-gray-400">{t('ingredients.countSuffix', { n: custom.length })}</span>
         </div>
 
         {custom.length === 0 ? (
@@ -321,8 +326,8 @@ export function IngredientsView({ initialCustom }: Props) {
             <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
               <Leaf className="w-5 h-5 text-gray-300" />
             </div>
-            <p className="text-sm font-medium text-gray-500">Ingen egendefinerte ingredienser</p>
-            <p className="text-xs text-gray-400 mt-0.5">Klikk &quot;Legg til ingrediens&quot; for å lage egne</p>
+            <p className="text-sm font-medium text-gray-500">{t('ingredients.noneYet')}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{t('ingredients.noneYetHint')}</p>
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100">

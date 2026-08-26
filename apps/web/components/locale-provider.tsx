@@ -1,12 +1,12 @@
 'use client'
 
 import { createContext, useContext, useMemo, useState } from 'react'
-import { translations, normalizeLocale, type Locale, type TranslationKey } from '@/lib/i18n/translations'
+import { translate, normalizeLocale, type Locale, type TranslationKey } from '@/lib/i18n/translations'
 
 interface LocaleContextValue {
   locale: Locale
   setLocale: (locale: Locale) => void
-  t: (key: TranslationKey) => string
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string
 }
 
 const LocaleContext = createContext<LocaleContextValue | null>(null)
@@ -27,7 +27,7 @@ export function LocaleProvider({
   const value = useMemo<LocaleContextValue>(() => ({
     locale,
     setLocale,
-    t: key => translations[locale][key],
+    t: (key, vars) => translate(locale, key, vars),
   }), [locale])
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>

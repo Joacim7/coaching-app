@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Plus, Dumbbell, AlertTriangle, ChevronRight } from 'lucide-react'
 import { PlanDeleteButton } from './plan-delete-button'
 import { PlanActivateButton } from './plan-activate-button'
+import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
 
 function fmtDate(d: string | null | undefined, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' }) {
   if (!d) return null
@@ -47,6 +48,13 @@ export default async function TrainingPage({
 
   if (!rel) notFound()
 
+  const { data: coachProfile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(coachProfile?.language))
+
   const profile = Array.isArray(rel.profile) ? rel.profile[0] : rel.profile
   const allPlans = plans ?? []
   const activePlans = allPlans.filter(p => p.is_active)
@@ -60,7 +68,7 @@ export default async function TrainingPage({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Trening</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('clientDetail.training.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{profile?.full_name}</p>
         </div>
         <Link
@@ -68,20 +76,20 @@ export default async function TrainingPage({
           className="flex items-center gap-1.5 h-9 px-4 text-sm font-bold rounded-lg bg-gradient-to-r from-[#1a5c3a] to-[#6ecfb0] text-white hover:opacity-90 transition-opacity"
         >
           <Plus className="w-4 h-4" />
-          Ny plan
+          {t('clientDetail.training.newPlan')}
         </Link>
       </div>
 
       {/* ── Treningsplaner ── */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-bold text-gray-800">Treningsplaner</h2>
+          <h2 className="text-base font-bold text-gray-800">{t('clientDetail.training.trainingPlans')}</h2>
           {hasInactive && (
             <Link
               href={showInactive ? `?` : `?showInactive=1`}
               className="text-xs text-[#1a5c3a] hover:underline"
             >
-              {showInactive ? 'Skjul inaktive' : 'Vis inaktive planer'}
+              {showInactive ? t('clientDetail.training.hideInactive') : t('clientDetail.training.showInactive')}
             </Link>
           )}
         </div>
@@ -90,7 +98,7 @@ export default async function TrainingPage({
           <div className="mb-3 flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
             <span>
-              {activePlans.length} aktive planer samtidig. Vurder å deaktivere noen.
+              {t('clientDetail.training.multipleActiveWarning', { n: activePlans.length })}
             </span>
           </div>
         )}
@@ -98,14 +106,14 @@ export default async function TrainingPage({
         {visiblePlans.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center">
             <Dumbbell className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-400">Ingen treningsplaner ennå</p>
+            <p className="text-sm text-gray-400">{t('clientDetail.training.noPlansYet')}</p>
           </div>
         ) : (
           <div className="space-y-2">
             {visiblePlans.map(plan => {
               const dateLabel = plan.start_date
-                ? `Startet ${fmtDate(plan.start_date)}`
-                : `Opprettet ${fmtDate(plan.created_at)}`
+                ? t('clientDetail.training.startedOn', { date: fmtDate(plan.start_date) ?? '' })
+                : t('clientDetail.training.createdOn', { date: fmtDate(plan.created_at) ?? '' })
               return (
                 <div
                   key={plan.id}
@@ -114,11 +122,11 @@ export default async function TrainingPage({
                   <div className="flex items-center gap-3 min-w-0">
                     {plan.is_active ? (
                       <span className="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#ebf5ef] text-[#1a5c3a]">
-                        Aktiv
+                        {t('clientDetail.training.active')}
                       </span>
                     ) : (
                       <span className="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">
-                        Inaktiv
+                        {t('clientDetail.training.inactive')}
                       </span>
                     )}
                     <div className="min-w-0">
@@ -131,7 +139,7 @@ export default async function TrainingPage({
                       href={`/clients/${clientId}/training/${plan.id}`}
                       className="flex items-center gap-0.5 text-sm font-semibold text-[#1a5c3a] hover:text-[#2d8653] transition-colors"
                     >
-                      Åpne plan
+                      {t('clientDetail.training.openPlan')}
                       <ChevronRight className="w-4 h-4" />
                     </Link>
                     <PlanActivateButton planId={plan.id} isActive={plan.is_active} />
@@ -147,19 +155,19 @@ export default async function TrainingPage({
       {/* ── Treningslogg ── */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-bold text-gray-800">Treningslogg</h2>
+          <h2 className="text-base font-bold text-gray-800">{t('clientDetail.training.workoutLog')}</h2>
           <Link
             href={`/clients/${clientId}/workout-log`}
             className="text-xs text-[#1a5c3a] hover:underline flex items-center gap-0.5"
           >
-            Se full oversikt
+            {t('clientDetail.training.seeFullOverview')}
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
         {(logs ?? []).length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center">
-            <p className="text-sm text-gray-400">Ingen treningsøkter logget ennå</p>
+            <p className="text-sm text-gray-400">{t('clientDetail.training.noWorkoutsYet')}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -179,7 +187,7 @@ export default async function TrainingPage({
                 >
                   <div className="min-w-0">
                     <p className="font-semibold text-sm text-gray-800 truncate">
-                      {log.session_title ?? 'Treningsøkt'}
+                      {log.session_title ?? t('clientDetail.training.workoutSession')}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5 capitalize">{dateLabel}</p>
                   </div>
@@ -189,13 +197,13 @@ export default async function TrainingPage({
                         {setsData[0]?.duration_min != null && (
                           <div className="text-right">
                             <p className="text-sm font-semibold text-gray-700">{setsData[0].duration_min} min</p>
-                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">varighet</p>
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.training.duration')}</p>
                           </div>
                         )}
                         {setsData[0]?.distance_km != null && (
                           <div className="text-right">
                             <p className="text-sm font-semibold text-gray-700">{setsData[0].distance_km} km</p>
-                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">distanse</p>
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.training.distance')}</p>
                           </div>
                         )}
                       </>
@@ -203,13 +211,13 @@ export default async function TrainingPage({
                       <>
                         <div className="text-right">
                           <p className="text-sm font-semibold text-gray-700">{totalSets}</p>
-                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">sett</p>
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.training.sets')}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-semibold text-gray-700">
                             {Math.round(totalKg).toLocaleString('nb-NO')} kg
                           </p>
-                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">volum</p>
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">{t('clientDetail.training.volume')}</p>
                         </div>
                       </>
                     )}

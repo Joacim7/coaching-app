@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { X, Check } from 'lucide-react'
+import { useLocale } from '@/components/locale-provider'
 
 export interface Photo {
   id: string
@@ -17,6 +18,7 @@ function formatDate(iso: string) {
 }
 
 export function PhotosGrid({ photos }: { photos: Photo[] }) {
+  const { t } = useLocale()
   const [selected, setSelected]     = useState<string[]>([])
   const [comparing, setComparing]   = useState(false)
   const [previewId, setPreviewId]   = useState<string | null>(null)
@@ -39,22 +41,22 @@ export function PhotosGrid({ photos }: { photos: Photo[] }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
-        <h3 className="text-sm font-semibold text-gray-900">Progresjonsbilder</h3>
+        <h3 className="text-sm font-semibold text-gray-900">{t('clientDetail.photos.title')}</h3>
         <div className="flex items-center gap-3">
           {selected.length > 0 && (
             <button
               onClick={() => setSelected([])}
               className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
             >
-              Avbryt valg
+              {t('clientDetail.photos.cancelSelection')}
             </button>
           )}
-          <span className="text-xs text-gray-400">{photos.length} bilde{photos.length !== 1 ? 'r' : ''}</span>
+          <span className="text-xs text-gray-400">{photos.length} {photos.length !== 1 ? t('clientDetail.photos.photoCountPlural') : t('clientDetail.photos.photoCountSingular')}</span>
         </div>
       </div>
 
       <p className="text-xs text-gray-400 mb-4">
-        Klikk på et bilde for å se det. Klikk på sirkelen for å velge opptil {MAX_COMPARE} bilder å sammenligne.
+        {t('clientDetail.photos.instructions', { max: MAX_COMPARE })}
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -88,7 +90,7 @@ export function PhotosGrid({ photos }: { photos: Photo[] }) {
               <button
                 onClick={() => !selectDisabled && toggle(p.id)}
                 disabled={selectDisabled}
-                title={isSelected ? 'Fjern fra sammenligning' : 'Velg for sammenligning'}
+                title={isSelected ? t('clientDetail.photos.removeFromComparison') : t('clientDetail.photos.selectForComparison')}
                 className={`absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
                   isSelected
                     ? 'bg-[#2d8653] border-[#2d8653]'
@@ -110,7 +112,7 @@ export function PhotosGrid({ photos }: { photos: Photo[] }) {
             onClick={() => setComparing(true)}
             className="bg-[#1a5c3a] text-white text-sm font-semibold px-5 py-3 rounded-full shadow-lg hover:bg-[#164a2f] transition-colors"
           >
-            Sammenlign {selected.length} bilder
+            {t('clientDetail.photos.compareN', { n: selected.length })}
           </button>
         </div>
       )}

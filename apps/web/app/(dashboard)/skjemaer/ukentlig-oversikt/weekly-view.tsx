@@ -6,6 +6,8 @@ import {
   ChevronLeft, ChevronRight, X, MessageSquare,
   Link as LinkIcon, ExternalLink, CheckCircle2, Bell,
 } from 'lucide-react'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,13 +31,13 @@ export interface ClientRow {
   } | null
 }
 
-type Status = 'ikke_levert' | 'levert' | 'arbeid_pagar' | 'ferdig'
+type Status = 'not_submitted' | 'submitted' | 'in_progress' | 'done'
 
 function getStatus(row: ClientRow): Status {
-  if (!row.checkin)                  return 'ikke_levert'
-  if (!row.feedback?.viewed_at)      return 'levert'        // submitted but coach hasn't opened it
-  if (row.feedback.is_complete)      return 'ferdig'
-  return 'arbeid_pagar'                                      // opened, not yet done
+  if (!row.checkin)                  return 'not_submitted'
+  if (!row.feedback?.viewed_at)      return 'submitted'        // submitted but coach hasn't opened it
+  if (row.feedback.is_complete)      return 'done'
+  return 'in_progress'                                      // opened, not yet done
 }
 
 // ── Avatar helpers ─────────────────────────────────────────────────────────────
@@ -60,8 +62,8 @@ function initials(name: string) {
     : name.slice(0, 2).toUpperCase()
 }
 
-function shortDate(iso: string) {
-  return new Date(iso).toLocaleDateString('nb-NO', {
+function shortDate(iso: string, dateLocale: string) {
+  return new Date(iso).toLocaleDateString(dateLocale, {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: '2-digit', minute: '2-digit',
   })
@@ -70,16 +72,16 @@ function shortDate(iso: string) {
 // ── Column config ──────────────────────────────────────────────────────────────
 
 const COLUMNS: Array<{
-  key:    Status
-  label:  string
-  dot:    string
-  ring:   string
-  badge:  string
+  key:      Status
+  labelKey: TranslationKey
+  dot:      string
+  ring:     string
+  badge:    string
 }> = [
-  { key: 'ikke_levert', label: 'Ikke levert',  dot: 'bg-red-500',    ring: 'ring-red-100',    badge: 'bg-red-50    text-red-700'    },
-  { key: 'levert',      label: 'Levert',        dot: 'bg-yellow-400', ring: 'ring-yellow-100', badge: 'bg-yellow-50 text-yellow-700' },
-  { key: 'arbeid_pagar',label: 'Arbeid pågår',  dot: 'bg-[#2d8653]',   ring: 'ring-[#cdeee3]',   badge: 'bg-[#ebf5ef]   text-[#1a5c3a]'   },
-  { key: 'ferdig',      label: 'Ferdig',        dot: 'bg-[#2d8653]',  ring: 'ring-[#cdeee3]',  badge: 'bg-[#ebf5ef] text-[#1a5c3a]'  },
+  { key: 'not_submitted', labelKey: 'weeklyOverview.status.notSubmitted', dot: 'bg-red-500',    ring: 'ring-red-100',    badge: 'bg-red-50    text-red-700'    },
+  { key: 'submitted',     labelKey: 'weeklyOverview.status.submitted',    dot: 'bg-yellow-400', ring: 'ring-yellow-100', badge: 'bg-yellow-50 text-yellow-700' },
+  { key: 'in_progress',   labelKey: 'weeklyOverview.status.inProgress',   dot: 'bg-[#2d8653]',   ring: 'ring-[#cdeee3]',   badge: 'bg-[#ebf5ef]   text-[#1a5c3a]'   },
+  { key: 'done',          labelKey: 'weeklyOverview.status.done',         dot: 'bg-[#2d8653]',  ring: 'ring-[#cdeee3]',  badge: 'bg-[#ebf5ef] text-[#1a5c3a]'  },
 ]
 
 // ── Answer renderer ────────────────────────────────────────────────────────────
@@ -120,6 +122,8 @@ function FeedbackModal({
   onClose:   () => void
   onUpdated: (id: string, feedback: NonNullable<ClientRow['feedback']>) => void
 }) {
+  const { t, locale } = useLocale()
+  const dateLocale = locale === 'en' ? 'en-US' : 'nb-NO'
   const checkin   = row.checkin!
   const questions = checkin.template?.questions ?? []
 
@@ -147,7 +151,7 @@ function FeedbackModal({
     setter(false)
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
-      setError(d.error ?? 'Kunne ikke lagre')
+      setError(d.error ?? t('weeklyOverview.saveFailed'))
       return
     }
 
@@ -181,7 +185,7 @@ function FeedbackModal({
               >
                 {row.name}
               </Link>
-              <p className="text-xs text-gray-400 capitalize mt-0.5">{shortDate(checkin.created_at)}</p>
+              <p className="text-xs text-gray-400 capitalize mt-0.5">{shortDate(checkin.created_at, dateLocale)}</p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-0.5 ml-4 shrink-0">
@@ -195,7 +199,7 @@ function FeedbackModal({
           {/* Answers */}
           <div className="px-6 py-5">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
-              {checkin.template?.name ?? 'Svar'}
+              {checkin.template?.name ?? t('weeklyOverview.answersHeading')}
             </p>
             {questions.length > 0 && Object.keys(checkin.answers).length > 0 ? (
               <div className="space-y-5">
@@ -222,7 +226,7 @@ function FeedbackModal({
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400 italic">Ingen svar registrert</p>
+              <p className="text-sm text-gray-400 italic">{t('weeklyOverview.noAnswers')}</p>
             )}
           </div>
 
@@ -230,23 +234,23 @@ function FeedbackModal({
           <div className="px-6 py-5 space-y-4">
             <div className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-gray-400" />
-              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Coach tilbakemelding</p>
+              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">{t('weeklyOverview.coachFeedback')}</p>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Kommentar</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">{t('weeklyOverview.commentLabel')}</label>
               <textarea
                 value={comment}
                 onChange={e => setComment(e.target.value)}
                 rows={4}
-                placeholder="Skriv en kommentar til klienten..."
+                placeholder={t('weeklyOverview.commentPlaceholder')}
                 className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
               />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                <span className="flex items-center gap-1.5"><LinkIcon className="w-3 h-3" />Video link</span>
+                <span className="flex items-center gap-1.5"><LinkIcon className="w-3 h-3" />{t('weeklyOverview.videoLinkLabel')}</span>
               </label>
               <input
                 type="url"
@@ -258,7 +262,7 @@ function FeedbackModal({
               {videoLink && (
                 <a href={videoLink} target="_blank" rel="noopener noreferrer"
                    className="inline-flex items-center gap-1 text-xs text-[#2d8653] hover:underline mt-1">
-                  <ExternalLink className="w-3 h-3" />Åpne video
+                  <ExternalLink className="w-3 h-3" />{t('weeklyOverview.openVideo')}
                 </a>
               )}
             </div>
@@ -274,7 +278,7 @@ function FeedbackModal({
             disabled={saving || completing}
             className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
           >
-            {saving ? 'Lagrer...' : 'Lagre'}
+            {saving ? t('common.saving') : t('common.save')}
           </button>
           <button
             onClick={() => save(true)}
@@ -282,7 +286,7 @@ function FeedbackModal({
             className="flex-1 h-10 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]"
           >
             <CheckCircle2 className="w-4 h-4" />
-            {completing ? 'Fullfører...' : 'Marker ferdig'}
+            {completing ? t('weeklyOverview.completing') : t('weeklyOverview.markComplete')}
           </button>
         </div>
       </div>
@@ -299,6 +303,8 @@ function ClientCard({
   row:    ClientRow
   onOpen: (row: ClientRow) => void
 }) {
+  const { t, locale } = useLocale()
+  const dateLocale = locale === 'en' ? 'en-US' : 'nb-NO'
   const status = getStatus(row)
   const [reminded,  setReminded]  = useState(false)
   const [reminding, setReminding] = useState(false)
@@ -332,17 +338,17 @@ function ClientCard({
           {row.name}
         </Link>
         <p className="text-xs text-gray-400 mt-0.5">
-          {row.checkin ? shortDate(row.checkin.created_at) : 'Ingen innlevering'}
+          {row.checkin ? shortDate(row.checkin.created_at, dateLocale) : t('weeklyOverview.noSubmission')}
         </p>
       </div>
 
       {/* Action */}
       <div className="shrink-0">
-        {status === 'ikke_levert' ? (
+        {status === 'not_submitted' ? (
           <button
             onClick={handleRemind}
             disabled={reminding || reminded || !row.email}
-            title={!row.email ? 'Ingen e-post registrert' : undefined}
+            title={!row.email ? t('weeklyOverview.noEmailTitle') : undefined}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               reminded
                 ? 'bg-[#cdeee3] text-[#1a5c3a]'
@@ -352,8 +358,8 @@ function ClientCard({
             }`}
           >
             {reminded
-              ? <><CheckCircle2 className="w-3.5 h-3.5" />Sendt</>
-              : <><Bell className="w-3.5 h-3.5" />{reminding ? '...' : 'Påminn'}</>
+              ? <><CheckCircle2 className="w-3.5 h-3.5" />{t('weeklyOverview.reminded')}</>
+              : <><Bell className="w-3.5 h-3.5" />{reminding ? '...' : t('weeklyOverview.remind')}</>
             }
           </button>
         ) : (
@@ -361,7 +367,7 @@ function ClientCard({
             onClick={() => onOpen(row)}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#ebf5ef] text-[#1a5c3a] hover:bg-[#cdeee3] transition-colors"
           >
-            Åpne
+            {t('weeklyOverview.open')}
           </button>
         )}
       </div>
@@ -372,7 +378,8 @@ function ClientCard({
 // ── Summary bar ────────────────────────────────────────────────────────────────
 
 function SummaryBar({ rows }: { rows: ClientRow[] }) {
-  const counts = { ikke_levert: 0, levert: 0, arbeid_pagar: 0, ferdig: 0 } as Record<Status, number>
+  const { t } = useLocale()
+  const counts = { not_submitted: 0, submitted: 0, in_progress: 0, done: 0 } as Record<Status, number>
   for (const r of rows) counts[getStatus(r)]++
   const total = rows.length
 
@@ -382,7 +389,7 @@ function SummaryBar({ rows }: { rows: ClientRow[] }) {
         <div key={col.key} className={`rounded-xl px-4 py-3 ring-1 ${col.ring} bg-white`}>
           <div className="flex items-center gap-2 mb-1">
             <span className={`w-2 h-2 rounded-full shrink-0 ${col.dot}`} />
-            <span className="text-xs font-medium text-gray-500 truncate">{col.label}</span>
+            <span className="text-xs font-medium text-gray-500 truncate">{t(col.labelKey)}</span>
           </div>
           <p className="text-2xl font-bold text-gray-900">{counts[col.key]}</p>
           {total > 0 && (
@@ -409,6 +416,7 @@ export function WeeklyOverviewView({
   weekOffset:    number
   isCurrentWeek: boolean
 }) {
+  const { t } = useLocale()
   const [rows,  setRows]  = useState(initialRows)
   const [modal, setModal] = useState<ClientRow | null>(null)
 
@@ -448,9 +456,9 @@ export function WeeklyOverviewView({
       {/* Page header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a5c3a]">Ukentlig check-in oversikt</h1>
+          <h1 className="text-2xl font-bold text-[#1a5c3a]">{t('weeklyOverview.title')}</h1>
           <p className="text-gray-500 mt-1 text-sm">
-            Spor og gjennomgå klientenes ukentlige check-ins
+            {t('weeklyOverview.subtitle')}
           </p>
         </div>
 
@@ -485,8 +493,8 @@ export function WeeklyOverviewView({
       {rows.length === 0 && (
         <div className="border border-gray-100 rounded-2xl py-16 text-center bg-white">
           <CheckCircle2 className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">Ingen aktive klienter</p>
-          <p className="text-sm text-gray-400 mt-1">Legg til klienter for å se oversikten her</p>
+          <p className="text-gray-500 font-medium">{t('weeklyOverview.emptyTitle')}</p>
+          <p className="text-sm text-gray-400 mt-1">{t('weeklyOverview.emptySub')}</p>
         </div>
       )}
 
@@ -498,7 +506,7 @@ export function WeeklyOverviewView({
               <div className="flex items-center gap-2 mb-3">
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${col.dot}`} />
                 <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  {col.label}
+                  {t(col.labelKey)}
                 </span>
                 <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${col.badge}`}>
                   {grouped[col.key].length}
@@ -508,7 +516,7 @@ export function WeeklyOverviewView({
               <div className="space-y-2">
                 {grouped[col.key].length === 0 ? (
                   <div className="border border-dashed border-gray-200 rounded-xl py-6 text-center">
-                    <p className="text-xs text-gray-400">Ingen</p>
+                    <p className="text-xs text-gray-400">{t('weeklyOverview.none')}</p>
                   </div>
                 ) : (
                   grouped[col.key].map(row => (

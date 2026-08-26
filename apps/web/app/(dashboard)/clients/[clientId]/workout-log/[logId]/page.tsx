@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { DeleteWorkoutButton } from './delete-workout-button'
+import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
 
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('nb-NO', {
@@ -76,6 +77,13 @@ export default async function WorkoutLogDetailPage({
 
   if (!log || !rel) notFound()
 
+  const { data: coachProfile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(coachProfile?.language))
+
   const clientProfile = Array.isArray(log.profile) ? log.profile[0] : log.profile
   const setsData: any[] = Array.isArray(log.sets_data) ? log.sets_data : []
   const cardio = isCardio(setsData)
@@ -120,7 +128,7 @@ export default async function WorkoutLogDetailPage({
           className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
-          {clientProfile?.full_name ?? 'Klient'} — Trening
+          {clientProfile?.full_name ?? t('dashboard.clientFallback')} {t('clientDetail.workoutLog.backSuffix')}
         </Link>
         <DeleteWorkoutButton clientId={clientId} logId={logId} />
       </div>
@@ -130,13 +138,13 @@ export default async function WorkoutLogDetailPage({
         <div className="flex items-center gap-2 mb-1">
           <span className="text-2xl">{cardio ? '🏃' : '🏋️'}</span>
           <h1 className="text-2xl font-bold text-gray-900">
-            {log.session_title ?? 'Treningsøkt'}
+            {log.session_title ?? t('clientDetail.training.workoutSession')}
           </h1>
         </div>
         <p className="text-sm text-gray-500 capitalize">{fmtDate(log.date)}</p>
         {hasPrev && prevDate && (
           <p className="text-xs text-gray-400 mt-1">
-            Sammenlignet med{' '}
+            {t('clientDetail.workoutLog.comparedWith')}{' '}
             {new Date(prevDate).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         )}
@@ -149,25 +157,25 @@ export default async function WorkoutLogDetailPage({
             {cardioData?.activity_type && (
               <div className="rounded-xl bg-[#ebf5ef] px-4 py-3">
                 <p className="text-lg font-bold text-[#1a5c3a]">{cardioData.activity_type}</p>
-                <p className="text-xs text-[#2d8653] font-semibold mt-0.5">Type</p>
+                <p className="text-xs text-[#2d8653] font-semibold mt-0.5">{t('clientDetail.workoutLog.type')}</p>
               </div>
             )}
             {cardioData?.duration_min != null && (
               <div className="rounded-xl bg-[#ebf5ef] px-4 py-3">
                 <p className="text-lg font-bold text-[#1a5c3a]">{cardioData.duration_min} min</p>
-                <p className="text-xs text-[#2d8653] font-semibold mt-0.5">Varighet</p>
+                <p className="text-xs text-[#2d8653] font-semibold mt-0.5">{t('clientDetail.workoutLog.durationLabel')}</p>
               </div>
             )}
             {cardioData?.distance_km != null && (
               <div className="rounded-xl bg-[#ebf5ef] px-4 py-3">
                 <p className="text-lg font-bold text-[#1a5c3a]">{cardioData.distance_km} km</p>
-                <p className="text-xs text-[#2d8653] font-semibold mt-0.5">Distanse</p>
+                <p className="text-xs text-[#2d8653] font-semibold mt-0.5">{t('clientDetail.workoutLog.distanceLabel')}</p>
               </div>
             )}
             {cardioData?.avg_hr_bpm != null && (
               <div className="rounded-xl bg-[#ebf5ef] px-4 py-3">
                 <p className="text-lg font-bold text-[#1a5c3a]">{cardioData.avg_hr_bpm} bpm</p>
-                <p className="text-xs text-[#2d8653] font-semibold mt-0.5">Gjennomsnittspuls</p>
+                <p className="text-xs text-[#2d8653] font-semibold mt-0.5">{t('clientDetail.workoutLog.avgHr')}</p>
               </div>
             )}
           </>
@@ -175,14 +183,14 @@ export default async function WorkoutLogDetailPage({
           <>
             <div className="rounded-xl bg-[#ebf5ef] px-4 py-3">
               <p className="text-lg font-bold text-[#1a5c3a]">{totalSets}</p>
-              <p className="text-xs text-[#2d8653] font-semibold mt-0.5">Sett totalt</p>
+              <p className="text-xs text-[#2d8653] font-semibold mt-0.5">{t('clientDetail.workoutLog.totalSets')}</p>
             </div>
             {totalKg > 0 && (
               <div className="rounded-xl bg-[#ebf5ef] px-4 py-3">
                 <p className="text-lg font-bold text-[#1a5c3a]">
                   {Math.round(totalKg).toLocaleString('nb-NO')} kg
                 </p>
-                <p className="text-xs text-[#2d8653] font-semibold mt-0.5">Volum</p>
+                <p className="text-xs text-[#2d8653] font-semibold mt-0.5">{t('clientDetail.workoutLog.volumeLabel')}</p>
               </div>
             )}
           </>
@@ -203,17 +211,17 @@ export default async function WorkoutLogDetailPage({
                   <p className="font-semibold text-gray-900">{group.name}</p>
                   {groupVol > 0 && (
                     <p className="text-xs text-gray-400">
-                      {Math.round(groupVol).toLocaleString('nb-NO')} kg volum
+                      {Math.round(groupVol).toLocaleString('nb-NO')} kg {t('clientDetail.workoutLog.volume')}
                     </p>
                   )}
                 </div>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-                      <th className="px-4 py-2 text-left w-14">Sett</th>
-                      <th className="px-4 py-2 text-right">Vekt (kg)</th>
-                      <th className="px-4 py-2 text-right">Reps</th>
-                      <th className="px-4 py-2 text-right">Volum</th>
+                      <th className="px-4 py-2 text-left w-14">{t('clientDetail.workoutLog.setCol')}</th>
+                      <th className="px-4 py-2 text-right">{t('clientDetail.workoutLog.weightCol')}</th>
+                      <th className="px-4 py-2 text-right">{t('clientDetail.workoutLog.repsCol')}</th>
+                      <th className="px-4 py-2 text-right">{t('clientDetail.workoutLog.volumeCol')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -260,7 +268,7 @@ export default async function WorkoutLogDetailPage({
       {/* Comment */}
       {log.comment && (
         <div className="rounded-xl border-l-4 border-[#2d8653] bg-[#ebf5ef] px-4 py-3">
-          <p className="text-[11px] font-bold text-[#2d8653] uppercase tracking-wide mb-1">Kommentar</p>
+          <p className="text-[11px] font-bold text-[#2d8653] uppercase tracking-wide mb-1">{t('clientDetail.workoutLog.comment')}</p>
           <p className="text-sm text-[#1a5c3a]">{log.comment}</p>
         </div>
       )}

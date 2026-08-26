@@ -2,11 +2,13 @@
 
 import { useState } from 'react'
 import { X, Plus, UserPlus, Copy, Check, ChevronRight } from 'lucide-react'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type LeadStatus = 'ny' | 'kontaktet' | 'kvalifisert' | 'vunnet' | 'tapt'
-type FilterStatus = 'alle' | LeadStatus
+type FilterStatus = 'all' | LeadStatus
 
 export interface Lead {
   id:           string
@@ -22,32 +24,33 @@ export interface Lead {
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
-const STATUS: Record<LeadStatus, { label: string; bg: string; text: string; dot: string }> = {
-  ny:          { label: 'Ny',          bg: 'bg-[#ebf5ef]',    text: 'text-[#1a5c3a]',   dot: 'bg-[#6ecfb0]'   },
-  kontaktet:   { label: 'Kontaktet',   bg: 'bg-amber-50',   text: 'text-amber-700',  dot: 'bg-amber-400'  },
-  kvalifisert: { label: 'Kvalifisert', bg: 'bg-[#ebf5ef]',  text: 'text-[#1a5c3a]', dot: 'bg-[#2d8653]' },
-  vunnet:      { label: 'Vunnet',      bg: 'bg-[#ebf5ef]',  text: 'text-[#1a5c3a]', dot: 'bg-[#2d8653]'  },
-  tapt:        { label: 'Tapt',        bg: 'bg-gray-100',   text: 'text-gray-500',   dot: 'bg-gray-400'   },
+const STATUS: Record<LeadStatus, { labelKey: TranslationKey; bg: string; text: string; dot: string }> = {
+  ny:          { labelKey: 'leads.status.new',        bg: 'bg-[#ebf5ef]',    text: 'text-[#1a5c3a]',   dot: 'bg-[#6ecfb0]'   },
+  kontaktet:   { labelKey: 'leads.status.contacted',  bg: 'bg-amber-50',   text: 'text-amber-700',  dot: 'bg-amber-400'  },
+  kvalifisert: { labelKey: 'leads.status.qualified',  bg: 'bg-[#ebf5ef]',  text: 'text-[#1a5c3a]', dot: 'bg-[#2d8653]' },
+  vunnet:      { labelKey: 'leads.status.won',        bg: 'bg-[#ebf5ef]',  text: 'text-[#1a5c3a]', dot: 'bg-[#2d8653]'  },
+  tapt:        { labelKey: 'leads.status.lost',       bg: 'bg-gray-100',   text: 'text-gray-500',   dot: 'bg-gray-400'   },
 }
 
 const ALL_STATUSES: LeadStatus[] = ['ny', 'kontaktet', 'kvalifisert', 'vunnet', 'tapt']
 
 function StatusBadge({ status }: { status: LeadStatus }) {
+  const { t } = useLocale()
   const s = STATUS[status]
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${s.bg} ${s.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-      {s.label}
+      {t(s.labelKey)}
     </span>
   )
 }
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })
+function fmtDate(iso: string, dateLocale: string) {
+  return new Date(iso).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function sourceLabel(src: string) {
-  return src === 'oppstartsskjema' ? 'Oppstartsskjema' : 'Manuelt lagt til'
+function sourceLabelKey(src: string): TranslationKey {
+  return src === 'oppstartsskjema' ? 'leads.source.form' : 'leads.source.manual'
 }
 
 // ── New lead modal ─────────────────────────────────────────────────────────────
@@ -59,6 +62,7 @@ function NewLeadModal({
   onClose:   () => void
   onCreated: (lead: Lead) => void
 }) {
+  const { t } = useLocale()
   const [name,    setName]    = useState('')
   const [email,   setEmail]   = useState('')
   const [phone,   setPhone]   = useState('')
@@ -68,7 +72,7 @@ function NewLeadModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim()) { setError('Navn er påkrevd'); return }
+    if (!name.trim()) { setError(t('leads.modal.nameRequired')); return }
     setSaving(true); setError('')
 
     const res = await fetch('/api/leads', {
@@ -79,7 +83,7 @@ function NewLeadModal({
     const data = await res.json()
     setSaving(false)
 
-    if (!res.ok) { setError(data.error ?? 'Feil ved lagring'); return }
+    if (!res.ok) { setError(data.error ?? t('leads.modal.saveFailed')); return }
     onCreated(data.lead)
     onClose()
   }
@@ -91,7 +95,7 @@ function NewLeadModal({
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-900">Ny lead</h2>
+          <h2 className="text-base font-semibold text-gray-900">{t('leads.new')}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
@@ -99,7 +103,7 @@ function NewLeadModal({
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Navn *</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">{t('leads.modal.nameLabel')}</label>
             <input
               type="text" value={name} onChange={e => setName(e.target.value)}
               placeholder="Ola Nordmann" autoFocus
@@ -108,27 +112,27 @@ function NewLeadModal({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">E-post</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">{t('settings.profile.email')}</label>
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="ola@example.com"
+                placeholder={t('leads.modal.emailPlaceholder')}
                 className="w-full h-10 px-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Telefon</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">{t('leads.col.phone')}</label>
               <input
                 type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                placeholder="123 45 678"
+                placeholder={t('leads.modal.phonePlaceholder')}
                 className="w-full h-10 px-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
               />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Notater</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">{t('leads.modal.notesLabel')}</label>
             <textarea
               value={notes} onChange={e => setNotes(e.target.value)}
-              rows={3} placeholder="Notater om leaden..."
+              rows={3} placeholder={t('leads.modal.notesPlaceholder')}
               className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
             />
           </div>
@@ -138,11 +142,11 @@ function NewLeadModal({
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={onClose}
               className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-              Avbryt
+              {t('common.cancel')}
             </button>
             <button type="submit" disabled={saving}
               className="flex-1 h-10 rounded-xl bg-[#2d8653] hover:bg-[#2d8653] text-white text-sm font-semibold disabled:opacity-50 transition-colors">
-              {saving ? 'Lagrer...' : 'Legg til lead'}
+              {saving ? t('common.saving') : t('leads.modal.submit')}
             </button>
           </div>
         </form>
@@ -162,6 +166,8 @@ function LeadPanel({
   onClose:   () => void
   onUpdated: (id: string, patch: Partial<Lead>) => void
 }) {
+  const { t, locale } = useLocale()
+  const dateLocale = locale === 'en' ? 'en-US' : 'nb-NO'
   const [status,  setStatus]  = useState<LeadStatus>(lead.status)
   const [notes,   setNotes]   = useState(lead.notes ?? '')
   const [saving,  setSaving]  = useState(false)
@@ -178,7 +184,7 @@ function LeadPanel({
     setSaving(false)
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
-      setError(d.error ?? 'Kunne ikke lagre')
+      setError(d.error ?? t('leads.panel.saveFailed'))
       return
     }
     onUpdated(lead.id, { status, notes: notes.trim() || null })
@@ -198,7 +204,7 @@ function LeadPanel({
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
           <div>
             <h2 className="text-base font-semibold text-gray-900">{lead.full_name}</h2>
-            <p className="text-xs text-gray-400 mt-0.5">{sourceLabel(lead.source)}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{t(sourceLabelKey(lead.source))}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
@@ -210,7 +216,7 @@ function LeadPanel({
 
           {/* Status selector */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Status</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{t('leads.col.status')}</label>
             <div className="flex flex-wrap gap-2">
               {ALL_STATUSES.map(s => {
                 const cfg = STATUS[s]
@@ -226,7 +232,7 @@ function LeadPanel({
                     }`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full ${active ? cfg.dot : 'bg-gray-400'}`} />
-                    {cfg.label}
+                    {t(cfg.labelKey)}
                   </button>
                 )
               })}
@@ -235,23 +241,23 @@ function LeadPanel({
 
           {/* Contact info */}
           <div className="space-y-3">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Kontaktinfo</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('leads.panel.contactInfo')}</label>
             <div className="space-y-2.5">
               <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">E-post</span>
+                <span className="text-xs text-gray-500">{t('leads.col.email')}</span>
                 <span className="text-sm text-gray-900 font-medium">{lead.email ?? '—'}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Telefon</span>
+                <span className="text-xs text-gray-500">{t('leads.col.phone')}</span>
                 <span className="text-sm text-gray-900 font-medium">{lead.phone ?? '—'}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Opprettet</span>
-                <span className="text-sm text-gray-900 font-medium">{fmtDate(lead.created_at)}</span>
+                <span className="text-xs text-gray-500">{t('leads.col.createdAt')}</span>
+                <span className="text-sm text-gray-900 font-medium">{fmtDate(lead.created_at, dateLocale)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Kilde</span>
-                <span className="text-sm text-gray-900 font-medium">{sourceLabel(lead.source)}</span>
+                <span className="text-xs text-gray-500">{t('leads.panel.source')}</span>
+                <span className="text-sm text-gray-900 font-medium">{t(sourceLabelKey(lead.source))}</span>
               </div>
             </div>
           </div>
@@ -259,7 +265,7 @@ function LeadPanel({
           {/* Form answers (if from oppstartsskjema) */}
           {lead.form_answers && Object.keys(lead.form_answers).length > 0 && (
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Skjemasvar</label>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{t('leads.panel.formAnswers')}</label>
               <div className="bg-gray-50 rounded-xl p-4 space-y-3">
                 {Object.entries(lead.form_answers).map(([k, v]) => (
                   <div key={k}>
@@ -273,12 +279,12 @@ function LeadPanel({
 
           {/* Notes */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Notater</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{t('leads.modal.notesLabel')}</label>
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
               rows={4}
-              placeholder="Legg til notater..."
+              placeholder={t('leads.panel.notesPlaceholder')}
               className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
             />
           </div>
@@ -297,7 +303,7 @@ function LeadPanel({
                 : 'text-white disabled:opacity-50 [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]'
             }`}
           >
-            {saved ? <><Check className="w-4 h-4" />Lagret</> : saving ? 'Lagrer...' : 'Lagre endringer'}
+            {saved ? <><Check className="w-4 h-4" />{t('leads.panel.saved')}</> : saving ? t('common.saving') : t('leads.panel.saveChanges')}
           </button>
         </div>
       </div>
@@ -308,6 +314,7 @@ function LeadPanel({
 // ── Public link banner ─────────────────────────────────────────────────────────
 
 function PublicLinkBanner({ coachId }: { coachId: string }) {
+  const { t } = useLocale()
   const [copied, setCopied] = useState(false)
   const url = typeof window !== 'undefined'
     ? `${window.location.origin}/start/${coachId}`
@@ -322,14 +329,14 @@ function PublicLinkBanner({ coachId }: { coachId: string }) {
   return (
     <div className="flex items-center gap-3 bg-[#ebf5ef] border border-[#cdeee3] rounded-xl px-4 py-3">
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold text-[#1a5c3a] mb-0.5">Din offentlige lenke</p>
+        <p className="text-xs font-semibold text-[#1a5c3a] mb-0.5">{t('leads.publicLinkLabel')}</p>
         <p className="text-xs text-[#2d8653] truncate font-mono">/start/{coachId}</p>
       </div>
       <button
         onClick={copy}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2d8653] hover:bg-[#2d8653] text-white text-xs font-semibold shrink-0 transition-colors"
       >
-        {copied ? <><Check className="w-3.5 h-3.5" />Kopiert</> : <><Copy className="w-3.5 h-3.5" />Kopier</>}
+        {copied ? <><Check className="w-3.5 h-3.5" />{t('common.copied')}</> : <><Copy className="w-3.5 h-3.5" />{t('common.copy')}</>}
       </button>
     </div>
   )
@@ -337,13 +344,13 @@ function PublicLinkBanner({ coachId }: { coachId: string }) {
 
 // ── Main view ─────────────────────────────────────────────────────────────────
 
-const TABS: Array<{ key: FilterStatus; label: string }> = [
-  { key: 'alle',         label: 'Alle'         },
-  { key: 'ny',           label: 'Ny'           },
-  { key: 'kontaktet',    label: 'Kontaktet'    },
-  { key: 'kvalifisert',  label: 'Kvalifisert'  },
-  { key: 'vunnet',       label: 'Vunnet'       },
-  { key: 'tapt',         label: 'Tapt'         },
+const TABS: Array<{ key: FilterStatus; labelKey: TranslationKey }> = [
+  { key: 'all',          labelKey: 'leads.tabs.all'         },
+  { key: 'ny',           labelKey: 'leads.status.new'       },
+  { key: 'kontaktet',    labelKey: 'leads.status.contacted' },
+  { key: 'kvalifisert',  labelKey: 'leads.status.qualified' },
+  { key: 'vunnet',       labelKey: 'leads.status.won'       },
+  { key: 'tapt',         labelKey: 'leads.status.lost'      },
 ]
 
 export function LeadsView({
@@ -353,13 +360,15 @@ export function LeadsView({
   initialLeads: Lead[]
   coachId:      string
 }) {
+  const { t, locale } = useLocale()
+  const dateLocale = locale === 'en' ? 'en-US' : 'nb-NO'
   const [leads,        setLeads]        = useState(initialLeads)
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>('alle')
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [showNew,      setShowNew]      = useState(false)
 
   const counts: Record<FilterStatus, number> = {
-    alle:        leads.length,
+    all:         leads.length,
     ny:          leads.filter(l => l.status === 'ny').length,
     kontaktet:   leads.filter(l => l.status === 'kontaktet').length,
     kvalifisert: leads.filter(l => l.status === 'kvalifisert').length,
@@ -367,7 +376,7 @@ export function LeadsView({
     tapt:        leads.filter(l => l.status === 'tapt').length,
   }
 
-  const visible = filterStatus === 'alle'
+  const visible = filterStatus === 'all'
     ? leads
     : leads.filter(l => l.status === filterStatus)
 
@@ -386,9 +395,9 @@ export function LeadsView({
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a5c3a]">Leads</h1>
+          <h1 className="text-2xl font-bold text-[#1a5c3a]">{t('leads.title')}</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {leads.length} leads{counts.ny > 0 ? `, ${counts.ny} nye` : ''}
+            {leads.length} leads{counts.ny > 0 ? `, ${counts.ny} ${t('leads.newCountSuffix')}` : ''}
           </p>
         </div>
         <button
@@ -396,7 +405,7 @@ export function LeadsView({
           className="flex items-center gap-2 h-9 px-4 text-white text-sm font-semibold rounded-xl transition-all [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]"
         >
           <Plus className="w-4 h-4" />
-          Ny lead
+          {t('leads.new')}
         </button>
       </div>
 
@@ -415,7 +424,7 @@ export function LeadsView({
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            {tab.label}
+            {t(tab.labelKey)}
             <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
               filterStatus === tab.key ? 'bg-[#cdeee3] text-[#1a5c3a]' : 'bg-gray-200 text-gray-500'
             }`}>
@@ -430,11 +439,13 @@ export function LeadsView({
         <div className="border border-gray-100 rounded-2xl py-16 text-center bg-white">
           <UserPlus className="w-12 h-12 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-500 font-medium">
-            {filterStatus === 'alle' ? 'Ingen leads ennå' : `Ingen leads med status "${TABS.find(t => t.key === filterStatus)?.label}"`}
+            {filterStatus === 'all'
+              ? t('leads.emptyAll')
+              : `${t('leads.emptyFilteredPrefix')} "${t(STATUS[filterStatus].labelKey)}"`}
           </p>
-          {filterStatus === 'alle' && (
+          {filterStatus === 'all' && (
             <p className="text-sm text-gray-400 mt-1">
-              Del oppstartslenken din eller legg til leads manuelt
+              {t('leads.emptyHint')}
             </p>
           )}
         </div>
@@ -443,11 +454,11 @@ export function LeadsView({
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">Navn</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">Status</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">E-post</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">Telefon</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">Opprettet</th>
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">{t('leads.col.name')}</th>
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">{t('leads.col.status')}</th>
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">{t('leads.col.email')}</th>
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">{t('leads.col.phone')}</th>
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">{t('leads.col.createdAt')}</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
@@ -471,7 +482,7 @@ export function LeadsView({
                   </td>
                   <td className="px-5 py-3.5 text-sm text-gray-600">{lead.email ?? '—'}</td>
                   <td className="px-5 py-3.5 text-sm text-gray-600">{lead.phone ?? '—'}</td>
-                  <td className="px-5 py-3.5 text-sm text-gray-500">{fmtDate(lead.created_at)}</td>
+                  <td className="px-5 py-3.5 text-sm text-gray-500">{fmtDate(lead.created_at, dateLocale)}</td>
                   <td className="px-5 py-3.5">
                     <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
                   </td>

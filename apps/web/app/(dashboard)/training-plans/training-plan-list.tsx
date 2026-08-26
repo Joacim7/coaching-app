@@ -6,6 +6,7 @@ import Link from 'next/link'
 import {
   Dumbbell, MoreVertical, UserPlus, Pencil, Copy, Trash2, X, CheckCircle2, Share2, Search,
 } from 'lucide-react'
+import { useLocale } from '@/components/locale-provider'
 
 export interface PlanRow {
   id: string
@@ -26,6 +27,7 @@ interface Props {
 
 export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Props) {
   const router = useRouter()
+  const { t } = useLocale()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [duplicating, setDuplicating] = useState<string | null>(null)
@@ -55,16 +57,16 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
   }, [clients, clientQuery])
 
   async function handleDelete(plan: PlanRow) {
-    if (!confirm(`Slett "${plan.title}"? Dette kan ikke angres.`)) return
+    if (!confirm(t('trainingPlans.confirmDelete', { title: plan.title }))) return
     setDeleting(plan.id)
     setOpenMenu(null)
     const res = await fetch(`/api/training-plans/${plan.id}`, { method: 'DELETE' })
     setDeleting(null)
     if (res.ok) {
-      showToast('Treningsplan slettet')
+      showToast(t('trainingPlans.deleted'))
       router.refresh()
     } else {
-      showToast('Kunne ikke slette planen', 'err')
+      showToast(t('trainingPlans.deleteFailed'), 'err')
     }
   }
 
@@ -79,10 +81,10 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
     setDuplicating(null)
     if (res.ok) {
       const { newPlanId } = await res.json()
-      showToast('Plan duplisert')
+      showToast(t('trainingPlans.duplicated'))
       router.push(`/training-plans/${newPlanId}`)
     } else {
-      showToast('Kunne ikke duplisere', 'err')
+      showToast(t('trainingPlans.duplicateFailed'), 'err')
     }
   }
 
@@ -102,7 +104,7 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
     if (data.newPlanId) {
       router.push(`/training-plans/${data.newPlanId}`)
     } else {
-      showToast('Kunne ikke bruke mal', 'err')
+      showToast(t('trainingPlans.useTemplateFailed'), 'err')
     }
   }
 
@@ -124,8 +126,8 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
           <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
             <Dumbbell className="w-6 h-6 text-gray-300" />
           </div>
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Ingen maler ennå</h3>
-          <p className="text-sm text-gray-400">Opprett en mal for å gjenbruke den for flere klienter</p>
+          <h3 className="text-base font-semibold text-gray-900 mb-1">{t('trainingPlans.empty')}</h3>
+          <p className="text-sm text-gray-400">{t('trainingPlans.emptySub')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -152,7 +154,7 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
                       <span className="font-semibold text-gray-900 text-sm">{plan.title}</span>
                       {isTemplate && (
                         <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                          MAL
+                          {t('trainingPlans.templateBadge')}
                         </span>
                       )}
                       {plan.client_name && (
@@ -163,7 +165,7 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
                       {plan.is_org_shared && (
                         <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">
                           <Share2 className="w-2.5 h-2.5" />
-                          Delt
+                          {t('trainingPlans.sharedBadge')}
                         </span>
                       )}
                     </div>
@@ -171,7 +173,7 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
                       <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{plan.description}</p>
                     )}
                     <p className="text-xs text-gray-400 mt-1">
-                      {plan.session_count} treningsdager · {new Date(plan.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {plan.session_count} {t('trainingPlans.sessionDays')} · {new Date(plan.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
 
                     {/* Assign inline form */}
@@ -186,14 +188,14 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
                               value={selectedClientObj ? selectedClientObj.name : clientQuery}
                               onChange={e => { setClientQuery(e.target.value); setSelectedClient('') }}
                               onFocus={() => setSelectedClient('')}
-                              placeholder="Søk klient..."
+                              placeholder={t('trainingPlans.searchClient')}
                               className="h-8 w-44 text-xs border border-gray-200 rounded-lg pl-7 pr-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
                             />
                           </div>
                           {!selectedClient && (
                             <div className="absolute z-20 mt-1 w-44 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
                               {filteredClients.length === 0 ? (
-                                <p className="px-3 py-2 text-xs text-gray-400">Ingen treff</p>
+                                <p className="px-3 py-2 text-xs text-gray-400">{t('trainingPlans.noMatches')}</p>
                               ) : (
                                 filteredClients.map(c => (
                                   <button
@@ -214,7 +216,7 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
                           disabled={!selectedClient || assigning}
                           className="h-8 px-3 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
                         >
-                          {assigning ? 'Bruker...' : 'Bekreft'}
+                          {assigning ? t('trainingPlans.confirming') : t('trainingPlans.confirm')}
                         </button>
                         <button
                           onClick={() => { setAssigningPlanId(null); setSelectedClient(''); setClientQuery('') }}
@@ -235,7 +237,7 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
                           className="h-8 px-3 rounded-lg border border-green-200 bg-green-50 text-green-700 text-xs font-semibold hover:bg-green-100 transition-colors flex items-center gap-1.5"
                         >
                           <UserPlus className="w-3.5 h-3.5" />
-                          Bruk mal
+                          {t('trainingPlans.useTemplate')}
                         </button>
                       )}
 
@@ -257,14 +259,14 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
                               onClick={() => setOpenMenu(null)}
                             >
                               <Pencil className="w-3.5 h-3.5 text-gray-400" />
-                              Rediger
+                              {t('trainingPlans.edit')}
                             </Link>
                             <button
                               onClick={() => handleDuplicate(plan)}
                               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                             >
                               <Copy className="w-3.5 h-3.5 text-gray-400" />
-                              {duplicating === plan.id ? 'Dupliserer...' : 'Dupliser'}
+                              {duplicating === plan.id ? t('trainingPlans.duplicating') : t('trainingPlans.duplicate')}
                             </button>
                             <div className="mx-2 my-1 border-t border-gray-100" />
                             <button
@@ -272,7 +274,7 @@ export function TrainingPlanList({ plans, clients, sharedIds = new Set() }: Prop
                               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                              {deleting === plan.id ? 'Sletter...' : 'Slett'}
+                              {deleting === plan.id ? t('trainingPlans.deleting') : t('trainingPlans.delete')}
                             </button>
                           </div>
                         )}

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { FoodSearchInput } from '@/components/food-search-input'
 import { Trash2, ChevronLeft, Loader2, Upload } from 'lucide-react'
 import type { FoodSearchResult } from '@coaching/types'
+import { useLocale } from '@/components/locale-provider'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -131,6 +132,7 @@ function computeTotals(ingredients: RecipeIngredient[], servings: number) {
 
 export function RecipeEditor({ initial, readOnly = false, isStandard = false }: Props) {
   const router = useRouter()
+  const { t } = useLocale()
   const isEdit = !!initial?.id
 
   const [title,        setTitle]        = useState(initial?.title        ?? '')
@@ -164,7 +166,7 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Ikke innlogget')
+      if (!user) throw new Error(t('recipes.notLoggedIn'))
 
       const ext  = file.name.split('.').pop() || 'jpg'
       const path = `${user.id}/${crypto.randomUUID()}.${ext}`
@@ -177,7 +179,7 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
       const { data: pub } = supabase.storage.from('recipe-images').getPublicUrl(path)
       setImageUrl(pub.publicUrl)
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Kunne ikke laste opp bilde')
+      setUploadError(err instanceof Error ? err.message : t('recipes.uploadImageFailed'))
     } finally {
       setUploadingImage(false)
     }
@@ -229,7 +231,7 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
   }
 
   async function handleSave() {
-    if (!title.trim()) { setError('Tittel er påkrevd'); return }
+    if (!title.trim()) { setError(t('recipes.titleRequired')); return }
     setSaving(true)
     setError('')
 
@@ -262,13 +264,13 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
       router.refresh()
     } else {
       const data = await res.json()
-      setError(data.error ?? 'Noe gikk galt')
+      setError(data.error ?? t('common.somethingWentWrong'))
     }
   }
 
   async function handleDelete() {
     if (!isEdit) return
-    if (!confirm(`Slett "${title}"? Dette kan ikke angres.`)) return
+    if (!confirm(t('recipes.deleteConfirm', { title }))) return
     setDeleting(true)
     await fetch(`/api/recipes/${initial!.id}`, { method: 'DELETE' })
     router.push('/recipes')
@@ -283,20 +285,20 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
         className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
       >
         <ChevronLeft className="w-4 h-4" />
-        Tilbake til oppskrifter
+        {t('recipes.backToRecipes')}
       </button>
 
       <div>
         <h1 className="text-2xl font-bold text-[#1a5c3a]">
-          {isEdit ? 'Rediger oppskrift' : 'Ny oppskrift'}
+          {isEdit ? t('recipes.editRecipe') : t('recipes.newRecipe')}
         </h1>
       </div>
 
       {readOnly && (
         <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-100 text-sm text-amber-700">
           {isStandard
-            ? 'Dette er en standard-oppskrift fra det delte biblioteket — den kan ikke redigeres.'
-            : 'Denne oppskriften er delt av en annen coach i organisasjonen din — kun eieren kan redigere den.'}
+            ? t('recipes.standardReadOnly')
+            : t('recipes.sharedReadOnly')}
         </div>
       )}
 
@@ -304,31 +306,31 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
 
       {/* Basic info */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-gray-700">Grunninfo</h2>
+        <h2 className="text-sm font-semibold text-gray-700">{t('recipes.basicInfo')}</h2>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-600">Tittel *</label>
+          <label className="text-xs font-medium text-gray-600">{t('recipes.recipeTitle')} *</label>
           <input
             value={title}
             onChange={e => setTitle(e.target.value)}
-            placeholder="F.eks. Havregrøt med bær"
+            placeholder={t('recipes.titlePlaceholder')}
             className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-600">Kort beskrivelse</label>
+          <label className="text-xs font-medium text-gray-600">{t('recipes.shortDescription')}</label>
           <input
             value={description}
             onChange={e => setDescription(e.target.value)}
-            placeholder="Valgfri beskrivelse..."
+            placeholder={t('recipes.descriptionPlaceholder')}
             className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">Porsjoner</label>
+            <label className="text-xs font-medium text-gray-600">{t('recipes.servings')}</label>
             <input
               type="number"
               min="1"
@@ -338,13 +340,14 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">Måltidstype</label>
+            <label className="text-xs font-medium text-gray-600">{t('recipes.mealType')}</label>
             <select
               value={mealType}
               onChange={e => setMealType(e.target.value)}
               className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d8653] bg-white"
             >
-              <option value="">Ikke valgt</option>
+              {/* Meal-type values are persisted to the DB and shared with the mobile app — never translate them. */}
+              <option value="">{t('recipes.notSelected')}</option>
               <option value="Frokost">Frokost</option>
               <option value="Lunsj">Lunsj</option>
               <option value="Middag">Middag</option>
@@ -356,12 +359,12 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-medium text-gray-600">Bilde</label>
+          <label className="text-xs font-medium text-gray-600">{t('recipes.image')}</label>
 
           <div className="flex items-center gap-3">
             <label className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
               {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {uploadingImage ? 'Laster opp...' : 'Last opp bilde'}
+              {uploadingImage ? t('recipes.uploading') : t('recipes.uploadImage')}
               <input
                 type="file"
                 accept="image/*"
@@ -373,14 +376,14 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
             {imageUrl && (
               <div className="relative w-9 h-9 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imageUrl} alt="Forhåndsvisning" className="w-full h-full object-cover" />
+                <img src={imageUrl} alt={t('recipes.preview')} className="w-full h-full object-cover" />
               </div>
             )}
           </div>
 
           {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
 
-          <p className="text-xs text-gray-400 pt-1">Eller lim inn URL</p>
+          <p className="text-xs text-gray-400 pt-1">{t('recipes.orPasteUrl')}</p>
           <input
             value={imageUrl}
             onChange={e => setImageUrl(e.target.value)}
@@ -393,23 +396,23 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
       {/* Ingredients */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-700">Ingredienser</h2>
+          <h2 className="text-sm font-semibold text-gray-700">{t('recipes.ingredients')}</h2>
           {ingredients.length > 0 && (
-            <span className="text-xs text-gray-400">{ingredients.length} ingredienser</span>
+            <span className="text-xs text-gray-400">{t('recipes.ingredientCount', { n: ingredients.length })}</span>
           )}
         </div>
 
-        <FoodSearchInput onSelect={addIngredient} placeholder="Søk ingrediens..." />
+        <FoodSearchInput onSelect={addIngredient} placeholder={t('recipes.searchIngredient')} />
 
         {ingredients.length > 0 && (
           <div className="space-y-1">
             {/* Header */}
             <div className="grid grid-cols-[1fr_136px_48px_44px_44px_28px] gap-2 px-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-              <span>Ingrediens</span>
-              <span>Mengde</span>
-              <span className="text-right">Kcal</span>
-              <span className="text-right">P</span>
-              <span className="text-right">K</span>
+              <span>{t('recipes.ingredient')}</span>
+              <span>{t('recipes.amount')}</span>
+              <span className="text-right">{t('recipes.kcalAbbrev')}</span>
+              <span className="text-right">{t('recipes.proteinAbbrev')}</span>
+              <span className="text-right">{t('recipes.carbsAbbrev')}</span>
               <span />
             </div>
 
@@ -462,15 +465,15 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
         {ingredients.length > 0 && (
           <div className="mt-2 pt-3 border-t border-gray-100">
             <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
-              Per porsjon ({servings > 1 ? `1 av ${servings}` : '1'})
+              {servings > 1 ? t('recipes.perServingOf', { n: servings }) : t('recipes.perServingSingle')}
             </p>
             <div className="grid grid-cols-4 gap-3">
               {([
-                { label: 'Kalorier', value: `${Math.round(totals.calories)} kcal`, color: 'text-orange-600' },
-                { label: 'Protein',  value: `${fmt(totals.protein)}g`,  color: 'text-[#2d8653]'   },
-                { label: 'Karbo',    value: `${fmt(totals.carbs)}g`,    color: 'text-yellow-600' },
-                { label: 'Fett',     value: `${fmt(totals.fat)}g`,      color: 'text-red-500'    },
-              ] as const).map(m => (
+                { label: t('recipes.calories'), value: `${Math.round(totals.calories)} kcal`, color: 'text-orange-600' },
+                { label: t('recipes.protein'),  value: `${fmt(totals.protein)}g`,  color: 'text-[#2d8653]'   },
+                { label: t('recipes.carbs'),    value: `${fmt(totals.carbs)}g`,    color: 'text-yellow-600' },
+                { label: t('recipes.fat'),     value: `${fmt(totals.fat)}g`,      color: 'text-red-500'    },
+              ]).map(m => (
                 <div key={m.label} className="bg-gray-50 rounded-xl p-2.5 text-center">
                   <p className={`text-sm font-bold ${m.color}`}>{m.value}</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">{m.label}</p>
@@ -483,12 +486,12 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
 
       {/* Instructions */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-        <h2 className="text-sm font-semibold text-gray-700">Fremgangsmåte</h2>
+        <h2 className="text-sm font-semibold text-gray-700">{t('recipes.method')}</h2>
         <textarea
           value={instructions}
           onChange={e => setInstructions(e.target.value)}
           rows={7}
-          placeholder="Beskriv hvordan retten lages, steg for steg..."
+          placeholder={t('recipes.methodPlaceholder')}
           className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
         />
       </div>
@@ -509,7 +512,7 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
                   className="flex items-center gap-2 h-9 px-4 rounded-xl text-red-600 border border-red-200 hover:bg-red-50 text-sm font-medium transition-colors disabled:opacity-50"
                 >
                   <Trash2 className="w-4 h-4" />
-                  {deleting ? 'Sletter...' : 'Slett oppskrift'}
+                  {deleting ? t('common.deleting') : t('recipes.deleteRecipe')}
                 </button>
               )}
             </div>
@@ -520,7 +523,7 @@ export function RecipeEditor({ initial, readOnly = false, isStandard = false }: 
               className="flex items-center gap-2 h-9 px-5 rounded-xl bg-[#2d8653] text-white text-sm font-semibold hover:bg-[#2d8653] disabled:opacity-50 transition-colors"
             >
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-              {saving ? 'Lagrer...' : (isEdit ? 'Lagre endringer' : 'Opprett oppskrift')}
+              {saving ? t('common.saving') : (isEdit ? t('recipes.saveChanges') : t('recipes.createRecipe'))}
             </button>
           </div>
         </>

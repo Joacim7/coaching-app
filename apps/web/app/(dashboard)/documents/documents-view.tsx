@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { useLocale } from '@/components/locale-provider'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -50,8 +51,8 @@ function formatBytes(b: number | null) {
   return `${(b / 1024 / 1024).toFixed(1)} MB`
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('nb-NO', {
+function formatDate(iso: string, dateLocale: string) {
+  return new Date(iso).toLocaleDateString(dateLocale, {
     day: 'numeric', month: 'short', year: 'numeric',
   })
 }
@@ -83,6 +84,7 @@ function ShareModal({
   onClose: () => void
   onSaved: (docId: string, type: ShareTarget['type'], clientIds: string[]) => void
 }) {
+  const { t } = useLocale()
   const [selected, setSelected]   = useState<Set<string>>(new Set(target.initialClientIds))
   const [search, setSearch]       = useState('')
   const [saving, setSaving]       = useState(false)
@@ -117,7 +119,7 @@ function ShareModal({
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
-      setError(body.error ?? 'Noe gikk galt')
+      setError(body.error ?? t('common.somethingWentWrong'))
       setSaving(false)
       return
     }
@@ -132,7 +134,7 @@ function ShareModal({
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Del med klienter</h2>
+            <h2 className="text-base font-semibold text-gray-900">{t('documents.shareModal.title')}</h2>
             <p className="text-sm text-gray-500 mt-0.5 truncate max-w-xs">{target.docName}</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors ml-4 flex-shrink-0">
@@ -147,7 +149,7 @@ function ShareModal({
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Søk etter klient…"
+              placeholder={t('documents.shareModal.search')}
               className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#6ecfb0]"
             />
           </div>
@@ -164,8 +166,8 @@ function ShareModal({
               className="text-xs font-semibold text-[#2d8653] hover:underline"
             >
               {filtered.every(c => selected.has(c.id)) && filtered.length > 0
-                ? 'Fjern alle'
-                : 'Velg alle'}
+                ? t('documents.shareModal.deselectAll')
+                : t('documents.shareModal.selectAll')}
             </button>
           )}
         </div>
@@ -173,9 +175,9 @@ function ShareModal({
         {/* Client list */}
         <div className="px-4 py-3 max-h-72 overflow-y-auto space-y-1">
           {clients.length === 0 ? (
-            <p className="text-center text-sm text-gray-400 py-6">Ingen klienter ennå</p>
+            <p className="text-center text-sm text-gray-400 py-6">{t('documents.shareModal.noClients')}</p>
           ) : filtered.length === 0 ? (
-            <p className="text-center text-sm text-gray-400 py-4">Ingen treff</p>
+            <p className="text-center text-sm text-gray-400 py-4">{t('documents.shareModal.noResults')}</p>
           ) : (
             filtered.map(client => {
               const on = selected.has(client.id)
@@ -215,14 +217,14 @@ function ShareModal({
         {/* Footer */}
         <div className="px-4 py-4 border-t border-gray-100 flex items-center justify-between">
           <span className="text-sm text-gray-500">
-            {selected.size > 0 ? `${selected.size} klient${selected.size > 1 ? 'er' : ''} valgt` : 'Ingen valgt'}
+            {selected.size > 0 ? t('documents.shareModal.selectedCount', { n: selected.size }) : t('documents.shareModal.noneSelected')}
           </span>
           <div className="flex gap-2">
             <button
               onClick={onClose}
               className="h-9 px-4 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
             >
-              Avbryt
+              {t('common.cancel')}
             </button>
             <button
               onClick={handleSave}
@@ -230,7 +232,7 @@ function ShareModal({
               className="h-9 px-4 rounded-xl text-sm font-semibold bg-[#2d8653] text-white hover:bg-[#1a5c3a] disabled:opacity-60 transition-colors flex items-center gap-2"
             >
               {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Lagre
+              {t('common.save')}
             </button>
           </div>
         </div>
@@ -252,6 +254,7 @@ function DocMenu({
   onShare: () => void
   onDelete: () => void
 }) {
+  const { t } = useLocale()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -282,7 +285,7 @@ function DocMenu({
             className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <Eye className="w-4 h-4 text-gray-400" />
-            Forhåndsvis
+            {t('documents.preview')}
           </a>
           <a
             href={bucketUrl}
@@ -291,14 +294,14 @@ function DocMenu({
             className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <Download className="w-4 h-4 text-gray-400" />
-            Last ned
+            {t('documents.download')}
           </a>
           <button
             onClick={() => { setOpen(false); onShare() }}
             className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <Share2 className="w-4 h-4 text-gray-400" />
-            Del med klienter
+            {t('documents.shareWithClients')}
           </button>
           <div className="my-1 border-t border-gray-100" />
           <button
@@ -306,7 +309,7 @@ function DocMenu({
             className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
           >
             <Trash2 className="w-4 h-4" />
-            Slett
+            {t('documents.delete')}
           </button>
         </div>
       )}
@@ -329,6 +332,8 @@ export function DocumentsView({
   orgName: string | null
   clients: Client[]
 }) {
+  const { t, locale } = useLocale()
+  const dateLocale = locale === 'en' ? 'en-US' : 'nb-NO'
   const supabase = createClient()
 
   const [myDocs, setMyDocs]   = useState<MyDoc[]>(initial)
@@ -359,7 +364,7 @@ export function DocumentsView({
         .upload(path, file, { contentType: file.type, upsert: false })
 
       if (storageErr) {
-        setUploadError(`Feil ved opplasting av «${file.name}»: ${storageErr.message}`)
+        setUploadError(t('documents.uploadErrorPrefix', { name: file.name, error: storageErr.message }))
         setUploading(false)
         return
       }
@@ -378,7 +383,7 @@ export function DocumentsView({
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         await supabase.storage.from('coach-documents').remove([path])
-        setUploadError(`Feil ved lagring: ${body.error ?? res.statusText}`)
+        setUploadError(t('documents.saveErrorPrefix', { error: body.error ?? res.statusText }))
         setUploading(false)
         return
       }
@@ -397,23 +402,23 @@ export function DocumentsView({
     if (inputRef.current) inputRef.current.value = ''
     const n = clients.length
     showToast(n > 0
-      ? `Dokument lastet opp og delt med ${n} klient${n > 1 ? 'er' : ''}`
-      : 'Dokument lastet opp'
+      ? t('documents.uploadedAndShared', { n })
+      : t('documents.uploaded')
     )
   }
 
   // ── Delete ──────────────────────────────────────────────────────────────────
   async function handleDelete(doc: MyDoc) {
-    if (!confirm(`Slett «${doc.name}»? Dette kan ikke angres.`)) return
+    if (!confirm(t('documents.deleteConfirm', { name: doc.name }))) return
     setDeleting(doc.id)
 
     const res = await fetch(`/api/documents/${doc.id}`, { method: 'DELETE' })
     if (res.ok || res.status === 204) {
       setMyDocs(prev => prev.filter(d => d.id !== doc.id))
-      showToast('Dokument slettet')
+      showToast(t('documents.deleted'))
     } else {
       const body = await res.json().catch(() => ({}))
-      showToast(`Feil: ${body.error ?? res.statusText}`)
+      showToast(t('documents.errorPrefix', { error: body.error ?? res.statusText }))
     }
     setDeleting(null)
   }
@@ -432,8 +437,8 @@ export function DocumentsView({
       ))
     }
     showToast(clientIds.length > 0
-      ? `Delt med ${clientIds.length} klient${clientIds.length > 1 ? 'er' : ''}`
-      : 'Deling fjernet'
+      ? t('documents.sharedWith', { n: clientIds.length })
+      : t('documents.shareRemoved')
     )
   }
 
@@ -461,8 +466,8 @@ export function DocumentsView({
       {/* ── Page header ── */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a5c3a]">Dokumenter</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Last opp og del dokumenter med dine klienter</p>
+          <h1 className="text-2xl font-bold text-[#1a5c3a]">{t('documents.title')}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{t('documents.subtitle')}</p>
         </div>
         <div>
           <input
@@ -481,7 +486,7 @@ export function DocumentsView({
             {uploading
               ? <Loader2 className="w-4 h-4 animate-spin" />
               : <Plus className="w-4 h-4" />}
-            Last opp dokument
+            {t('documents.upload')}
           </Button>
         </div>
       </div>
@@ -491,7 +496,7 @@ export function DocumentsView({
         <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-red-50 border border-red-100">
           <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-red-700">Opplasting mislyktes</p>
+            <p className="text-sm font-medium text-red-700">{t('documents.uploadFailed')}</p>
             <p className="text-xs text-red-600 mt-0.5">{uploadError}</p>
           </div>
           <button onClick={() => setUploadError(null)} className="text-red-400 hover:text-red-600 flex-shrink-0">
@@ -506,7 +511,7 @@ export function DocumentsView({
           <div className="flex items-center gap-2 mb-3">
             <Building2 className="w-4 h-4 text-gray-400" />
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-              Fra organisasjonen{orgName ? ` — ${orgName}` : ''}
+              {t('documents.fromOrg')}{orgName ? ` — ${orgName}` : ''}
             </h2>
           </div>
 
@@ -526,13 +531,13 @@ export function DocumentsView({
                       <span className="text-sm font-medium text-gray-900 truncate">{doc.name}</span>
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#ebf5ef] text-[#1a5c3a] whitespace-nowrap">
                         <Building2 className="w-2.5 h-2.5" />
-                        Organisasjon
+                        {t('documents.orgBadge')}
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {formatBytes(doc.file_size_bytes)} · {formatDate(doc.created_at)}
+                      {formatBytes(doc.file_size_bytes)} · {formatDate(doc.created_at, dateLocale)}
                       {doc.shared_client_ids.length > 0 && (
-                        <> · <span className="text-[#2d8653] font-medium">{doc.shared_client_ids.length} klient{doc.shared_client_ids.length > 1 ? 'er' : ''}</span></>
+                        <> · <span className="text-[#2d8653] font-medium">{t('documents.clientsShared', { n: doc.shared_client_ids.length })}</span></>
                       )}
                     </p>
                   </div>
@@ -546,7 +551,7 @@ export function DocumentsView({
                       className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      Forhåndsvis
+                      {t('documents.preview')}
                     </a>
                     <button
                       onClick={() => setShareTarget({
@@ -558,7 +563,7 @@ export function DocumentsView({
                       className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-[#2d8653] bg-[#ebf5ef] hover:bg-[#cdeee3] transition-colors"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      Del med klienter
+                      {t('documents.shareWithClients')}
                     </button>
                   </div>
                 </div>
@@ -571,7 +576,7 @@ export function DocumentsView({
       {/* ── Mine dokumenter ── */}
       <section>
         <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Mine dokumenter</h2>
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{t('documents.myDocuments')}</h2>
           {myDocs.length > 0 && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-semibold">{myDocs.length}</span>
           )}
@@ -588,8 +593,8 @@ export function DocumentsView({
               ? <Loader2 className="w-8 h-8 text-[#6ecfb0] animate-spin" />
               : <Upload className="w-8 h-8 text-gray-300" />}
             <div className="text-center">
-              <p className="text-sm font-medium text-gray-500">Klikk eller dra filer hit</p>
-              <p className="text-xs text-gray-400 mt-0.5">PDF, Word, Excel, bilder — maks 100 MB</p>
+              <p className="text-sm font-medium text-gray-500">{t('documents.dropHint')}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t('documents.dropHintTypes')}</p>
             </div>
           </div>
         ) : (
@@ -620,14 +625,14 @@ export function DocumentsView({
                       <span className="text-sm font-medium text-gray-900 truncate">{doc.name}</span>
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 whitespace-nowrap">
                         <CheckCircle2 className="w-2.5 h-2.5" />
-                        Publisert
+                        {t('documents.published')}
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {doc.share_count > 0
-                        ? <><span className="text-[#2d8653] font-medium">{doc.share_count} klient{doc.share_count > 1 ? 'er' : ''}</span> · </>
-                        : 'Ikke delt · '}
-                      {formatBytes(doc.file_size_bytes)} · {formatDate(doc.created_at)}
+                        ? <><span className="text-[#2d8653] font-medium">{t('documents.clientsShared', { n: doc.share_count })}</span> · </>
+                        : `${t('documents.notShared')} · `}
+                      {formatBytes(doc.file_size_bytes)} · {formatDate(doc.created_at, dateLocale)}
                     </p>
                   </div>
 

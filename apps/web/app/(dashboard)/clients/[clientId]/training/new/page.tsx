@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import StandaloneTrainingPlanEditor from '@/app/(dashboard)/training-plans/new/standalone-training-editor'
+import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
 
 export default async function NewClientTrainingPlanPage({
   params,
@@ -27,12 +28,19 @@ export default async function NewClientTrainingPlanPage({
 
   if (!rel) notFound()
 
+  const { data: coachProfile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(coachProfile?.language))
+
   const profile = Array.isArray(rel.profile) ? rel.profile[0] : rel.profile
 
   return (
     <StandaloneTrainingPlanEditor
       clientId={clientId}
-      clientName={profile?.full_name ?? 'Klient'}
+      clientName={profile?.full_name ?? t('dashboard.clientFallback')}
       coachId={user!.id}
       clients={[]}
       exercises={exercises ?? []}

@@ -2,10 +2,18 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { MealPlanList, type MealPlanRow } from './meal-plan-list'
+import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
 
 export default async function MealPlansPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(profile?.language))
 
   const [{ data: plans }, { data: clientRels }] = await Promise.all([
     supabase
@@ -21,7 +29,7 @@ export default async function MealPlansPage() {
 
   const clientList = (clientRels ?? []).map(r => {
     const p = Array.isArray(r.profile) ? r.profile[0] : r.profile
-    return { id: r.client_id, name: p?.full_name ?? 'Ukjent' }
+    return { id: r.client_id, name: p?.full_name ?? t('common.unknown') }
   })
 
   const clientMap = new Map(clientList.map(c => [c.id, c.name]))
@@ -45,9 +53,9 @@ export default async function MealPlansPage() {
     <div>
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a5c3a]">Matplaner</h1>
+          <h1 className="text-2xl font-bold text-[#1a5c3a]">{t('mealPlans.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Opprett maler og tildel dem til klienter
+            {t('mealPlans.subtitle')}
           </p>
         </div>
         <Link
@@ -55,7 +63,7 @@ export default async function MealPlansPage() {
           className="inline-flex items-center gap-2 h-9 px-4 rounded-xl text-white text-sm font-semibold transition-all [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]"
         >
           <Plus className="w-4 h-4" />
-          Opprett matplan
+          {t('mealPlans.create')}
         </Link>
       </div>
 

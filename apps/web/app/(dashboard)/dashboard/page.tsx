@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Users, ClipboardCheck, TrendingUp, Calendar } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
+import { getTranslator, normalizeLocale } from '@/lib/i18n/translations'
 
 const MOOD = ['😢', '😞', '😐', '🙂', '😄']
 
@@ -26,20 +27,21 @@ export default async function DashboardPage() {
       .limit(5),
     supabase
       .from('profiles')
-      .select('full_name')
+      .select('full_name, language')
       .eq('id', user!.id)
       .single(),
   ])
 
   const clientCount = clientIds.length
+  const t = getTranslator(normalizeLocale(profile?.language))
 
   return (
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-[#1a5c3a]">
-          Hei, {profile?.full_name?.split(' ')[0] ?? 'Coach'} 👋
+          {t('dashboard.greeting', { name: profile?.full_name?.split(' ')[0] ?? 'Coach' })}
         </h1>
-        <p className="text-gray-500 mt-1">Her er en oversikt over dagen din</p>
+        <p className="text-gray-500 mt-1">{t('dashboard.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -49,7 +51,7 @@ export default async function DashboardPage() {
               <Users className="w-6 h-6 text-[#2d8653]" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Aktive klienter</p>
+              <p className="text-sm text-gray-500">{t('dashboard.activeClients')}</p>
               <p className="text-2xl font-bold text-gray-900">{clientCount}</p>
             </div>
           </CardContent>
@@ -61,7 +63,7 @@ export default async function DashboardPage() {
               <ClipboardCheck className="w-6 h-6 text-[#1a5c3a]" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Check-ins i dag</p>
+              <p className="text-sm text-gray-500">{t('dashboard.checkinsToday')}</p>
               <p className="text-2xl font-bold text-gray-900">
                 {recentCheckins?.filter(c =>
                   new Date(c.created_at).toDateString() === new Date().toDateString()
@@ -77,7 +79,7 @@ export default async function DashboardPage() {
               <TrendingUp className="w-6 h-6 text-[#2d8653]" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Check-ins denne uken</p>
+              <p className="text-sm text-gray-500">{t('dashboard.checkinsThisWeek')}</p>
               <p className="text-2xl font-bold text-gray-900">
                 {recentCheckins?.filter(c => {
                   const weekAgo = new Date()
@@ -94,13 +96,13 @@ export default async function DashboardPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5" />
-            Siste check-ins
+            {t('dashboard.recentCheckins')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {!recentCheckins?.length ? (
             <p className="text-gray-500 text-sm py-4 text-center">
-              Ingen check-ins ennå. Legg til klienter og lag check-in maler.
+              {t('dashboard.noCheckinsYet')}
             </p>
           ) : (
             <div className="divide-y divide-gray-100">
@@ -110,10 +112,10 @@ export default async function DashboardPage() {
                   <div key={checkin.id} className="py-3 flex items-center justify-between">
                     <div>
                       <p className="font-medium text-gray-900 text-sm">
-                        {(p as any)?.full_name ?? 'Klient'}
+                        {(p as any)?.full_name ?? t('dashboard.clientFallback')}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {checkin.type === 'daily' ? 'Daglig' : 'Ukentlig'} check-in ·{' '}
+                        {checkin.type === 'daily' ? t('dashboard.checkinType.daily') : t('dashboard.checkinType.weekly')} check-in ·{' '}
                         {new Date(checkin.created_at).toLocaleDateString('nb-NO')}
                       </p>
                     </div>
@@ -130,7 +132,7 @@ export default async function DashboardPage() {
           )}
           {!!recentCheckins?.length && (
             <Link href="/clients" className="block mt-4 text-center text-sm text-[#2d8653] hover:underline">
-              Se alle klienter →
+              {t('dashboard.seeAllClients')}
             </Link>
           )}
         </CardContent>

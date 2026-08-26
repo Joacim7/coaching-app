@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { CheckCircle2, Send, X, Link as LinkIcon, MessageSquare, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,12 +31,12 @@ export interface CheckinRow {
 
 const MOOD = ['😢', '😞', '😐', '🙂', '😄']
 
-function relDate(iso: string) {
+function relDate(iso: string, t: (key: TranslationKey, vars?: Record<string, string | number>) => string) {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
-  if (days === 0) return 'I dag'
-  if (days === 1) return 'I går'
-  if (days < 7)  return `${days} dager siden`
-  if (days < 30) return `${Math.floor(days / 7)} uker siden`
+  if (days === 0) return t('clientDetail.relDate.today')
+  if (days === 1) return t('clientDetail.relDate.yesterday')
+  if (days < 7)  return t('clientDetail.relDate.daysAgoFull', { n: days })
+  if (days < 30) return t('clientDetail.relDate.weeksAgoFull', { n: Math.floor(days / 7) })
   return new Date(iso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long' })
 }
 
@@ -85,6 +87,7 @@ function CheckinModal({
   onClose:  () => void
   onSaved:  (id: string, feedback: Feedback) => void
 }) {
+  const { t } = useLocale()
   const [comment,     setComment]     = useState(checkin.feedback?.comment    ?? '')
   const [videoLink,   setVideoLink]   = useState(checkin.feedback?.video_link ?? '')
   const [savingDraft, setSavingDraft] = useState(false)
@@ -111,7 +114,7 @@ function CheckinModal({
     setBusy(false)
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
-      setError(d.error ?? 'Kunne ikke lagre')
+      setError(d.error ?? t('clientDetail.checkins.saveFailed'))
       return
     }
     onSaved(checkin.id, {
@@ -142,7 +145,7 @@ function CheckinModal({
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                 checkin.type === 'daily' ? 'bg-[#cdeee3] text-[#1a5c3a]' : 'bg-[#cdeee3] text-[#1a5c3a]'
               }`}>
-                {checkin.type === 'daily' ? 'Daglig' : 'Ukentlig'}
+                {checkin.type === 'daily' ? t('clientDetail.checkins.daily') : t('clientDetail.checkins.weekly')}
               </span>
               {checkin.template?.name && (
                 <span className="text-sm text-gray-500">{checkin.template.name}</span>
@@ -164,7 +167,7 @@ function CheckinModal({
               <div className="flex items-center gap-2 mb-5 pb-4 border-b border-gray-100">
                 <span className="text-2xl">{MOOD[checkin.mood - 1]}</span>
                 <div>
-                  <p className="text-xs text-gray-500">Humør</p>
+                  <p className="text-xs text-gray-500">{t('clientDetail.checkins.mood')}</p>
                   <p className="text-sm font-semibold text-gray-900">{checkin.mood} / 5</p>
                 </div>
               </div>
@@ -175,25 +178,25 @@ function CheckinModal({
               <div className="grid grid-cols-2 gap-3 mb-5 pb-5 border-b border-gray-100">
                 {checkin.weight_kg != null && (
                   <div className="bg-gray-50 rounded-xl px-4 py-3">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Vekt</p>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">{t('clientDetail.checkins.weight')}</p>
                     <p className="text-lg font-bold text-gray-900">{checkin.weight_kg} <span className="text-sm font-normal text-gray-500">kg</span></p>
                   </div>
                 )}
                 {checkin.sleep_hours != null && (
                   <div className="bg-gray-50 rounded-xl px-4 py-3">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Søvn</p>
-                    <p className="text-lg font-bold text-gray-900">{checkin.sleep_hours} <span className="text-sm font-normal text-gray-500">timer</span></p>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">{t('clientDetail.checkins.sleep')}</p>
+                    <p className="text-lg font-bold text-gray-900">{checkin.sleep_hours} <span className="text-sm font-normal text-gray-500">{t('clientDetail.checkins.hours')}</span></p>
                   </div>
                 )}
                 {checkin.energy_level != null && (
                   <div className="bg-gray-50 rounded-xl px-4 py-3">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Energi</p>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">{t('clientDetail.checkins.energy')}</p>
                     <p className="text-lg font-bold text-gray-900">{checkin.energy_level} <span className="text-sm font-normal text-gray-500">/ 10</span></p>
                   </div>
                 )}
                 {checkin.steps != null && (
                   <div className="bg-gray-50 rounded-xl px-4 py-3">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Skritt</p>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">{t('clientDetail.checkins.steps')}</p>
                     <p className="text-lg font-bold text-gray-900">{checkin.steps.toLocaleString('nb-NO')}</p>
                   </div>
                 )}
@@ -226,12 +229,12 @@ function CheckinModal({
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400 italic">Ingen svar registrert</p>
+              <p className="text-sm text-gray-400 italic">{t('clientDetail.checkins.noAnswersRecorded')}</p>
             )}
 
             {checkin.notes && (
               <div className="mt-4 pt-4 border-t border-gray-100">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Notater</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{t('clientDetail.checkins.notes')}</p>
                 <p className="text-sm text-gray-700">{checkin.notes}</p>
               </div>
             )}
@@ -241,22 +244,22 @@ function CheckinModal({
           <div className="px-6 pb-6 space-y-4 border-t border-gray-100 pt-5">
             <div className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-gray-400" />
-              <h3 className="text-sm font-semibold text-gray-900">Coach tilbakemelding</h3>
+              <h3 className="text-sm font-semibold text-gray-900">{t('clientDetail.checkins.coachFeedback')}</h3>
               {isSent && (
-                <span className="text-[10px] bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">Sendt</span>
+                <span className="text-[10px] bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">{t('clientDetail.checkins.sentBadge')}</span>
               )}
               {hasDraft && (
-                <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">Utkast lagret</span>
+                <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">{t('clientDetail.checkins.draftSavedBadge')}</span>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Kommentar</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">{t('clientDetail.checkins.comment')}</label>
               <textarea
                 value={comment}
                 onChange={e => setComment(e.target.value)}
                 rows={4}
-                placeholder="Skriv en kommentar til klienten..."
+                placeholder={t('clientDetail.checkins.commentPlaceholder')}
                 className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#2d8653] focus:border-transparent"
               />
             </div>
@@ -266,7 +269,7 @@ function CheckinModal({
                 <label className="block text-xs font-medium text-gray-600 mb-1.5">
                   <span className="flex items-center gap-1.5">
                     <LinkIcon className="w-3 h-3" />
-                    Video link
+                    {t('clientDetail.checkins.videoLink')}
                   </span>
                 </label>
                 <input
@@ -284,7 +287,7 @@ function CheckinModal({
                     className="inline-flex items-center gap-1 text-xs text-[#2d8653] hover:underline mt-1"
                   >
                     <ExternalLink className="w-3 h-3" />
-                    Åpne video
+                    {t('clientDetail.checkins.openVideo')}
                   </a>
                 )}
               </div>
@@ -304,7 +307,7 @@ function CheckinModal({
             disabled={savingDraft || sending || sent}
             className="flex-1"
           >
-            {draftSaved ? '✓ Utkast lagret' : savingDraft ? 'Lagrer utkast...' : 'Lagre utkast'}
+            {draftSaved ? t('clientDetail.checkins.draftSaved') : savingDraft ? t('clientDetail.checkins.savingDraft') : t('clientDetail.checkins.saveDraft')}
           </Button>
           <Button
             variant="success"
@@ -313,7 +316,7 @@ function CheckinModal({
             className="flex-1"
           >
             <Send className="w-4 h-4" />
-            {sent ? '✓ Sendt' : sending ? 'Sender...' : 'Send tilbakemelding'}
+            {sent ? t('clientDetail.checkins.sentConfirm') : sending ? t('clientDetail.checkins.sending') : t('clientDetail.checkins.sendFeedback')}
           </Button>
         </div>
       </div>
@@ -330,6 +333,7 @@ export function RecentCheckins({
   checkins: CheckinRow[]
   clientId: string
 }) {
+  const { t } = useLocale()
   const [checkins,  setCheckins]  = useState(initial)
   const [selected,  setSelected]  = useState<CheckinRow | null>(null)
 
@@ -344,7 +348,7 @@ export function RecentCheckins({
         {checkins.length === 0 ? (
           <div className="text-center py-8">
             <CheckCircle2 className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-            <p className="text-sm text-gray-400">Ingen aktivitet registrert</p>
+            <p className="text-sm text-gray-400">{t('clientDetail.checkins.noActivity')}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -357,26 +361,26 @@ export function RecentCheckins({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">
-                        {c.type === 'daily' ? 'Daglig check-in' : 'Ukentlig check-in'}
+                        {c.type === 'daily' ? t('clientDetail.overview.dailyCheckin') : t('clientDetail.overview.weeklyCheckin')}
                         {c.mood != null ? ` · ${MOOD[c.mood - 1]}` : ''}
                       </p>
                       {c.feedback?.is_complete ? (
                         <span className="text-[10px] bg-green-100 text-green-700 font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
-                          Tilbakemelding gitt
+                          {t('clientDetail.checkins.feedbackGiven')}
                         </span>
                       ) : c.feedback?.comment || c.feedback?.video_link ? (
                         <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
-                          Utkast
+                          {t('clientDetail.checkins.draft')}
                         </span>
                       ) : null}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-xs text-gray-400">{relDate(c.created_at)}</span>
+                      <span className="text-xs text-gray-400">{relDate(c.created_at, t)}</span>
                       <button
                         onClick={() => setSelected(c)}
                         className="text-xs font-medium text-[#2d8653] hover:text-[#1a5c3a] hover:underline whitespace-nowrap"
                       >
-                        Se svar
+                        {t('clientDetail.checkins.seeAnswers')}
                       </button>
                     </div>
                   </div>

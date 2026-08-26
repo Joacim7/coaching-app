@@ -16,15 +16,16 @@ import { PhaseTimeline } from './phase-timeline'
 import { type CheckinRow } from './recent-checkins'
 import { GoalPanel } from './goal-panel'
 import { OnboardingPanel } from './onboarding-panel'
+import { getTranslator, normalizeLocale, type TranslationKey } from '@/lib/i18n/translations'
 
-const STATUS_LABEL: Record<ClientStatus, string> = {
-  active:     'Aktiv',
-  inactive:   'Inaktiv',
-  new:        'Ny klient',
-  onboarding: 'Venter onboarding',
-  course:     'På kurs',
-  followup:   'Oppfølging',
-  app_access: 'App tilgang',
+const STATUS_LABEL_KEY: Record<ClientStatus, TranslationKey> = {
+  active:     'clientDetail.status.active',
+  inactive:   'clientDetail.status.inactive',
+  new:        'clientDetail.status.new',
+  onboarding: 'clientDetail.status.onboarding',
+  course:     'clientDetail.status.course',
+  followup:   'clientDetail.status.followup',
+  app_access: 'clientDetail.status.appAccess',
 }
 
 function longDate(iso: string) {
@@ -48,6 +49,13 @@ export default async function ClientOverviewPage({
     .single()
 
   if (!rel) notFound()
+
+  const { data: coachProfile } = await supabase
+    .from('profiles')
+    .select('language')
+    .eq('id', user!.id)
+    .single()
+  const t = getTranslator(normalizeLocale(coachProfile?.language))
 
   const profile = Array.isArray(rel.profile) ? rel.profile[0] : rel.profile
   const status = (rel.status ?? 'active') as ClientStatus
@@ -191,15 +199,16 @@ export default async function ClientOverviewPage({
             <div className="flex items-start gap-3 bg-orange-50 border border-orange-200 rounded-xl p-4">
               <AlertCircle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-orange-800">Manglende check-in</p>
+                <p className="text-sm font-semibold text-orange-800">{t('clientDetail.overview.missingCheckinTitle')}</p>
                 <p className="text-xs text-orange-600 mt-0.5">
                   {lastCheckin
-                    ? `Ingen check-in på ${daysSinceLast} dager. Siste: ${
-                        new Date(lastCheckin.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long' })
-                      }.`
-                    : 'Klienten har aldri sendt inn en check-in.'}
+                    ? t('clientDetail.overview.missingCheckinBody', {
+                        n: daysSinceLast!,
+                        date: new Date(lastCheckin.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long' }),
+                      })
+                    : t('clientDetail.overview.neverCheckedIn')}
                   {' '}
-                  <Link href={`/clients/${clientId}/checkins`} className="underline font-medium">Se check-ins</Link>
+                  <Link href={`/clients/${clientId}/checkins`} className="underline font-medium">{t('clientDetail.overview.seeCheckins')}</Link>
                 </p>
               </div>
             </div>
@@ -209,12 +218,12 @@ export default async function ClientOverviewPage({
               <Clock className="w-4 h-4 text-[#2d8653] mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-sm font-semibold text-[#1a5c3a]">
-                  {status === 'new' ? 'Ny klient' : 'Onboarding pågår'}
+                  {status === 'new' ? t('clientDetail.overview.newClient') : t('clientDetail.overview.onboardingInProgress')}
                 </p>
                 <p className="text-xs text-[#2d8653] mt-0.5">
                   {status === 'new'
-                    ? 'Klienten er registrert men har ikke startet ennå. Sett opp trenings- og kostholdsplan.'
-                    : 'Klienten er i onboarding-fasen. Følg opp og fullfør oppsett.'}
+                    ? t('clientDetail.overview.newClientBody')
+                    : t('clientDetail.overview.onboardingBody')}
                 </p>
               </div>
             </div>
@@ -227,13 +236,13 @@ export default async function ClientOverviewPage({
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
             <TrendingUp className="w-4 h-4 text-[#2d8653]" />
-            Progresjonsoversikt
+            {t('clientDetail.overview.progressOverview')}
           </h3>
-          <span className="text-xs text-gray-400">Basert på check-ins</span>
+          <span className="text-xs text-gray-400">{t('clientDetail.overview.basedOnCheckins')}</span>
         </div>
         <div className="grid grid-cols-3 divide-x divide-gray-100">
           <div className="p-5 text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Startpunkt</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">{t('clientDetail.overview.startingPoint')}</p>
             {goal?.start_weight_kg != null ? (
               <>
                 <p className="text-3xl font-bold text-gray-700">{goal.start_weight_kg}</p>
@@ -251,26 +260,26 @@ export default async function ClientOverviewPage({
             )}
           </div>
           <div className="p-5 text-center relative bg-[#ebf5ef]/50">
-            <span className="absolute top-3 left-1/2 -translate-x-1/2 bg-[#2d8653] text-white text-[9px] font-bold px-2 py-0.5 rounded-full">NÅ</span>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#6ecfb0] mb-2 mt-2">Nåværende</p>
+            <span className="absolute top-3 left-1/2 -translate-x-1/2 bg-[#2d8653] text-white text-[9px] font-bold px-2 py-0.5 rounded-full">{t('clientDetail.overview.now')}</span>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#6ecfb0] mb-2 mt-2">{t('clientDetail.overview.current')}</p>
             {currentWeightAvg != null ? (
               <>
                 <p className="text-3xl font-bold text-[#6ecfb0]">{currentWeightAvg.toFixed(1)}</p>
-                <p className="text-xs text-[#6ecfb0] mt-1">kg · snitt siste 7 dager</p>
+                <p className="text-xs text-[#6ecfb0] mt-1">kg · {t('clientDetail.overview.avgLast7Days')}</p>
               </>
             ) : (
               <>
                 <p className="text-3xl font-bold text-[#6ecfb0]">—</p>
-                <p className="text-xs text-[#6ecfb0] mt-1">Ingen data ennå</p>
+                <p className="text-xs text-[#6ecfb0] mt-1">{t('clientDetail.overview.noDataYet')}</p>
               </>
             )}
           </div>
           <div className="p-5 text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-green-400 mb-2">Mål</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-green-400 mb-2">{t('clientDetail.overview.goal')}</p>
             {goal?.target_weight_kg != null ? (
               <>
                 <p className="text-3xl font-bold text-green-700">{goal.target_weight_kg}</p>
-                <p className="text-xs text-green-500 mt-1">kg målvekt</p>
+                <p className="text-xs text-green-500 mt-1">{t('clientDetail.overview.targetWeightKg')}</p>
                 {goal.description && (
                   <p className="text-xs text-green-400 mt-1.5 line-clamp-2 leading-relaxed">{goal.description}</p>
                 )}
@@ -283,7 +292,7 @@ export default async function ClientOverviewPage({
             ) : (
               <>
                 <p className="text-3xl font-bold text-green-300">—</p>
-                <p className="text-xs text-green-400 mt-1">Ikke satt</p>
+                <p className="text-xs text-green-400 mt-1">{t('clientDetail.hero.notSet')}</p>
               </>
             )}
           </div>
@@ -307,13 +316,13 @@ export default async function ClientOverviewPage({
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
               <CalendarDays className="w-4 h-4 text-gray-400" />
-              Siste aktivitet
+              {t('clientDetail.overview.recentActivity')}
             </h3>
           </div>
           <div className="p-4 space-y-1">
             {activityFeed.length === 0 ? (
               <div className="py-8 text-center">
-                <p className="text-sm text-gray-400">Ingen aktivitet registrert</p>
+                <p className="text-sm text-gray-400">{t('clientDetail.overview.noActivity')}</p>
               </div>
             ) : activityFeed.map(item => {
               if (item.kind === 'workout') {
@@ -327,7 +336,7 @@ export default async function ClientOverviewPage({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">
-                        {item.title ?? 'Treningsøkt'}
+                        {item.title ?? t('clientDetail.overview.workoutSession')}
                       </p>
                       {label && <p className="text-xs text-gray-400 mt-0.5">{label}</p>}
                     </div>
@@ -339,7 +348,7 @@ export default async function ClientOverviewPage({
                         href={`/clients/${clientId}/workout-log/${item.id}`}
                         className="text-xs font-medium text-[#2d8653] hover:text-[#1a5c3a] hover:underline"
                       >
-                        Se
+                        {t('clientDetail.overview.see')}
                       </Link>
                     </div>
                   </div>
@@ -355,7 +364,7 @@ export default async function ClientOverviewPage({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900">
-                      {item.type === 'daily' ? 'Daglig check-in' : 'Ukentlig check-in'}
+                      {item.type === 'daily' ? t('clientDetail.overview.dailyCheckin') : t('clientDetail.overview.weeklyCheckin')}
                       {item.mood != null ? ` · ${MOOD_EMOJI[item.mood - 1]}` : ''}
                     </p>
                   </div>
@@ -367,7 +376,7 @@ export default async function ClientOverviewPage({
                       href={`/clients/${clientId}/checkins`}
                       className="text-xs font-medium text-[#2d8653] hover:text-[#1a5c3a] hover:underline"
                     >
-                      Se
+                      {t('clientDetail.overview.see')}
                     </Link>
                   </div>
                 </div>
@@ -382,21 +391,21 @@ export default async function ClientOverviewPage({
           {/* Klientinfo */}
           <div className="border border-gray-100 rounded-2xl overflow-hidden">
             <div className="px-4 py-3.5 border-b border-gray-100">
-              <h3 className="font-semibold text-gray-900 text-sm">Klientinfo</h3>
+              <h3 className="font-semibold text-gray-900 text-sm">{t('clientDetail.overview.clientInfo')}</h3>
             </div>
             <div className="p-4 space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Status</span>
-                <span className="text-xs font-semibold text-gray-900">{STATUS_LABEL[status]}</span>
+                <span className="text-xs text-gray-500">{t('clientDetail.overview.status')}</span>
+                <span className="text-xs font-semibold text-gray-900">{t(STATUS_LABEL_KEY[status])}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Klient siden</span>
+                <span className="text-xs text-gray-500">{t('clientDetail.overview.clientSince')}</span>
                 <span className="text-xs font-semibold text-gray-900">
                   {new Date(rel.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Check-ins</span>
+                <span className="text-xs text-gray-500">{t('clientDetail.overview.checkins')}</span>
                 <span className="text-xs font-semibold text-gray-900">{checkins.length}+</span>
               </div>
             </div>
@@ -405,7 +414,7 @@ export default async function ClientOverviewPage({
           {/* Aktive planer */}
           <div className="border border-gray-100 rounded-2xl overflow-hidden">
             <div className="px-4 py-3.5 border-b border-gray-100">
-              <h3 className="font-semibold text-gray-900 text-sm">Aktive planer</h3>
+              <h3 className="font-semibold text-gray-900 text-sm">{t('clientDetail.overview.activePlans')}</h3>
             </div>
             <div className="p-4 space-y-2.5">
               {/* Training plan */}
@@ -418,9 +427,9 @@ export default async function ClientOverviewPage({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-gray-900 truncate group-hover:text-[#1a5c3a] transition-colors">
-                    {plan?.title ?? 'Ingen treningsplan'}
+                    {plan?.title ?? t('clientDetail.overview.noTrainingPlan')}
                   </p>
-                  <p className="text-[10px] text-gray-400">{plan ? 'Aktiv' : 'Ikke tildelt'}</p>
+                  <p className="text-[10px] text-gray-400">{plan ? t('clientDetail.overview.active') : t('clientDetail.hero.notAssigned')}</p>
                 </div>
               </Link>
 
@@ -434,10 +443,10 @@ export default async function ClientOverviewPage({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-gray-900 truncate group-hover:text-green-700 transition-colors">
-                    {meal?.title ?? 'Ingen kostholdsplan'}
+                    {meal?.title ?? t('clientDetail.overview.noMealPlan')}
                   </p>
                   <p className="text-[10px] text-gray-400">
-                    {meal?.calories_target ? `${meal.calories_target} kcal/dag` : 'Ikke tildelt'}
+                    {meal?.calories_target ? t('clientDetail.overview.kcalPerDay', { n: meal.calories_target }) : t('clientDetail.hero.notAssigned')}
                   </p>
                 </div>
               </Link>
@@ -447,7 +456,7 @@ export default async function ClientOverviewPage({
           {/* Onboarding */}
           <OnboardingPanel
             clientId={clientId}
-            clientName={profile?.full_name ?? 'Klient'}
+            clientName={profile?.full_name ?? t('dashboard.clientFallback')}
             templateName={onboardingTemplateName}
             templateQuestions={onboardingQuestions}
             submission={onboardingSubmission}

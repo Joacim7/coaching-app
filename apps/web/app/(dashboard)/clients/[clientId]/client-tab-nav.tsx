@@ -2,19 +2,22 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
-const TABS = [
-  { label: 'Oversikt',          path: '' },
-  { label: 'Trening',           path: '/training' },
-  { label: 'Progresjon',        path: '/progression' },
-  { label: 'Ernæring',          path: '/nutrition' },
-  { label: 'Vaner',             path: '/habits' },
-  { label: 'Progresjonsbilder', path: '/photos' },
-  { label: 'Økonomi',           path: '/finance' },
+const TABS: { labelKey: TranslationKey; path: string }[] = [
+  { labelKey: 'clientDetail.tabs.overview',    path: '' },
+  { labelKey: 'clientDetail.tabs.training',    path: '/training' },
+  { labelKey: 'clientDetail.tabs.progression', path: '/progression' },
+  { labelKey: 'clientDetail.tabs.nutrition',   path: '/nutrition' },
+  { labelKey: 'clientDetail.tabs.habits',      path: '/habits' },
+  { labelKey: 'clientDetail.tabs.photos',      path: '/photos' },
+  { labelKey: 'clientDetail.tabs.finance',     path: '/finance' },
 ]
 
 export function ClientTabNav({ clientId }: { clientId: string }) {
   const pathname = usePathname()
+  const { t } = useLocale()
   const base = `/clients/${clientId}`
 
   return (
@@ -32,7 +35,7 @@ export function ClientTabNav({ clientId }: { clientId: string }) {
                 : 'text-gray-500 hover:text-gray-800'
             }`}
           >
-            {tab.label}
+            {t(tab.labelKey)}
           </Link>
         )
       })}

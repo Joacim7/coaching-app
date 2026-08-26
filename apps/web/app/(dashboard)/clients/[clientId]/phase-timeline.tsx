@@ -4,21 +4,23 @@ import { useState, useOptimistic, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Pencil, X, Check } from 'lucide-react'
 import type { ClientPhase } from '@coaching/types'
+import { useLocale } from '@/components/locale-provider'
+import type { TranslationKey } from '@/lib/i18n/translations'
 
 const PRESET_COLORS = [
   '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b',
   '#ef4444', '#ec4899', '#14b8a6', '#f97316',
 ]
 
-const PHASE_TYPES = [
-  { value: 'bulk',         label: 'Bulk' },
-  { value: 'cut',          label: 'Cut' },
-  { value: 'vedlikehold',  label: 'Vedlikehold' },
-  { value: 'styrke',       label: 'Styrke' },
-  { value: 'utholdenhet',  label: 'Utholdenhet' },
-  { value: 'ferdighet',    label: 'Ferdighet' },
-  { value: 'rehab',        label: 'Rehab' },
-  { value: 'egendefinert', label: 'Egendefinert' },
+const PHASE_TYPES: { value: string; labelKey: TranslationKey }[] = [
+  { value: 'bulk',         labelKey: 'clientDetail.phases.type.bulk' },
+  { value: 'cut',          labelKey: 'clientDetail.phases.type.cut' },
+  { value: 'vedlikehold',  labelKey: 'clientDetail.phases.type.maintenance' },
+  { value: 'styrke',       labelKey: 'clientDetail.phases.type.strength' },
+  { value: 'utholdenhet',  labelKey: 'clientDetail.phases.type.endurance' },
+  { value: 'ferdighet',    labelKey: 'clientDetail.phases.type.skill' },
+  { value: 'rehab',        labelKey: 'clientDetail.phases.type.rehab' },
+  { value: 'egendefinert', labelKey: 'clientDetail.phases.type.custom' },
 ]
 
 function today() {
@@ -75,7 +77,7 @@ const labelCls  = 'block text-xs font-medium text-gray-700 mb-1'
 // regardless of the controlled/uncontrolled fix on the inputs themselves.
 function PhaseForm({
   form, setForm, onSubmit, onCancel, submitLabel, error, saving,
-  availableTrainingPlans, availableMealPlans,
+  availableTrainingPlans, availableMealPlans, t,
 }: {
   form: FormState
   setForm: (fn: (v: FormState) => FormState) => void
@@ -86,16 +88,17 @@ function PhaseForm({
   saving: boolean
   availableTrainingPlans: PlanOption[]
   availableMealPlans: PlanOption[]
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string
 }) {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls}>Fasenavn *</label>
+          <label className={labelCls}>{t('clientDetail.phases.name')}</label>
           <input
             type="text"
             required
-            placeholder="f.eks. Vektnedgang"
+            placeholder={t('clientDetail.phases.namePlaceholder')}
             value={form.name}
             onChange={e => setForm(v => ({ ...v, name: e.target.value }))}
             className={inputCls}
@@ -103,7 +106,7 @@ function PhaseForm({
           />
         </div>
         <div>
-          <label className={labelCls}>Farge</label>
+          <label className={labelCls}>{t('clientDetail.phases.color')}</label>
           <div className="flex items-center gap-1.5 flex-wrap h-9">
             {PRESET_COLORS.map(c => (
               <button
@@ -119,31 +122,31 @@ function PhaseForm({
       </div>
 
       <div>
-        <label className={labelCls}>Fasetype</label>
+        <label className={labelCls}>{t('clientDetail.phases.type')}</label>
         <div className="flex flex-wrap gap-1.5">
-          {PHASE_TYPES.map(t => (
+          {PHASE_TYPES.map(pt => (
             <button
-              key={t.value}
+              key={pt.value}
               type="button"
-              onClick={() => setForm(v => ({ ...v, phase_type: v.phase_type === t.value ? '' : t.value }))}
+              onClick={() => setForm(v => ({ ...v, phase_type: v.phase_type === pt.value ? '' : pt.value }))}
               className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                form.phase_type === t.value
+                form.phase_type === pt.value
                   ? 'bg-[#2d8653] text-white border-[#2d8653]'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-[#2d8653] hover:text-[#2d8653]'
               }`}
             >
-              {t.label}
+              {t(pt.labelKey)}
             </button>
           ))}
         </div>
       </div>
 
       <div>
-        <label className={labelCls}>Beskrivelse (valgfri)</label>
+        <label className={labelCls}>{t('clientDetail.phases.descriptionOptional')}</label>
         <textarea
           value={form.description}
           onChange={e => setForm(v => ({ ...v, description: e.target.value }))}
-          placeholder="Beskriv målet med denne fasen..."
+          placeholder={t('clientDetail.phases.descriptionPlaceholder')}
           rows={2}
           className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#2d8653]"
         />
@@ -151,7 +154,7 @@ function PhaseForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls}>Startdato *</label>
+          <label className={labelCls}>{t('clientDetail.phases.startDate')}</label>
           <input
             type="date"
             required
@@ -167,7 +170,7 @@ function PhaseForm({
           />
         </div>
         <div>
-          <label className={labelCls}>Sluttdato (valgfri)</label>
+          <label className={labelCls}>{t('clientDetail.phases.endDateOptional')}</label>
           <input
             type="date"
             defaultValue={form.end_date}
@@ -180,26 +183,26 @@ function PhaseForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls}>Treningsprogram</label>
+          <label className={labelCls}>{t('clientDetail.phases.trainingProgram')}</label>
           <select
             value={form.training_plan_id}
             onChange={e => setForm(v => ({ ...v, training_plan_id: e.target.value }))}
             className={selectCls}
           >
-            <option value="">— Velg program —</option>
+            <option value="">{t('clientDetail.phases.chooseProgram')}</option>
             {availableTrainingPlans.map(p => (
               <option key={p.id} value={p.id}>{p.title}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className={labelCls}>Matplan</label>
+          <label className={labelCls}>{t('clientDetail.phases.mealPlan')}</label>
           <select
             value={form.meal_plan_id}
             onChange={e => setForm(v => ({ ...v, meal_plan_id: e.target.value }))}
             className={selectCls}
           >
-            <option value="">— Velg matplan —</option>
+            <option value="">{t('clientDetail.phases.chooseMealPlan')}</option>
             {availableMealPlans.map(p => (
               <option key={p.id} value={p.id}>{p.title}</option>
             ))}
@@ -216,14 +219,14 @@ function PhaseForm({
           className="h-8 px-4 rounded-lg bg-[#2d8653] text-white text-xs font-semibold hover:bg-[#1a5c3a] disabled:opacity-50 transition-colors flex items-center gap-1.5"
         >
           <Check className="w-3.5 h-3.5" />
-          {saving ? 'Lagrer…' : submitLabel}
+          {saving ? t('common.saving') : submitLabel}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="h-8 px-3 rounded-lg text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
         >
-          Avbryt
+          {t('common.cancel')}
         </button>
       </div>
     </form>
@@ -240,6 +243,7 @@ interface Props {
 
 export function PhaseTimeline({ clientId, clientSince, initialPhases, availableTrainingPlans, availableMealPlans }: Props) {
   const router = useRouter()
+  const { t } = useLocale()
   const [, startTransition] = useTransition()
 
   const [phases, setPhases] = useOptimistic(initialPhases)
@@ -299,7 +303,7 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
 
     if (!res.ok) {
       const j = await res.json().catch(() => ({}))
-      setError(j.error ?? 'Noe gikk galt')
+      setError(j.error ?? t('common.somethingWentWrong'))
       setSaving(false)
       return
     }
@@ -333,7 +337,7 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
 
     if (!res.ok) {
       const j = await res.json().catch(() => ({}))
-      setError(j.error ?? 'Noe gikk galt')
+      setError(j.error ?? t('common.somethingWentWrong'))
       setSaving(false)
       return
     }
@@ -344,7 +348,7 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
   }
 
   async function handleDelete(phase: ClientPhase) {
-    if (!confirm(`Slett fasen "${phase.name}"?`)) return
+    if (!confirm(t('clientDetail.phases.deletePhaseConfirm', { name: phase.name }))) return
     setDeleting(phase.id)
     setPhases(prev => prev.filter(p => p.id !== phase.id))
     await fetch(`/api/clients/${clientId}/phases/${phase.id}`, { method: 'DELETE' })
@@ -357,10 +361,10 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <div>
-          <h3 className="font-semibold text-gray-900 text-sm">Klientfaser</h3>
+          <h3 className="font-semibold text-gray-900 text-sm">{t('clientDetail.phases.title')}</h3>
           {activePhase && (
             <p className="text-xs text-gray-400 mt-0.5">
-              Aktiv fase: <span style={{ color: activePhase.color }} className="font-semibold">{activePhase.name}</span>
+              {t('clientDetail.phases.activePhase')} <span style={{ color: activePhase.color }} className="font-semibold">{activePhase.name}</span>
             </p>
           )}
         </div>
@@ -369,7 +373,7 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
           className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2d8653] hover:text-[#1a5c3a] transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
-          Legg til fase
+          {t('clientDetail.phases.addPhase')}
         </button>
       </div>
 
@@ -381,11 +385,12 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
             setForm={setCreateForm as any}
             onSubmit={handleCreate}
             onCancel={() => { setShowCreateForm(false); setCreateForm(emptyForm()); setError('') }}
-            submitLabel="Opprett fase"
+            submitLabel={t('clientDetail.phases.create')}
             error={error}
             saving={saving}
             availableTrainingPlans={availableTrainingPlans}
             availableMealPlans={availableMealPlans}
+            t={t}
           />
         </div>
       )}
@@ -395,8 +400,8 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
         {phases.length === 0 ? (
           <div className="text-center py-6">
             <div className="w-full h-3 rounded-full bg-gray-100 mb-4" />
-            <p className="text-sm text-gray-400">Ingen faser opprettet ennå</p>
-            <p className="text-xs text-gray-300 mt-1">Faser hjelper deg å strukturere klientens treningsreise</p>
+            <p className="text-sm text-gray-400">{t('clientDetail.phases.noneYet')}</p>
+            <p className="text-xs text-gray-300 mt-1">{t('clientDetail.phases.helpText')}</p>
           </div>
         ) : (
           <>
@@ -418,7 +423,7 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
                       opacity: isActive ? 1 : 0.55,
                       minWidth: '8px',
                     }}
-                    title={`${p.name}: ${formatDate(p.start_date)}${p.end_date ? ' → ' + formatDate(p.end_date) : ' → nå'}`}
+                    title={`${p.name}: ${formatDate(p.start_date)} ${p.end_date ? '→ ' + formatDate(p.end_date) : t('clientDetail.phases.nowArrow')}`}
                   >
                     <span className="text-white text-[9px] font-bold truncate leading-none select-none">{p.name}</span>
                   </div>
@@ -428,7 +433,7 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
                 className="absolute top-0 w-0.5 h-8 bg-gray-800 rounded-full z-10"
                 style={{ left: '100%', transform: 'translateX(-1px)' }}
               >
-                <span className="absolute -top-4 -translate-x-1/2 text-[9px] font-bold text-gray-600 whitespace-nowrap">I dag</span>
+                <span className="absolute -top-4 -translate-x-1/2 text-[9px] font-bold text-gray-600 whitespace-nowrap">{t('clientDetail.phases.today')}</span>
               </div>
             </div>
 
@@ -442,13 +447,13 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
               {phases.map(p => {
                 const isUpcoming = p.start_date > tlEnd
                 const isActive   = !isUpcoming && (!p.end_date || p.end_date >= tlEnd)
-                const typeLabel  = PHASE_TYPES.find(t => t.value === p.phase_type)?.label
+                const typeLabelKey = PHASE_TYPES.find(pt => pt.value === p.phase_type)?.labelKey
 
                 if (editingId === p.id) {
                   return (
                     <div key={p.id} className="rounded-xl border border-[#cdeee3] bg-[#ebf5ef]/40 p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <p className="text-xs font-semibold text-[#1a5c3a]">Rediger fase</p>
+                        <p className="text-xs font-semibold text-[#1a5c3a]">{t('clientDetail.phases.editPhase')}</p>
                         <button onClick={cancelEdit} className="text-gray-400 hover:text-gray-600">
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -458,11 +463,12 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
                         setForm={setEditForm as any}
                         onSubmit={handleUpdate}
                         onCancel={cancelEdit}
-                        submitLabel="Lagre endringer"
+                        submitLabel={t('clientDetail.phases.saveChanges')}
                         error={error}
                         saving={saving}
                         availableTrainingPlans={availableTrainingPlans}
                         availableMealPlans={availableMealPlans}
+                        t={t}
                       />
                     </div>
                   )
@@ -478,14 +484,14 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-sm font-medium text-gray-900 truncate">{p.name}</span>
-                          {typeLabel && (
-                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{typeLabel}</span>
+                          {typeLabelKey && (
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{t(typeLabelKey)}</span>
                           )}
                           {isActive && (
-                            <span className="text-[9px] font-bold text-white bg-gray-700 px-1.5 py-0.5 rounded-full">NÅ</span>
+                            <span className="text-[9px] font-bold text-white bg-gray-700 px-1.5 py-0.5 rounded-full">{t('clientDetail.phases.now')}</span>
                           )}
                           {isUpcoming && (
-                            <span className="text-[9px] font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-full">Kommende</span>
+                            <span className="text-[9px] font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-full">{t('clientDetail.phases.upcoming')}</span>
                           )}
                         </div>
                         {p.description && (
@@ -495,12 +501,12 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       <span className="text-xs text-gray-400 whitespace-nowrap">
-                        {formatDate(p.start_date)}{p.end_date ? ` → ${formatDate(p.end_date)}` : ' → nå'}
+                        {formatDate(p.start_date)} {p.end_date ? `→ ${formatDate(p.end_date)}` : t('clientDetail.phases.nowArrow')}
                       </span>
                       <button
                         onClick={() => startEdit(p)}
                         className="p-1 rounded-lg text-gray-300 hover:text-[#2d8653] hover:bg-[#ebf5ef] transition-colors opacity-0 group-hover:opacity-100"
-                        title="Rediger fase"
+                        title={t('clientDetail.phases.editTooltip')}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -508,7 +514,7 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
                         onClick={() => handleDelete(p)}
                         disabled={deleting === p.id}
                         className="p-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                        title="Slett fase"
+                        title={t('clientDetail.phases.deleteTooltip')}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
