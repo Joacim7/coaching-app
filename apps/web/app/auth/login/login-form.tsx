@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import ResetPasswordForm from '../reset-password/reset-password-form'
 
 export default function LoginForm() {
   const router = useRouter()
@@ -18,6 +19,20 @@ export default function LoginForm() {
     : '/dashboard'
   const resetSuccess = typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).get('reset') === 'success'
+
+  // A password-recovery link that couldn't reach /auth/reset-password
+  // directly — e.g. a not-yet-rebuilt mobile app still redirecting to
+  // /dashboard (see apps/mobile's passwordResetClient fix) — ends up here:
+  // the middleware bounces the unauthenticated /dashboard request to
+  // /auth/login?next=%2Fdashboard, but the #access_token=...&type=recovery
+  // hash from the original link survives the redirect chain (browsers carry
+  // a fragment forward across a Location header that doesn't specify its
+  // own — the server-side middleware never even sees it to strip it).
+  // Show the reset-password form instead of login when it's present.
+  // TEMPORARY: remove once the mobile app is rebuilt with the corrected
+  // redirectTo, so recovery links land on /auth/reset-password directly.
+  const isRecoveryLink = typeof window !== 'undefined' && window.location.hash.includes('type=recovery')
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -58,6 +73,10 @@ export default function LoginForm() {
 
     router.push(next)
     router.refresh()
+  }
+
+  if (isRecoveryLink) {
+    return <ResetPasswordForm />
   }
 
   return (
