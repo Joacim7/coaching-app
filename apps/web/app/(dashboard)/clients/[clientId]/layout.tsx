@@ -145,7 +145,7 @@ export default async function ClientDetailLayout({
                   {t(sc.labelKey)}
                 </span>
                 <span className="text-xs text-gray-400">
-                  {t('clientDetail.hero.clientSince', { date: new Date(rel.created_at).toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }) })}
+                  {t('clientDetail.hero.clientSince', { date: new Date(rel.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' }) })}
                 </span>
               </div>
               {goal ? (

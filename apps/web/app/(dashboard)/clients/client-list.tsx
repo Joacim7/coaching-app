@@ -219,7 +219,7 @@ export function ClientList({ clients: initial }: { clients: ClientRow[]; coachId
                       <p className="text-xs text-gray-400 truncate">
                         {client.coachName
                           ? `${t('clients.coachPrefix')} ${client.coachName}`
-                          : `${t('clients.clientSince')} ${new Date(client.joinedAt).toLocaleDateString('nb-NO', { month: 'short', year: 'numeric' })}`
+                          : `${t('clients.clientSince')} ${new Date(client.joinedAt).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}`
                         }
                       </p>
                     </div>

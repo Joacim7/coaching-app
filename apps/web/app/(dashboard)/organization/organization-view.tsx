@@ -1463,7 +1463,7 @@ function OrgClientsTab() {
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">{client.name}</p>
                       <p className="text-xs text-gray-400">
-                        {new Date(client.joinedAt).toLocaleDateString(dateLocale, { month: 'short', year: 'numeric' })}
+                        {new Date(client.joinedAt).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
                     </div>
                   </div>
