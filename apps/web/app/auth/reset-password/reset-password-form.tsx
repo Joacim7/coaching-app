@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -8,16 +8,55 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Dumbbell } from 'lucide-react'
+import { Dumbbell, Loader2 } from 'lucide-react'
 
 export default function ResetPasswordForm() {
   const router = useRouter()
 
   // Supabase redirects back here with ?error=... instead of a session when
   // the recovery link is invalid or expired — no point showing the form then.
-  const linkError = typeof window !== 'undefined'
-    ? new URLSearchParams(window.location.search).get('error_description')
-    : null
+  const [linkError, setLinkError] = useState<string | null>(() =>
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('error_description')
+      : null
+  )
+
+  // A recovery link opened from the mobile app carries the session as
+  // #access_token=...&refresh_token=...&type=recovery instead of a ?code=
+  // (see apps/mobile's passwordResetClient) — this browser client defaults
+  // to the PKCE flow, so its automatic ?code= detection won't touch these
+  // hash tokens at all (silently, no conflict); establish the session from
+  // them manually instead. A coach's own web-originated ?code= link is
+  // unaffected and keeps working via the client's built-in auto-detection.
+  const [checkingHashSession, setCheckingHashSession] = useState(
+    () => typeof window !== 'undefined' && window.location.hash.includes('access_token')
+  )
+
+  useEffect(() => {
+    const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : ''
+    if (!hash.includes('access_token')) return
+
+    const params = new URLSearchParams(hash)
+    const access_token = params.get('access_token')
+    const refresh_token = params.get('refresh_token')
+
+    async function establish() {
+      // Strip the tokens from the URL either way — single-use and
+      // sensitive, shouldn't linger in browser history.
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+
+      if (!access_token || !refresh_token) {
+        setLinkError('Lenken er ugyldig eller har utløpt.')
+        setCheckingHashSession(false)
+        return
+      }
+      const supabase = createClient()
+      const { error } = await supabase.auth.setSession({ access_token, refresh_token })
+      if (error) setLinkError(error.message)
+      setCheckingHashSession(false)
+    }
+    establish()
+  }, [])
 
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -74,7 +113,11 @@ export default function ResetPasswordForm() {
             <CardDescription>Velg et nytt passord for kontoen din</CardDescription>
           </CardHeader>
           <CardContent>
-            {linkError ? (
+            {checkingHashSession ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 text-[#2d8653] animate-spin" />
+              </div>
+            ) : linkError ? (
               <div className="space-y-4">
                 <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
                   Lenken er ugyldig eller har utløpt. Be om en ny lenke for å tilbakestille
