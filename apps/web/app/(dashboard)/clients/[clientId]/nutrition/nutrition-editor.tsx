@@ -460,6 +460,59 @@ function MacroTargetEditor({
   )
 }
 
+// ── MealDistributionEditor ────────────────────────────────────────────────────
+// Shared per-meal calorie-split sliders — used both when first configuring an
+// AI plan and (via the same edit toggle as MacroTargetEditor) on an
+// already-set-up plan, keyed by whichever meals actually exist in the plan.
+
+interface MealDistributionEditorProps {
+  meals: { name: string; emoji: string }[]
+  mealSplits: Record<string, number>
+  setMealSplits: (updater: (prev: Record<string, number>) => Record<string, number>) => void
+  effectiveCalories: number
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string
+}
+
+function MealDistributionEditor({ meals, mealSplits, setMealSplits, effectiveCalories, t }: MealDistributionEditorProps) {
+  const names   = meals.map(m => m.name)
+  const totalPct = Math.round(names.reduce((s, n) => s + (mealSplits[n] ?? 0), 0) * 100)
+  const splitOk  = Math.abs(totalPct - 100) <= 1
+
+  return (
+    <div className="space-y-2">
+      {meals.map(m => {
+        const pct      = Math.round((mealSplits[m.name] ?? 0) * 100)
+        const mealKcal = Math.round(effectiveCalories * (mealSplits[m.name] ?? 0))
+        return (
+          <div key={m.name} className="flex items-center gap-2">
+            <span className="text-base w-5 flex-shrink-0 text-center">{m.emoji}</span>
+            <span className="text-xs text-gray-600 w-16 flex-shrink-0 truncate">{m.name}</span>
+            <input
+              type="range" min={1} max={60} value={pct}
+              onChange={e => setMealSplits(prev => ({ ...prev, [m.name]: Number(e.target.value) / 100 }))}
+              className="flex-1 accent-[#2d8653] h-1.5"
+            />
+            <span className="text-xs font-medium text-gray-700 w-7 text-right flex-shrink-0">{pct}%</span>
+            <span className="text-xs text-[#2d8653] w-14 text-right flex-shrink-0">{mealKcal} kcal</span>
+          </div>
+        )
+      })}
+      <div className="flex items-center justify-between pt-1 border-t border-gray-100 mt-2">
+        <button
+          type="button"
+          onClick={() => setMealSplits(() => normaliseSplits(names, Object.fromEntries(names.map(n => [n, 1 / names.length]))))}
+          className="text-xs text-[#2d8653] hover:text-[#1a5c3a]"
+        >
+          {t('clientDetail.nutrition.distributeEqually')}
+        </button>
+        <span className={`text-xs font-medium ${splitOk ? 'text-green-600' : 'text-red-500'}`}>
+          {totalPct}%{splitOk ? ' ✓' : ' ≠ 100'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function NutritionEditor({ clientId, clientName, coachId, initialPlans, initialFoodLogs, initialFavoriteMeals }: Props) {
@@ -1343,6 +1396,12 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const targetCarb    = mode === 'ai' ? effectiveCarbs    : Number(carbs)
   const targetFat     = mode === 'ai' ? effectiveFat      : Number(fat)
 
+  // Distinct meals actually in the plan, for the meal-distribution editor —
+  // selectedMeals/MEAL_OPTIONS only reflect the pre-generation config, not
+  // meals added or loaded afterward.
+  const planMealsForSplit = Array.from(new Map(meals.map(m => [m.name, m])).values())
+    .map(m => ({ name: m.name, emoji: MEAL_OPTIONS.find(o => o.name === m.name)?.emoji ?? '🍽️' }))
+
   return (
     <div>
       {/* Header */}
@@ -1525,6 +1584,20 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                     fatPct={fatPct}
                     t={t}
                   />
+                  {planMealsForSplit.length > 0 && (
+                    <div className="mt-5 pt-5 border-t border-gray-100">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                        {t('clientDetail.nutrition.mealDistribution')}
+                      </p>
+                      <MealDistributionEditor
+                        meals={planMealsForSplit}
+                        mealSplits={mealSplits}
+                        setMealSplits={setMealSplits}
+                        effectiveCalories={effectiveCalories}
+                        t={t}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
               <div className="space-y-3.5">
@@ -1938,40 +2011,14 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                 <CardHeader className="pb-0 pt-4 px-4">
                   <CardTitle className="text-sm">{t('clientDetail.nutrition.mealDistribution')}</CardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-3 space-y-2">
-                  {MEAL_OPTIONS.filter(m => selectedMeals.includes(m.name)).map(m => {
-                    const pct      = Math.round((mealSplits[m.name] ?? 0) * 100)
-                    const mealKcal = Math.round(effectiveCalories * (mealSplits[m.name] ?? 0))
-                    return (
-                      <div key={m.name} className="flex items-center gap-2">
-                        <span className="text-base w-5 flex-shrink-0 text-center">{m.emoji}</span>
-                        <span className="text-xs text-gray-600 w-16 flex-shrink-0 truncate">{m.name}</span>
-                        <input
-                          type="range" min={1} max={60} value={pct}
-                          onChange={e => setMealSplits(prev => ({ ...prev, [m.name]: Number(e.target.value) / 100 }))}
-                          className="flex-1 accent-[#2d8653] h-1.5"
-                        />
-                        <span className="text-xs font-medium text-gray-700 w-7 text-right flex-shrink-0">{pct}%</span>
-                        <span className="text-xs text-[#2d8653] w-14 text-right flex-shrink-0">{mealKcal} kcal</span>
-                      </div>
-                    )
-                  })}
-                  <div className="flex items-center justify-between pt-1 border-t border-gray-100 mt-2">
-                    <button
-                      type="button"
-                      onClick={() => setMealSplits(normaliseSplits(
-                        selectedMeals,
-                        Object.fromEntries(selectedMeals.map(m => [m, 1 / selectedMeals.length]))
-                      ))}
-                      className="text-xs text-[#2d8653] hover:text-[#1a5c3a]"
-                    >
-                      {t('clientDetail.nutrition.distributeEqually')}
-                    </button>
-                    <span className={`text-xs font-medium ${splitOk ? 'text-green-600' : 'text-red-500'}`}>
-                      {Math.round(selectedMeals.reduce((s, m) => s + (mealSplits[m] ?? 0), 0) * 100)}%
-                      {splitOk ? ' ✓' : ' ≠ 100'}
-                    </span>
-                  </div>
+                <CardContent className="p-4 pt-3">
+                  <MealDistributionEditor
+                    meals={MEAL_OPTIONS.filter(m => selectedMeals.includes(m.name))}
+                    mealSplits={mealSplits}
+                    setMealSplits={setMealSplits}
+                    effectiveCalories={effectiveCalories}
+                    t={t}
+                  />
                 </CardContent>
               </Card>
             )}
