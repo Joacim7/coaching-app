@@ -68,6 +68,40 @@ function emptyAlternative(): MealAlternative {
   return { foods: [newFood()] }
 }
 
+// Proportionally scale a list of foods so their combined calories hit
+// targetCals — used when a meal's calorie-distribution % changes, so the
+// meal's actual ingredients (grams + macros) follow the new target instead
+// of only the on-screen number.
+function scaleFoodsToTarget(foods: Food[], targetCals: number): Food[] {
+  const current = foods.reduce((s, f) => s + f.calories, 0)
+  if (current < 1 || targetCals < 1) return foods
+  const scale = targetCals / current
+  return foods.map(f => {
+    const grams    = parseFloat(f.amount) || null
+    const newGrams = grams != null ? Math.max(1, Math.round(grams * scale)) : null
+
+    let amount_display = f.amount_display
+    const dispMatch = f.amount_display?.match(/^(-?\d+(?:\.\d+)?)\s*(\S+)$/)
+    if (dispMatch) {
+      const [, rawAmt, unit] = dispMatch
+      const newUnitAmt = unit === 'stk'
+        ? Math.max(1, Math.round(parseFloat(rawAmt) * scale))
+        : Math.round(parseFloat(rawAmt) * scale * 10) / 10
+      amount_display = `${newUnitAmt} ${unit}`
+    }
+
+    return {
+      ...f,
+      amount:    newGrams != null ? `${newGrams}g` : f.amount,
+      amount_display,
+      calories:  Math.round(f.calories * scale),
+      protein_g: Math.round(f.protein_g * scale * 10) / 10,
+      carbs_g:   Math.round(f.carbs_g   * scale * 10) / 10,
+      fat_g:     Math.round(f.fat_g     * scale * 10) / 10,
+    }
+  })
+}
+
 /** Derive a display name from a list of foods. Never returns a generic fallback. */
 function deriveMealName(foods: Food[], fallback: string): string {
   const named = foods.filter(f => f.name?.trim())
@@ -319,6 +353,10 @@ export default function StandaloneMealPlanEditor({
   const [meals, setMeals] = useState<Meal[]>(initialPlan?.meals ?? [])
   const [activeMealTab, setActiveMealTab] = useState<number>(0)
   const [expandedAlt, setExpandedAlt] = useState<number | null>(null)
+  // Bumped per meal-index whenever that meal's foods are rescaled by
+  // rescaleMealsToSplits — forces FoodRow to remount with the new amounts
+  // instead of keeping the stale per-100g anchor it captured at mount.
+  const [mealRescaleVersion, setMealRescaleVersion] = useState<Record<number, number>>({})
 
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -443,6 +481,28 @@ export default function StandaloneMealPlanEditor({
     }, []
   )
 
+  // Rescales every alternative of the given meal(s) so their actual
+  // ingredients hit the new per-meal calorie target implied by `splits`
+  // (mealNames === null rescales every meal currently in the plan — used by
+  // "distribute equally"). Bumps mealRescaleVersion so the affected FoodRow
+  // instances remount with the freshly scaled amounts.
+  function rescaleMealsToSplits(mealNames: string[] | null, splits: Record<string, number>) {
+    setMeals(prev => prev.map(m => {
+      if (mealNames && !mealNames.includes(m.name)) return m
+      const target = Math.round(effectiveCalories * (splits[m.name] ?? 0))
+      if (target < 1) return m
+      const alts = getAlts(m).map(a => ({ ...a, foods: scaleFoodsToTarget(a.foods, target) }))
+      return { ...m, alternatives: alts, foods: alts[0]?.foods ?? [] }
+    }))
+    setMealRescaleVersion(prev => {
+      const next = { ...prev }
+      meals.forEach((m, mi) => {
+        if (!mealNames || mealNames.includes(m.name)) next[mi] = (next[mi] ?? 0) + 1
+      })
+      return next
+    })
+  }
+
   const handleFoodSelect = useCallback(
     (mealIdx: number, altIdx: number, foodIdx: number, result: FoodSearchResult, amountG: number) => {
       const factor = amountG / 100
@@ -513,6 +573,12 @@ export default function StandaloneMealPlanEditor({
   const displayProteinPct = totalCals > 0 ? (totalProtein * 4 / totalCals) * 100 : (effectiveProtein * 4 / effectiveCalories) * 100
   const displayCarbsPct   = totalCals > 0 ? (totalCarbs   * 4 / totalCals) * 100 : (effectiveCarbs   * 4 / effectiveCalories) * 100
   const displayFatPct     = totalCals > 0 ? (totalFat     * 9 / totalCals) * 100 : (effectiveFat     * 9 / effectiveCalories) * 100
+
+  // Distinct meals actually in the plan, for the meal-distribution editor —
+  // selectedMeals/MEAL_OPTIONS only reflect the pre-generation config, not
+  // meals added or loaded afterward.
+  const planMealsForSplit = Array.from(new Map(meals.map(m => [m.name, m])).values())
+    .map(m => ({ name: m.name, emoji: MEAL_OPTIONS.find(o => o.name === m.name)?.emoji ?? '🍽️' }))
 
   // Active meal for right panel detail
   const safeMealTab = Math.min(activeMealTab, Math.max(0, meals.length - 1))
@@ -792,45 +858,65 @@ export default function StandaloneMealPlanEditor({
           </Card>
 
           {/* 4. Måltidsfordeling */}
-          {selectedMeals.length > 0 && (
-            <Card>
-              <CardHeader className="pb-0 pt-4 px-4">
-                <CardTitle className="text-sm">{t('mealPlans.mealDistribution')}</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-3 space-y-2">
-                {MEAL_OPTIONS.filter(m => selectedMeals.includes(m.name)).map(m => {
-                  const pct     = Math.round((mealSplits[m.name] ?? 0) * 100)
-                  const mealKcal = Math.round(effectiveCalories * (mealSplits[m.name] ?? 0))
-                  return (
-                    <div key={m.name} className="flex items-center gap-2">
-                      <span className="text-base w-5 flex-shrink-0 text-center">{m.emoji}</span>
-                      <span className="text-xs text-gray-600 w-16 flex-shrink-0 truncate">{m.name}</span>
-                      <input
-                        type="range" min={1} max={60} value={pct}
-                        onChange={e => setMealSplits(prev => ({ ...prev, [m.name]: Number(e.target.value) / 100 }))}
-                        className="flex-1 accent-[#2d8653] h-1.5"
-                      />
-                      <span className="text-xs font-medium text-gray-700 w-7 text-right flex-shrink-0">{pct}%</span>
-                      <span className="text-xs text-[#2d8653] w-14 text-right flex-shrink-0">{mealKcal} kcal</span>
-                    </div>
-                  )
-                })}
-                <div className="flex items-center justify-between pt-1 border-t border-gray-100 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => setMealSplits(normaliseSplits(selectedMeals, Object.fromEntries(selectedMeals.map(m => [m, 1 / selectedMeals.length]))))}
-                    className="text-xs text-[#2d8653] hover:text-[#1a5c3a]"
-                  >
-                    {t('clientDetail.nutrition.distributeEqually')}
-                  </button>
-                  <span className={`text-xs font-medium ${splitOk ? 'text-green-600' : 'text-red-500'}`}>
-                    {Math.round(selectedMeals.reduce((s, m) => s + (mealSplits[m] ?? 0), 0) * 100)}%
-                    {splitOk ? ' ✓' : ' ≠ 100'}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {(() => {
+            // Once the plan has real meals, drive this off them — selectedMeals
+            // only reflects the pre-generation config and goes stale the moment
+            // a plan is loaded or a meal is added by hand.
+            const distributionMeals = planMealsForSplit.length > 0
+              ? planMealsForSplit
+              : MEAL_OPTIONS.filter(m => selectedMeals.includes(m.name))
+            const distNames = distributionMeals.map(m => m.name)
+            const distTotalPct = Math.round(distNames.reduce((s, n) => s + (mealSplits[n] ?? 0), 0) * 100)
+            const distSplitOk = Math.abs(distTotalPct - 100) <= 1
+
+            return distributionMeals.length > 0 && (
+              <Card>
+                <CardHeader className="pb-0 pt-4 px-4">
+                  <CardTitle className="text-sm">{t('mealPlans.mealDistribution')}</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-3 space-y-2">
+                  {distributionMeals.map(m => {
+                    const pct     = Math.round((mealSplits[m.name] ?? 0) * 100)
+                    const mealKcal = Math.round(effectiveCalories * (mealSplits[m.name] ?? 0))
+                    return (
+                      <div key={m.name} className="flex items-center gap-2">
+                        <span className="text-base w-5 flex-shrink-0 text-center">{m.emoji}</span>
+                        <span className="text-xs text-gray-600 w-16 flex-shrink-0 truncate">{m.name}</span>
+                        <input
+                          type="range" min={1} max={60} value={pct}
+                          onChange={e => {
+                            const pctVal = Number(e.target.value) / 100
+                            const next = { ...mealSplits, [m.name]: pctVal }
+                            setMealSplits(next)
+                            rescaleMealsToSplits([m.name], next)
+                          }}
+                          className="flex-1 accent-[#2d8653] h-1.5"
+                        />
+                        <span className="text-xs font-medium text-gray-700 w-7 text-right flex-shrink-0">{pct}%</span>
+                        <span className="text-xs text-[#2d8653] w-14 text-right flex-shrink-0">{mealKcal} kcal</span>
+                      </div>
+                    )
+                  })}
+                  <div className="flex items-center justify-between pt-1 border-t border-gray-100 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const equal = normaliseSplits(distNames, Object.fromEntries(distNames.map(n => [n, 1 / distNames.length])))
+                        setMealSplits(equal)
+                        rescaleMealsToSplits(distNames, equal)
+                      }}
+                      className="text-xs text-[#2d8653] hover:text-[#1a5c3a]"
+                    >
+                      {t('clientDetail.nutrition.distributeEqually')}
+                    </button>
+                    <span className={`text-xs font-medium ${distSplitOk ? 'text-green-600' : 'text-red-500'}`}>
+                      {distTotalPct}%{distSplitOk ? ' ✓' : ' ≠ 100'}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })()}
 
           {/* 5. Allergier og restriksjoner */}
           <Card>
@@ -1070,7 +1156,7 @@ export default function StandaloneMealPlanEditor({
                             {/* Foods */}
                             {alt.foods.map((food, foodIdx) => (
                               <FoodRow
-                                key={foodIdx}
+                                key={`${foodIdx}-${mealRescaleVersion[safeMealTab] ?? 0}`}
                                 food={food}
                                 onUpdate={(field, value) => updateFood(safeMealTab, altIdx, foodIdx, field, value)}
                                 onRemove={() => removeFood(safeMealTab, altIdx, foodIdx)}

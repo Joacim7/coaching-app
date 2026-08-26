@@ -151,6 +151,40 @@ function newFood(): Food {
   return { name: '', amount: '', calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }
 }
 
+// Proportionally scale a list of foods so their combined calories hit
+// targetCals — used when a meal's calorie-distribution % changes, so the
+// meal's actual ingredients (grams + macros) follow the new target instead
+// of only the on-screen number.
+function scaleFoodsToTarget(foods: Food[], targetCals: number): Food[] {
+  const current = foods.reduce((s, f) => s + f.calories, 0)
+  if (current < 1 || targetCals < 1) return foods
+  const scale = targetCals / current
+  return foods.map(f => {
+    const grams    = parseFloat(f.amount) || null
+    const newGrams = grams != null ? Math.max(1, Math.round(grams * scale)) : null
+
+    let amount_display = f.amount_display
+    const dispMatch = f.amount_display?.match(/^(-?\d+(?:\.\d+)?)\s*(\S+)$/)
+    if (dispMatch) {
+      const [, rawAmt, unit] = dispMatch
+      const newUnitAmt = unit === 'stk'
+        ? Math.max(1, Math.round(parseFloat(rawAmt) * scale))
+        : Math.round(parseFloat(rawAmt) * scale * 10) / 10
+      amount_display = `${newUnitAmt} ${unit}`
+    }
+
+    return {
+      ...f,
+      amount:    newGrams != null ? `${newGrams}g` : f.amount,
+      amount_display,
+      calories:  Math.round(f.calories * scale),
+      protein_g: Math.round(f.protein_g * scale * 10) / 10,
+      carbs_g:   Math.round(f.carbs_g   * scale * 10) / 10,
+      fat_g:     Math.round(f.fat_g     * scale * 10) / 10,
+    }
+  })
+}
+
 function newMeal(name: string, time: string): Meal {
   return { name, time, foods: [newFood()], alternatives: [{ foods: [newFood()] }] }
 }
@@ -468,14 +502,14 @@ function MacroTargetEditor({
 interface MealDistributionEditorProps {
   meals: { name: string; emoji: string }[]
   mealSplits: Record<string, number>
-  setMealSplits: (updater: (prev: Record<string, number>) => Record<string, number>) => void
+  onChange: (mealName: string, pct: number) => void
+  onDistributeEqually: () => void
   effectiveCalories: number
   t: (key: TranslationKey, vars?: Record<string, string | number>) => string
 }
 
-function MealDistributionEditor({ meals, mealSplits, setMealSplits, effectiveCalories, t }: MealDistributionEditorProps) {
-  const names   = meals.map(m => m.name)
-  const totalPct = Math.round(names.reduce((s, n) => s + (mealSplits[n] ?? 0), 0) * 100)
+function MealDistributionEditor({ meals, mealSplits, onChange, onDistributeEqually, effectiveCalories, t }: MealDistributionEditorProps) {
+  const totalPct = Math.round(meals.reduce((s, m) => s + (mealSplits[m.name] ?? 0), 0) * 100)
   const splitOk  = Math.abs(totalPct - 100) <= 1
 
   return (
@@ -489,7 +523,7 @@ function MealDistributionEditor({ meals, mealSplits, setMealSplits, effectiveCal
             <span className="text-xs text-gray-600 w-16 flex-shrink-0 truncate">{m.name}</span>
             <input
               type="range" min={1} max={60} value={pct}
-              onChange={e => setMealSplits(prev => ({ ...prev, [m.name]: Number(e.target.value) / 100 }))}
+              onChange={e => onChange(m.name, Number(e.target.value) / 100)}
               className="flex-1 accent-[#2d8653] h-1.5"
             />
             <span className="text-xs font-medium text-gray-700 w-7 text-right flex-shrink-0">{pct}%</span>
@@ -500,7 +534,7 @@ function MealDistributionEditor({ meals, mealSplits, setMealSplits, effectiveCal
       <div className="flex items-center justify-between pt-1 border-t border-gray-100 mt-2">
         <button
           type="button"
-          onClick={() => setMealSplits(() => normaliseSplits(names, Object.fromEntries(names.map(n => [n, 1 / names.length]))))}
+          onClick={onDistributeEqually}
           className="text-xs text-[#2d8653] hover:text-[#1a5c3a]"
         >
           {t('clientDetail.nutrition.distributeEqually')}
@@ -544,6 +578,10 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const [expandedAlt, setExpandedAlt] = useState<{ mi: number; ai: number } | null>(null)
   const [editingAltName, setEditingAltName] = useState<{ mi: number; ai: number } | null>(null)
   const [editingTargets, setEditingTargets] = useState(false)
+  // Bumped per meal-index whenever that meal's foods are rescaled by
+  // rescaleMealsToSplits — forces NutritionFoodRow to remount with the new
+  // amounts instead of keeping the stale per-100g anchor it captured at mount.
+  const [mealRescaleVersion, setMealRescaleVersion] = useState<Record<number, number>>({})
   const [editingMealTabIdx, setEditingMealTabIdx] = useState<number | null>(null)
   const [saving,          setSaving]          = useState(false)
   const [saved,           setSaved]           = useState(false)
@@ -884,6 +922,28 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
         return { ...m, alternatives: alts, foods: alts[0]?.foods ?? [] }
       })
     )
+  }
+
+  // Rescales every alternative of the given meal(s) so their actual
+  // ingredients hit the new per-meal calorie target implied by `splits`
+  // (mealNames === null rescales every meal currently in the plan — used by
+  // "distribute equally"). Bumps mealRescaleVersion so the affected
+  // NutritionFoodRow instances remount with the freshly scaled amounts.
+  function rescaleMealsToSplits(mealNames: string[] | null, splits: Record<string, number>) {
+    setMeals(prev => prev.map(m => {
+      if (mealNames && !mealNames.includes(m.name)) return m
+      const target = Math.round(effectiveCalories * (splits[m.name] ?? 0))
+      if (target < 1) return m
+      const alts = getAlts(m).map(a => ({ ...a, foods: scaleFoodsToTarget(a.foods, target) }))
+      return { ...m, alternatives: alts, foods: alts[0]?.foods ?? [] }
+    }))
+    setMealRescaleVersion(prev => {
+      const next = { ...prev }
+      meals.forEach((m, mi) => {
+        if (!mealNames || mealNames.includes(m.name)) next[mi] = (next[mi] ?? 0) + 1
+      })
+      return next
+    })
   }
 
   function addMealOfType(opt: { name: string; time: string }) {
@@ -1592,7 +1652,17 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                       <MealDistributionEditor
                         meals={planMealsForSplit}
                         mealSplits={mealSplits}
-                        setMealSplits={setMealSplits}
+                        onChange={(name, pct) => {
+                          const next = { ...mealSplits, [name]: pct }
+                          setMealSplits(next)
+                          rescaleMealsToSplits([name], next)
+                        }}
+                        onDistributeEqually={() => {
+                          const names = planMealsForSplit.map(m => m.name)
+                          const equal = normaliseSplits(names, Object.fromEntries(names.map(n => [n, 1 / names.length])))
+                          setMealSplits(equal)
+                          rescaleMealsToSplits(null, equal)
+                        }}
                         effectiveCalories={effectiveCalories}
                         t={t}
                       />
@@ -1805,7 +1875,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                           <div className="border-t border-gray-100 px-4 pb-4 pt-3 bg-gray-50/50">
                             {alt.foods.map((food, foodIdx) => (
                               <NutritionFoodRow
-                                key={foodIdx}
+                                key={`${foodIdx}-${mealRescaleVersion[expandedMeal!] ?? 0}`}
                                 food={food}
                                 mealIdx={expandedMeal!}
                                 altIdx={ai}
@@ -2015,7 +2085,11 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                   <MealDistributionEditor
                     meals={MEAL_OPTIONS.filter(m => selectedMeals.includes(m.name))}
                     mealSplits={mealSplits}
-                    setMealSplits={setMealSplits}
+                    onChange={(name, pct) => setMealSplits(prev => ({ ...prev, [name]: pct }))}
+                    onDistributeEqually={() => setMealSplits(normaliseSplits(
+                      selectedMeals,
+                      Object.fromEntries(selectedMeals.map(m => [m, 1 / selectedMeals.length]))
+                    ))}
                     effectiveCalories={effectiveCalories}
                     t={t}
                   />
