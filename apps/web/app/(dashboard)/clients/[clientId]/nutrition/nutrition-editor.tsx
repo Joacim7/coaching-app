@@ -509,21 +509,42 @@ interface MealDistributionEditorProps {
 }
 
 function MealDistributionEditor({ meals, mealSplits, onChange, onDistributeEqually, effectiveCalories, t }: MealDistributionEditorProps) {
+  // Live slider position while dragging, decoupled from the committed value.
+  // onChange fires on every pixel of drag, and committing straight through
+  // (rescaling every food in the meal + forcing a remount) on each of those
+  // ticks made the shown %/kcal race the drag and land on the wrong number.
+  // Only commit — and pay for the rescale — once the drag actually ends.
+  const [live, setLive] = useState<Record<string, number>>({})
+
   const totalPct = Math.round(meals.reduce((s, m) => s + (mealSplits[m.name] ?? 0), 0) * 100)
   const splitOk  = Math.abs(totalPct - 100) <= 1
+
+  function commit(name: string, raw: string) {
+    if (!(name in live)) return // already committed (e.g. blur firing right after mouseup)
+    onChange(name, Number(raw) / 100)
+    setLive(prev => {
+      const next = { ...prev }
+      delete next[name]
+      return next
+    })
+  }
 
   return (
     <div className="space-y-2">
       {meals.map(m => {
-        const pct      = Math.round((mealSplits[m.name] ?? 0) * 100)
-        const mealKcal = Math.round(effectiveCalories * (mealSplits[m.name] ?? 0))
+        const pct      = live[m.name] ?? Math.round((mealSplits[m.name] ?? 0) * 100)
+        const mealKcal = Math.round(effectiveCalories * (pct / 100))
         return (
           <div key={m.name} className="flex items-center gap-2">
             <span className="text-base w-5 flex-shrink-0 text-center">{m.emoji}</span>
             <span className="text-xs text-gray-600 w-16 flex-shrink-0 truncate">{m.name}</span>
             <input
               type="range" min={1} max={60} value={pct}
-              onChange={e => onChange(m.name, Number(e.target.value) / 100)}
+              onChange={e => setLive(prev => ({ ...prev, [m.name]: Number(e.target.value) }))}
+              onMouseUp={e => commit(m.name, (e.target as HTMLInputElement).value)}
+              onTouchEnd={e => commit(m.name, (e.target as HTMLInputElement).value)}
+              onKeyUp={e => commit(m.name, (e.target as HTMLInputElement).value)}
+              onBlur={e => commit(m.name, (e.target as HTMLInputElement).value)}
               className="flex-1 accent-[#2d8653] h-1.5"
             />
             <span className="text-xs font-medium text-gray-700 w-7 text-right flex-shrink-0">{pct}%</span>

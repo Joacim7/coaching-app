@@ -357,6 +357,12 @@ export default function StandaloneMealPlanEditor({
   // rescaleMealsToSplits — forces FoodRow to remount with the new amounts
   // instead of keeping the stale per-100g anchor it captured at mount.
   const [mealRescaleVersion, setMealRescaleVersion] = useState<Record<number, number>>({})
+  // Live meal-distribution slider position while dragging, decoupled from the
+  // committed value. onChange fires on every pixel of drag, and committing
+  // straight through (rescaling every food in the meal + forcing a remount)
+  // on each of those ticks made the shown %/kcal race the drag and land on
+  // the wrong number — only commit once the drag actually ends.
+  const [liveMealSplitPct, setLiveMealSplitPct] = useState<Record<string, number>>({})
 
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -500,6 +506,18 @@ export default function StandaloneMealPlanEditor({
         if (!mealNames || mealNames.includes(m.name)) next[mi] = (next[mi] ?? 0) + 1
       })
       return next
+    })
+  }
+
+  function commitMealSplit(name: string, raw: string, currentSplits: Record<string, number>) {
+    if (!(name in liveMealSplitPct)) return // already committed (e.g. blur firing right after mouseup)
+    const next = { ...currentSplits, [name]: Number(raw) / 100 }
+    setMealSplits(next)
+    rescaleMealsToSplits([name], next)
+    setLiveMealSplitPct(prev => {
+      const n = { ...prev }
+      delete n[name]
+      return n
     })
   }
 
@@ -893,20 +911,19 @@ export default function StandaloneMealPlanEditor({
                 </CardHeader>
                 <CardContent className="p-4 pt-3 space-y-2">
                   {distributionMeals.map(m => {
-                    const pct     = Math.round((effectiveSplits[m.name] ?? 0) * 100)
-                    const mealKcal = Math.round(effectiveCalories * (effectiveSplits[m.name] ?? 0))
+                    const pct      = liveMealSplitPct[m.name] ?? Math.round((effectiveSplits[m.name] ?? 0) * 100)
+                    const mealKcal = Math.round(effectiveCalories * (pct / 100))
                     return (
                       <div key={m.name} className="flex items-center gap-2">
                         <span className="text-base w-5 flex-shrink-0 text-center">{m.emoji}</span>
                         <span className="text-xs text-gray-600 w-16 flex-shrink-0 truncate">{m.name}</span>
                         <input
                           type="range" min={1} max={60} value={pct}
-                          onChange={e => {
-                            const pctVal = Number(e.target.value) / 100
-                            const next = { ...effectiveSplits, [m.name]: pctVal }
-                            setMealSplits(next)
-                            rescaleMealsToSplits([m.name], next)
-                          }}
+                          onChange={e => setLiveMealSplitPct(prev => ({ ...prev, [m.name]: Number(e.target.value) }))}
+                          onMouseUp={e => commitMealSplit(m.name, (e.target as HTMLInputElement).value, effectiveSplits)}
+                          onTouchEnd={e => commitMealSplit(m.name, (e.target as HTMLInputElement).value, effectiveSplits)}
+                          onKeyUp={e => commitMealSplit(m.name, (e.target as HTMLInputElement).value, effectiveSplits)}
+                          onBlur={e => commitMealSplit(m.name, (e.target as HTMLInputElement).value, effectiveSplits)}
                           className="flex-1 accent-[#2d8653] h-1.5"
                         />
                         <span className="text-xs font-medium text-gray-700 w-7 text-right flex-shrink-0">{pct}%</span>
