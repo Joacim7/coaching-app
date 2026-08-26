@@ -1483,14 +1483,14 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const planMealsForSplit = Array.from(new Map(meals.map(m => [m.name, m])).values())
     .map(m => ({ name: m.name, emoji: MEAL_OPTIONS.find(o => o.name === m.name)?.emoji ?? '🍽️' }))
 
-  // mealSplits is never persisted or restored from a loaded plan (it only
-  // ever existed to drive AI generation), so any meal the coach hasn't
-  // touched THIS session — e.g. "Kveldsmat" — falls back to 0% instead of
-  // reflecting its actual share of the plan. Derive the displayed % from
-  // the meal's real current calories whenever no explicit edit exists yet.
+  // Once a plan has real meals, their actual current calories ARE the only
+  // source of truth for "what % is this meal" — mealSplits is never
+  // persisted, so freezing an observed value into it the moment one meal
+  // changes goes stale the instant anything else shifts (another meal's
+  // edit, a macro-target change). Recompute from the real food data every
+  // render instead, so it always matches what's actually in the plan.
   const displayMealSplits: Record<string, number> = Object.fromEntries(
     planMealsForSplit.map(pm => {
-      if (mealSplits[pm.name] != null) return [pm.name, mealSplits[pm.name]]
       const meal = meals.find(m => m.name === pm.name)
       const kcal = meal ? (getAlts(meal)[0]?.foods.reduce((s, f) => s + f.calories, 0) ?? 0) : 0
       return [pm.name, effectiveCalories > 0 ? kcal / effectiveCalories : 0]
@@ -1687,15 +1687,10 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                       <MealDistributionEditor
                         meals={planMealsForSplit}
                         mealSplits={displayMealSplits}
-                        onChange={(name, pct) => {
-                          const next = { ...displayMealSplits, [name]: pct }
-                          setMealSplits(next)
-                          rescaleMealsToSplits([name], next)
-                        }}
+                        onChange={(name, pct) => rescaleMealsToSplits([name], { [name]: pct })}
                         onDistributeEqually={() => {
                           const names = planMealsForSplit.map(m => m.name)
                           const equal = normaliseSplits(names, Object.fromEntries(names.map(n => [n, 1 / names.length])))
-                          setMealSplits(equal)
                           rescaleMealsToSplits(null, equal)
                         }}
                         effectiveCalories={effectiveCalories}

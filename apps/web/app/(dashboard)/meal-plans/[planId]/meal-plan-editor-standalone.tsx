@@ -509,11 +509,19 @@ export default function StandaloneMealPlanEditor({
     })
   }
 
-  function commitMealSplit(name: string, raw: string, currentSplits: Record<string, number>) {
+  // For a pre-generation plan (no real meals yet) this just records the
+  // intended split for the AI request. Once real meals exist, the split is
+  // never "remembered" separately — rescaleMealsToSplits updates the meal's
+  // actual food to match, and that real data becomes the source of truth
+  // for what's displayed on the next render.
+  function commitMealSplit(name: string, raw: string, hasRealMeals: boolean) {
     if (!(name in liveMealSplitPct)) return // already committed (e.g. blur firing right after mouseup)
-    const next = { ...currentSplits, [name]: Number(raw) / 100 }
-    setMealSplits(next)
-    rescaleMealsToSplits([name], next)
+    const pct = Number(raw) / 100
+    if (hasRealMeals) {
+      rescaleMealsToSplits([name], { [name]: pct })
+    } else {
+      setMealSplits(prev => ({ ...prev, [name]: pct }))
+    }
     setLiveMealSplitPct(prev => {
       const n = { ...prev }
       delete n[name]
@@ -598,14 +606,14 @@ export default function StandaloneMealPlanEditor({
   const planMealsForSplit = Array.from(new Map(meals.map(m => [m.name, m])).values())
     .map(m => ({ name: m.name, emoji: MEAL_OPTIONS.find(o => o.name === m.name)?.emoji ?? '🍽️' }))
 
-  // mealSplits is never persisted or restored from a loaded plan (it only
-  // ever existed to drive AI generation), so any meal the coach hasn't
-  // touched THIS session falls back to 0% instead of reflecting its actual
-  // share of the plan. Derive the displayed % from the meal's real current
-  // calories whenever no explicit edit exists yet.
+  // Once a plan has real meals, their actual current calories ARE the only
+  // source of truth for "what % is this meal" — mealSplits is never
+  // persisted, so freezing an observed value into it the moment one meal
+  // changes goes stale the instant anything else shifts (another meal's
+  // edit, a macro-target change). Recompute from the real food data every
+  // render instead, so it always matches what's actually in the plan.
   const displayMealSplits: Record<string, number> = Object.fromEntries(
     planMealsForSplit.map(pm => {
-      if (mealSplits[pm.name] != null) return [pm.name, mealSplits[pm.name]]
       const meal = meals.find(m => m.name === pm.name)
       const kcal = meal ? (getAlts(meal)[0]?.foods.reduce((s, f) => s + f.calories, 0) ?? 0) : 0
       return [pm.name, effectiveCalories > 0 ? kcal / effectiveCalories : 0]
@@ -920,10 +928,10 @@ export default function StandaloneMealPlanEditor({
                         <input
                           type="range" min={1} max={60} value={pct}
                           onChange={e => setLiveMealSplitPct(prev => ({ ...prev, [m.name]: Number(e.target.value) }))}
-                          onMouseUp={e => commitMealSplit(m.name, (e.target as HTMLInputElement).value, effectiveSplits)}
-                          onTouchEnd={e => commitMealSplit(m.name, (e.target as HTMLInputElement).value, effectiveSplits)}
-                          onKeyUp={e => commitMealSplit(m.name, (e.target as HTMLInputElement).value, effectiveSplits)}
-                          onBlur={e => commitMealSplit(m.name, (e.target as HTMLInputElement).value, effectiveSplits)}
+                          onMouseUp={e => commitMealSplit(m.name, (e.target as HTMLInputElement).value, planMealsForSplit.length > 0)}
+                          onTouchEnd={e => commitMealSplit(m.name, (e.target as HTMLInputElement).value, planMealsForSplit.length > 0)}
+                          onKeyUp={e => commitMealSplit(m.name, (e.target as HTMLInputElement).value, planMealsForSplit.length > 0)}
+                          onBlur={e => commitMealSplit(m.name, (e.target as HTMLInputElement).value, planMealsForSplit.length > 0)}
                           className="flex-1 accent-[#2d8653] h-1.5"
                         />
                         <span className="text-xs font-medium text-gray-700 w-7 text-right flex-shrink-0">{pct}%</span>
@@ -936,8 +944,11 @@ export default function StandaloneMealPlanEditor({
                       type="button"
                       onClick={() => {
                         const equal = normaliseSplits(distNames, Object.fromEntries(distNames.map(n => [n, 1 / distNames.length])))
-                        setMealSplits(equal)
-                        rescaleMealsToSplits(distNames, equal)
+                        if (planMealsForSplit.length > 0) {
+                          rescaleMealsToSplits(distNames, equal)
+                        } else {
+                          setMealSplits(equal)
+                        }
                       }}
                       className="text-xs text-[#2d8653] hover:text-[#1a5c3a]"
                     >
