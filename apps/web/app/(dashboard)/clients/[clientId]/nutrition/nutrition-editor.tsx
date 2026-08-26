@@ -357,6 +357,109 @@ function NutritionFoodRow({ food, mealIdx, altIdx, foodIdx, updateFood, removeFo
   )
 }
 
+// ── MacroTargetEditor ─────────────────────────────────────────────────────────
+// Shared gram/percent macro-target controls — used both when first configuring
+// an AI plan and (via an edit toggle) on an already-set-up plan, so the coach
+// can keep adjusting the daily calorie/macro target after meals exist.
+
+interface MacroTargetEditorProps {
+  macroMode: 'gram' | 'pct'
+  setMacroMode: (m: 'gram' | 'pct') => void
+  protein: string
+  setProtein: (v: string) => void
+  carbs: string
+  setCarbs: (v: string) => void
+  fat: string
+  setFat: (v: string) => void
+  caloriesFromGrams: number
+  targetKcal: number
+  setTargetKcal: (v: number) => void
+  proteinPct: number
+  setProteinPct: (v: number) => void
+  carbsPct: number
+  setCarbsPct: (v: number) => void
+  fatPct: number
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string
+}
+
+function MacroTargetEditor({
+  macroMode, setMacroMode, protein, setProtein, carbs, setCarbs, fat, setFat,
+  caloriesFromGrams, targetKcal, setTargetKcal, proteinPct, setProteinPct, carbsPct, setCarbsPct, fatPct, t,
+}: MacroTargetEditorProps) {
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <div className="flex bg-gray-100 rounded-lg p-0.5">
+          {(['gram', 'pct'] as const).map(m => (
+            <button
+              key={m}
+              onClick={() => setMacroMode(m)}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                macroMode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {m === 'gram' ? t('clientDetail.nutrition.gram') : '%'}
+            </button>
+          ))}
+        </div>
+      </div>
+      {macroMode === 'gram' ? (
+        <>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: t('clientDetail.nutrition.protein'), val: protein, set: setProtein, color: 'text-green-600' },
+              { label: t('clientDetail.nutrition.carbs'),   val: carbs,   set: setCarbs,   color: 'text-orange-500' },
+              { label: t('clientDetail.nutrition.fat'),     val: fat,     set: setFat,     color: 'text-violet-500' },
+            ].map(({ label, val, set, color }) => (
+              <div key={label}>
+                <Label className={`text-xs font-medium block mb-1 ${color}`}>{label} (g)</Label>
+                <Input type="number" value={val} onChange={e => set(e.target.value)} min={0} className="h-8 text-sm" />
+              </div>
+            ))}
+          </div>
+          <div className="bg-gray-50 rounded-lg px-3 py-2 flex items-center justify-between">
+            <span className="text-xs text-gray-500 flex items-center gap-1.5">
+              <Flame className="w-3.5 h-3.5 text-orange-400" /> {t('clientDetail.nutrition.calories')}
+            </span>
+            <span className="font-bold text-gray-900">{caloriesFromGrams} kcal</span>
+          </div>
+        </>
+      ) : (
+        <>
+          <div>
+            <Label className="text-xs text-gray-500 block mb-1">{t('clientDetail.nutrition.totalKcalPerDay')}</Label>
+            <div className="flex items-center gap-2">
+              <Input type="number" value={targetKcal} min={500} max={6000} onChange={e => setTargetKcal(Number(e.target.value))} className="h-8 text-sm" />
+              <span className="text-xs text-gray-400 flex-shrink-0">kcal</span>
+            </div>
+          </div>
+          {[
+            { label: t('clientDetail.nutrition.protein'), pct: proteinPct, set: (v: number) => setProteinPct(Math.min(v, 95 - carbsPct)), color: 'bg-green-500', kcalPer: 4 },
+            { label: t('clientDetail.nutrition.carbs'),   pct: carbsPct,   set: (v: number) => setCarbsPct(Math.min(v, 95 - proteinPct)), color: 'bg-orange-400', kcalPer: 4 },
+            { label: t('clientDetail.nutrition.fat'),     pct: fatPct,     set: null,                                                      color: 'bg-violet-400', kcalPer: 9 },
+          ].map(({ label, pct, set, color, kcalPer }) => (
+            <div key={label}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium text-gray-700">{label}</span>
+                <span className="text-xs font-semibold text-gray-600">
+                  {pct}% · {Math.round(targetKcal * pct / 100 / kcalPer)}g
+                </span>
+              </div>
+              {set ? (
+                <input type="range" min={5} max={70} value={pct} onChange={e => set(Number(e.target.value))} className="w-full h-1.5 accent-[#2d8653]" />
+              ) : (
+                <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div className={`h-full ${color} rounded-full`} style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+                </div>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function NutritionEditor({ clientId, clientName, coachId, initialPlans, initialFoodLogs, initialFavoriteMeals }: Props) {
@@ -387,6 +490,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const [expandedMeal, setExpandedMeal] = useState<number | null>(null)
   const [expandedAlt, setExpandedAlt] = useState<{ mi: number; ai: number } | null>(null)
   const [editingAltName, setEditingAltName] = useState<{ mi: number; ai: number } | null>(null)
+  const [editingTargets, setEditingTargets] = useState(false)
   const [editingMealTabIdx, setEditingMealTabIdx] = useState<number | null>(null)
   const [saving,          setSaving]          = useState(false)
   const [saved,           setSaved]           = useState(false)
@@ -1399,10 +1503,30 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                   <p className="text-3xl font-bold text-gray-900">{Math.round(totalCals)}</p>
                   <p className="text-sm text-gray-400 mt-0.5">{t('clientDetail.nutrition.kcalPerDay')}</p>
                 </div>
-                <div className="text-right text-sm text-gray-500">
-                  <p>{t('clientDetail.nutrition.goalKcal', { n: targetCals })}</p>
-                </div>
+                <button
+                  onClick={() => setEditingTargets(v => !v)}
+                  className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#2d8653] transition-colors"
+                >
+                  <span>{t('clientDetail.nutrition.goalKcal', { n: targetCals })}</span>
+                  <PenLine className="w-3.5 h-3.5" />
+                </button>
               </div>
+              {editingTargets && (
+                <div className="mb-5 pb-5 border-b border-gray-100">
+                  <MacroTargetEditor
+                    macroMode={macroMode} setMacroMode={setMacroMode}
+                    protein={protein} setProtein={setProtein}
+                    carbs={carbs} setCarbs={setCarbs}
+                    fat={fat} setFat={setFat}
+                    caloriesFromGrams={caloriesFromGrams}
+                    targetKcal={targetKcal} setTargetKcal={setTargetKcal}
+                    proteinPct={proteinPct} setProteinPct={setProteinPct}
+                    carbsPct={carbsPct} setCarbsPct={setCarbsPct}
+                    fatPct={fatPct}
+                    t={t}
+                  />
+                </div>
+              )}
               <div className="space-y-3.5">
                 {[
                   { label: t('clientDetail.nutrition.protein'), val: Math.round(totalProtein), target: targetProt, color: 'bg-[#2d8653]',   kcalPer: 4 },
@@ -1791,77 +1915,21 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
 
             <Card>
               <CardHeader className="pb-0 pt-4 px-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">{t('clientDetail.nutrition.dailyMacroTargets')}</CardTitle>
-                  <div className="flex bg-gray-100 rounded-lg p-0.5">
-                    {(['gram', 'pct'] as const).map(m => (
-                      <button
-                        key={m}
-                        onClick={() => setMacroMode(m)}
-                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                          macroMode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                      >
-                        {m === 'gram' ? t('clientDetail.nutrition.gram') : '%'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <CardTitle className="text-sm">{t('clientDetail.nutrition.dailyMacroTargets')}</CardTitle>
               </CardHeader>
-              <CardContent className="p-4 pt-3 space-y-3">
-                {macroMode === 'gram' ? (
-                  <>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { label: t('clientDetail.nutrition.protein'), val: protein, set: setProtein, color: 'text-green-600' },
-                        { label: t('clientDetail.nutrition.carbs'),   val: carbs,   set: setCarbs,   color: 'text-orange-500' },
-                        { label: t('clientDetail.nutrition.fat'),     val: fat,     set: setFat,     color: 'text-violet-500' },
-                      ].map(({ label, val, set, color }) => (
-                        <div key={label}>
-                          <Label className={`text-xs font-medium block mb-1 ${color}`}>{label} (g)</Label>
-                          <Input type="number" value={val} onChange={e => set(e.target.value)} min={0} className="h-8 text-sm" />
-                        </div>
-                      ))}
-                    </div>
-                    <div className="bg-gray-50 rounded-lg px-3 py-2 flex items-center justify-between">
-                      <span className="text-xs text-gray-500 flex items-center gap-1.5">
-                        <Flame className="w-3.5 h-3.5 text-orange-400" /> {t('clientDetail.nutrition.calories')}
-                      </span>
-                      <span className="font-bold text-gray-900">{caloriesFromGrams} kcal</span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <Label className="text-xs text-gray-500 block mb-1">{t('clientDetail.nutrition.totalKcalPerDay')}</Label>
-                      <div className="flex items-center gap-2">
-                        <Input type="number" value={targetKcal} min={500} max={6000} onChange={e => setTargetKcal(Number(e.target.value))} className="h-8 text-sm" />
-                        <span className="text-xs text-gray-400 flex-shrink-0">kcal</span>
-                      </div>
-                    </div>
-                    {[
-                      { label: t('clientDetail.nutrition.protein'), pct: proteinPct, set: (v: number) => setProteinPct(Math.min(v, 95 - carbsPct)), color: 'bg-green-500', kcalPer: 4 },
-                      { label: t('clientDetail.nutrition.carbs'),   pct: carbsPct,   set: (v: number) => setCarbsPct(Math.min(v, 95 - proteinPct)), color: 'bg-orange-400', kcalPer: 4 },
-                      { label: t('clientDetail.nutrition.fat'),     pct: fatPct,     set: null,                                                      color: 'bg-violet-400', kcalPer: 9 },
-                    ].map(({ label, pct, set, color, kcalPer }) => (
-                      <div key={label}>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs font-medium text-gray-700">{label}</span>
-                          <span className="text-xs font-semibold text-gray-600">
-                            {pct}% · {Math.round(targetKcal * pct / 100 / kcalPer)}g
-                          </span>
-                        </div>
-                        {set ? (
-                          <input type="range" min={5} max={70} value={pct} onChange={e => set(Number(e.target.value))} className="w-full h-1.5 accent-[#2d8653]" />
-                        ) : (
-                          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                            <div className={`h-full ${color} rounded-full`} style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </>
-                )}
+              <CardContent className="p-4 pt-3">
+                <MacroTargetEditor
+                  macroMode={macroMode} setMacroMode={setMacroMode}
+                  protein={protein} setProtein={setProtein}
+                  carbs={carbs} setCarbs={setCarbs}
+                  fat={fat} setFat={setFat}
+                  caloriesFromGrams={caloriesFromGrams}
+                  targetKcal={targetKcal} setTargetKcal={setTargetKcal}
+                  proteinPct={proteinPct} setProteinPct={setProteinPct}
+                  carbsPct={carbsPct} setCarbsPct={setCarbsPct}
+                  fatPct={fatPct}
+                  t={t}
+                />
               </CardContent>
             </Card>
 

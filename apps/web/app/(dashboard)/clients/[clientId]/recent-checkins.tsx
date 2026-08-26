@@ -25,6 +25,7 @@ export interface CheckinRow {
   sleep_hours?: number | null
   energy_level?: number | null
   steps?:       number | null
+  menstruation?: boolean | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -174,7 +175,7 @@ function CheckinModal({
             )}
 
             {/* Metric values — shown for daily check-ins */}
-            {(checkin.weight_kg != null || checkin.sleep_hours != null || checkin.energy_level != null || checkin.steps != null) && (
+            {(checkin.weight_kg != null || checkin.sleep_hours != null || checkin.energy_level != null || checkin.steps != null || checkin.menstruation != null) && (
               <div className="grid grid-cols-2 gap-3 mb-5 pb-5 border-b border-gray-100">
                 {checkin.weight_kg != null && (
                   <div className="bg-gray-50 rounded-xl px-4 py-3">
@@ -198,6 +199,12 @@ function CheckinModal({
                   <div className="bg-gray-50 rounded-xl px-4 py-3">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">{t('clientDetail.checkins.steps')}</p>
                     <p className="text-lg font-bold text-gray-900">{checkin.steps.toLocaleString('nb-NO')}</p>
+                  </div>
+                )}
+                {checkin.menstruation != null && (
+                  <div className="bg-gray-50 rounded-xl px-4 py-3">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">{t('clientDetail.checkins.menstruation')}</p>
+                    <p className="text-lg font-bold text-gray-900">{checkin.menstruation ? t('common.yes') : t('common.no')}</p>
                   </div>
                 )}
               </div>
@@ -384,12 +391,13 @@ export function RecentCheckins({
                       </button>
                     </div>
                   </div>
-                  {(c.weight_kg != null || c.sleep_hours != null || c.energy_level != null || c.steps != null) && (
+                  {(c.weight_kg != null || c.sleep_hours != null || c.energy_level != null || c.steps != null || c.menstruation) && (
                     <div className="flex items-center gap-3 mt-1.5">
                       {c.weight_kg    != null && <span className="text-[11px] text-gray-500">⚖️ {c.weight_kg} kg</span>}
                       {c.sleep_hours  != null && <span className="text-[11px] text-gray-500">💤 {c.sleep_hours} t</span>}
                       {c.energy_level != null && <span className="text-[11px] text-gray-500">⚡ {c.energy_level}/10</span>}
                       {c.steps        != null && <span className="text-[11px] text-gray-500">👣 {c.steps.toLocaleString('nb-NO')}</span>}
+                      {c.menstruation === true && <span className="text-[11px] text-gray-500">🩸 {t('clientDetail.checkins.menstruation')}</span>}
                     </div>
                   )}
                   {c.notes && (
