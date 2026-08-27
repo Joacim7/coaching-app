@@ -116,17 +116,6 @@ interface Props {
 // must stay Norwegian regardless of UI language, since it's saved to the DB.
 const DAYS = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag']
 
-// Display-only translation of DAYS, for read-only UI labels (not persisted).
-const DAY_LABEL_KEYS: Record<string, TranslationKey> = {
-  Mandag: 'trainingEditor.day.monday',
-  Tirsdag: 'trainingEditor.day.tuesday',
-  Onsdag: 'trainingEditor.day.wednesday',
-  Torsdag: 'trainingEditor.day.thursday',
-  Fredag: 'trainingEditor.day.friday',
-  Lørdag: 'trainingEditor.day.saturday',
-  Søndag: 'trainingEditor.day.sunday',
-}
-
 // Filter values compared against real (Norwegian) muscle_groups/primary_muscles
 // strings stored in the exercises table — must stay Norwegian. Only the
 // displayed pill label is translated, via MUSCLE_PILL_LABEL_KEYS below.
@@ -1811,8 +1800,6 @@ export default function StandaloneTrainingPlanEditor({
                       : <><Dumbbell className="w-4 h-4" /> Styrke</>
                     }
                   </span>
-                  <span className="text-sm text-gray-300">·</span>
-                  <span className="text-sm text-gray-400">{t(DAY_LABEL_KEYS[DAYS[activeSession.day_of_week - 1]])}</span>
                 </div>
 
                 {/* ── Styrkeøkt ── */}
