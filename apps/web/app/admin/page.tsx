@@ -55,16 +55,21 @@ export default async function AdminPage() {
     { data: orgMembers },
     { data: orgs },
     { data: coachClients },
-    { count: totalClients },
     emailMap,
   ] = await Promise.all([
     admin.from('profiles').select('id, full_name, created_at, subscription_plan').eq('role', 'coach'),
     admin.from('org_members').select('user_id, org_id'),
     admin.from('organizations').select('id, name, subscription_plan'),
-    admin.from('coach_clients').select('coach_id, status'),
-    admin.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'client'),
+    admin.from('coach_clients').select('client_id, coach_id, status'),
     getAllUserEmails(admin),
   ])
+
+  // A raw count of profiles.role = 'client' also picks up orphaned rows
+  // that were never (or are no longer) linked to any coach — leftover test
+  // data, abandoned onboarding attempts, clients whose coach was deleted.
+  // Counting distinct client_ids that actually appear in coach_clients
+  // reflects real clients on the platform instead.
+  const totalClients = new Set((coachClients ?? []).map(cc => cc.client_id)).size
 
   const orgById = new Map((orgs ?? []).map(o => [o.id, o]))
   const orgIdByCoach = new Map((orgMembers ?? []).map(m => [m.user_id, m.org_id]))
@@ -118,8 +123,8 @@ export default async function AdminPage() {
               <UserCircle2 className="w-4 h-4" />
               <span className="text-xs font-semibold uppercase tracking-wide">Klienter totalt</span>
             </div>
-            <p className="text-3xl font-bold text-gray-900">{totalClients ?? 0}</p>
-            <p className="text-xs text-gray-500 mt-1">Alle klientprofiler på plattformen</p>
+            <p className="text-3xl font-bold text-gray-900">{totalClients}</p>
+            <p className="text-xs text-gray-500 mt-1">Klienter tilknyttet en coach</p>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
