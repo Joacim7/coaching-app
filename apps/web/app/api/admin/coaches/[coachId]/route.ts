@@ -69,12 +69,22 @@ export async function DELETE(
     }
   }
 
-  // profiles.id has ON DELETE CASCADE from every table that references it
-  // (training_plans, meal_plans, client_phases, client_goals,
+  // org_shared_resources.shared_by REFERENCES profiles(id) with NO cascade
+  // (015_org_shared_resources.sql) — deleting a coach who has ever shared
+  // something org-wide would otherwise fail with a FK violation on the
+  // profile delete below. Clear just their own shared_by rows first so the
+  // delete succeeds without anyone ever being tempted to reach for a
+  // manual, unscoped `DELETE FROM org_shared_resources` to unblock it —
+  // that's exactly what wiped every organization's shared library once
+  // already (recovered manually; see git history around this comment).
+  await admin.from('org_shared_resources').delete().eq('shared_by', coachId)
+
+  // profiles.id has ON DELETE CASCADE from every other table that
+  // references it (training_plans, meal_plans, client_phases, client_goals,
   // client_contracts, checkin_templates, exercises, recordings,
   // coach_documents, leads, org_members, coach_clients, ...) — deleting the
-  // profile cleans up everything the coach owns. It does NOT touch their
-  // clients' own profiles or data, only the coach_clients relationship.
+  // profile cleans up everything else the coach owns. It does NOT touch
+  // their clients' own profiles or data, only the coach_clients relationship.
   const { error: deleteProfileError } = await admin.from('profiles').delete().eq('id', coachId)
   if (deleteProfileError) {
     return NextResponse.json({ error: deleteProfileError.message }, { status: 500 })
