@@ -76,10 +76,16 @@ export function FinanceView({ clientId, coachId, initialContract }: Props) {
 
     if (isActive) {
       const todayBOM = new Date(todaySOD.getFullYear(), todaySOD.getMonth(), 1)
+      const startBOM = new Date(start.getFullYear(), start.getMonth(), 1)
+      // A contract that hasn't started yet counts from its own start month,
+      // not from today's — otherwise the months between today and the start
+      // date get counted twice (once here, once already inside the
+      // contract's duration), inflating remaining value past the total.
+      const fromBOM  = startBOM > todayBOM ? startBOM : todayBOM
       remainingMonths = Math.max(
         0,
-        (endDate.getFullYear() - todayBOM.getFullYear()) * 12 +
-          (endDate.getMonth() - todayBOM.getMonth()),
+        (endDate.getFullYear() - fromBOM.getFullYear()) * 12 +
+          (endDate.getMonth() - fromBOM.getMonth()),
       )
     }
 
