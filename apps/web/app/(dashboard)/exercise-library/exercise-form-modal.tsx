@@ -67,12 +67,14 @@ type FormState = {
   primary_muscles: string[]
   equipment: string[]
   video_url: string
+  is_standard: boolean
 }
 
 function emptyForm(): FormState {
   return {
     name: '', description: '', instructions: '',
     categories: [], muscle_groups: [], primary_muscles: [], equipment: [], video_url: '',
+    is_standard: false,
   }
 }
 
@@ -86,6 +88,10 @@ function fromExercise(ex: ExerciseRow, mode: FormMode, t: (key: TranslationKey, 
     primary_muscles: ex.primary_muscles ?? [],
     equipment:       ex.equipment       ?? [],
     video_url:       ex.video_url       ?? '',
+    // A copy always starts as a personal exercise, even when copying a
+    // standard one — only 'create' lets the owner opt into the shared
+    // library, and 'edit' never touches this (see handleSubmit).
+    is_standard:     mode === 'edit' ? ex.is_standard : false,
   }
 }
 
@@ -100,6 +106,7 @@ function toggle<T>(arr: T[], v: T): T[] {
 interface ModalProps {
   mode: FormMode
   exercise?: ExerciseRow
+  isOwner?: boolean
   onSaved: (exercise: ExerciseRow) => void
   onClose: () => void
 }
@@ -115,7 +122,7 @@ const SAVE_LABEL_KEYS: Record<FormMode, TranslationKey> = {
   copy:   'exerciseLibrary.saveCopy',
 }
 
-export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) {
+export function ExerciseModal({ mode, exercise, isOwner = false, onSaved, onClose }: ModalProps) {
   const { t } = useLocale()
   const [form, setForm] = useState<FormState>(() =>
     exercise ? fromExercise(exercise, mode, t) : emptyForm()
@@ -176,7 +183,7 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
 
     const trimmedVideoUrl = form.video_url.trim()
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       name:            form.name.trim(),
       description:     form.description.trim()  || null,
       instructions:    form.instructions.trim() || null,
@@ -186,6 +193,12 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
       equipment:       form.equipment,
       video_url:       trimmedVideoUrl || null,
       thumbnail_url:   youTubeThumbnail(trimmedVideoUrl),
+    }
+
+    // Only relevant on create — editing never changes an exercise's
+    // standard status, it just updates the standard exercise in place.
+    if (mode === 'create' && isOwner) {
+      payload.is_standard = form.is_standard
     }
 
     let res: Response
@@ -225,6 +238,9 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
             <h2 className="text-base font-bold text-gray-900">{t(TITLE_KEYS[mode])}</h2>
             {mode === 'copy' && exercise && (
               <p className="text-xs text-gray-400 mt-0.5">{t('exerciseLibrary.basedOn', { name: exercise.name })}</p>
+            )}
+            {mode === 'edit' && exercise?.is_standard && (
+              <p className="text-xs text-amber-600 mt-0.5">{t('exerciseLibrary.editingStandardNote')}</p>
             )}
           </div>
           <button
@@ -267,6 +283,26 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
                 />
               </div>
             </div>
+
+            {/* ── Standard exercise toggle (owner, create only) ── */}
+            {mode === 'create' && isOwner && (
+              <label className="flex items-start gap-2.5 p-3 rounded-xl border border-gray-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.is_standard}
+                  onChange={e => set('is_standard', e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300"
+                />
+                <span>
+                  <span className="block text-xs font-semibold text-gray-700">
+                    {t('exerciseLibrary.markAsStandard')}
+                  </span>
+                  <span className="block text-[10px] text-gray-400">
+                    {t('exerciseLibrary.markAsStandardHint')}
+                  </span>
+                </span>
+              </label>
+            )}
 
             {/* ── Category ────────────────────────────────────── */}
             <div>
@@ -453,9 +489,10 @@ export function ExerciseModal({ mode, exercise, onSaved, onClose }: ModalProps) 
 
 interface TriggerProps {
   onCreated: (exercise: ExerciseRow) => void
+  isOwner?: boolean
 }
 
-export function ExerciseFormModal({ onCreated }: TriggerProps) {
+export function ExerciseFormModal({ onCreated, isOwner = false }: TriggerProps) {
   const { t } = useLocale()
   const [open, setOpen] = useState(false)
   return (
@@ -467,6 +504,7 @@ export function ExerciseFormModal({ onCreated }: TriggerProps) {
       {open && (
         <ExerciseModal
           mode="create"
+          isOwner={isOwner}
           onSaved={onCreated}
           onClose={() => setOpen(false)}
         />

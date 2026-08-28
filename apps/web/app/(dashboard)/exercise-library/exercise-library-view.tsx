@@ -27,11 +27,11 @@ const EQUIPMENT_ICONS: Record<string, string> = {
   'Maskin': '⚙️', 'Kettlebell': '🔔', 'Resistance band': '📎',
 }
 
-interface Props { initialExercises: ExerciseRow[]; orgSharedIds?: Set<string>; isAdmin?: boolean }
+interface Props { initialExercises: ExerciseRow[]; orgSharedIds?: Set<string>; isAdmin?: boolean; isOwner?: boolean }
 
 type ModalState = { mode: FormMode; exercise?: ExerciseRow }
 
-export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set(), isAdmin = false }: Props) {
+export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set(), isAdmin = false, isOwner = false }: Props) {
   const { t } = useLocale()
   const [exercises, setExercises] = useState<ExerciseRow[]>(initialExercises)
   const [tab, setTab]               = useState<Tab>('alle')
@@ -74,7 +74,10 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
   }
 
   function handleCardClick(ex: ExerciseRow) {
-    setModal({ mode: ex.is_standard ? 'copy' : 'edit', exercise: ex })
+    // The owner edits standard exercises in place; everyone else branches
+    // off a personal copy instead.
+    const mode = ex.is_standard && !isOwner ? 'copy' : 'edit'
+    setModal({ mode, exercise: ex })
   }
 
   async function handleDelete(ex: ExerciseRow) {
@@ -106,7 +109,7 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
             {t('exerciseLibrary.subtitle')}
           </p>
         </div>
-        <ExerciseFormModal onCreated={ex => setExercises(prev => [ex, ...prev])} />
+        <ExerciseFormModal onCreated={ex => setExercises(prev => [ex, ...prev])} isOwner={isOwner} />
       </div>
 
       {/* Search */}
@@ -175,6 +178,7 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
           {displayed.map(ex => {
             const isMenuOpen = openMenu === ex.id
             const isOwn      = !ex.is_standard
+            const canEdit    = isOwn || (isOwner && ex.is_standard)
             const canDelete  = isOwn || (isAdmin && ex.is_standard)
             const thumb      = exerciseThumbnail(ex)
 
@@ -248,7 +252,7 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
 
                       {isMenuOpen && (
                         <div className="absolute right-0 top-9 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-30 min-w-[160px]">
-                          {isOwn && (
+                          {canEdit && (
                             <button
                               onClick={() => { setOpenMenu(null); setModal({ mode: 'edit', exercise: ex }) }}
                               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -344,6 +348,7 @@ export function ExerciseLibraryView({ initialExercises, orgSharedIds = new Set()
         <ExerciseModal
           mode={modal.mode}
           exercise={modal.exercise}
+          isOwner={isOwner}
           onSaved={handleSaved}
           onClose={() => setModal(null)}
         />

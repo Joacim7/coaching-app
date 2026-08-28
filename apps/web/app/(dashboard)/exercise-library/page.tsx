@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getOrgSharedIds } from '@/lib/org-shared'
+import { ORG_ADMIN_ID } from '@/lib/paywall'
 import { ExerciseLibraryView } from './exercise-library-view'
 import type { ExerciseRow } from './new-exercise-dialog'
 
@@ -16,6 +17,7 @@ export default async function ExerciseLibraryPage() {
     .eq('role', 'admin')
     .maybeSingle()
   const isAdmin = !!adminMembership
+  const isOwner = user!.id === ORG_ADMIN_ID
 
   const orFilter = sharedIds.length > 0
     ? `is_standard.eq.true,coach_id.eq.${user!.id},id.in.(${sharedIds.join(',')})`
@@ -35,6 +37,7 @@ export default async function ExerciseLibraryPage() {
       initialExercises={exercises}
       orgSharedIds={new Set(sharedIds)}
       isAdmin={isAdmin}
+      isOwner={isOwner}
     />
   )
 }

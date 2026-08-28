@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { ORG_ADMIN_ID } from '@/lib/paywall'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -32,16 +33,21 @@ export async function POST(req: Request) {
     equipment?: string[]
     video_url?: string
     thumbnail_url?: string | null
+    is_standard?: boolean
   }
 
   if (!body.name?.trim()) {
     return NextResponse.json({ error: 'Navn er påkrevd' }, { status: 400 })
   }
 
+  // Only the platform owner may add directly to the shared standard
+  // library — everyone else's new exercises are their own.
+  const asStandard = body.is_standard === true && user.id === ORG_ADMIN_ID
+
   const { data, error } = await supabase
     .from('exercises')
     .insert({
-      coach_id:        user.id,
+      coach_id:        asStandard ? null : user.id,
       name:            body.name.trim(),
       description:     body.description?.trim() ?? null,
       instructions:    body.instructions?.trim() ?? null,
@@ -51,7 +57,7 @@ export async function POST(req: Request) {
       equipment:       body.equipment ?? [],
       video_url:       body.video_url?.trim() ?? null,
       thumbnail_url:   body.thumbnail_url ?? null,
-      is_standard:     false,
+      is_standard:     asStandard,
     })
     .select()
     .single()
