@@ -368,12 +368,14 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       setScreenStream(null)
       setWebcamStream(null)
 
-      // Brief confirmation, then close — no navigation needed.
+      // Confirmation (long enough to actually read the paste-it-somewhere
+      // hint below the button, not just flash by), then close — no
+      // navigation needed.
       setTimeout(() => {
         setStage('idle')
         setBlob(null)
         setLinkCopied(false)
-      }, 1500)
+      }, 3000)
     } catch (err) {
       setUpErr(err instanceof Error ? err.message : 'Ukjent feil')
     } finally {
@@ -684,6 +686,12 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                   <><Link2 className="w-4 h-4" /> Last opp og kopier link</>
                 )}
               </button>
+
+              {linkCopied && (
+                <p className="text-center text-xs text-gray-500 -mt-1">
+                  Lim den inn der du vil dele den, f.eks. som svar på en ukentlig check-in.
+                </p>
+              )}
 
               <button
                 onClick={discardRecording}
