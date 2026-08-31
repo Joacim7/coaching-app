@@ -64,6 +64,15 @@ function fmtBytes(b: number) {
     : `${(b / 1024 / 1024).toFixed(1)} MB`
 }
 
+const MAX_RECORD_DIMENSION = 1920
+
+function capResolution(width: number, height: number): { width: number; height: number } {
+  const longest = Math.max(width, height)
+  if (longest <= MAX_RECORD_DIMENSION) return { width, height }
+  const scale = MAX_RECORD_DIMENSION / longest
+  return { width: Math.round(width * scale), height: Math.round(height * scale) }
+}
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 export function RecordingProvider({ children }: { children: ReactNode }) {
@@ -156,9 +165,20 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setDisplaySurface((settings as any).displaySurface ?? null)
 
+      // Capped, not the raw capture resolution: getDisplayMedia reports the
+      // display's native pixels, which on a Retina/4K/5K monitor can be
+      // 3000-5000px wide. Compositing and VP9-encoding a canvas that large
+      // continuously at 30fps is heavy enough to make the encoder stall or
+      // error out partway through on an otherwise capable machine — a
+      // very plausible cause of a recording just cutting out mid-session.
+      // 1080p is plenty for reviewing a screen recording.
+      const { width: cappedWidth, height: cappedHeight } = capResolution(
+        settings.width  || 1280,
+        settings.height || 720,
+      )
       const canvas  = canvasRef.current!
-      canvas.width  = settings.width  || 1280
-      canvas.height = settings.height || 720
+      canvas.width  = cappedWidth
+      canvas.height = cappedHeight
 
       track.addEventListener('ended', () => {
         // The OS/browser can end screen sharing on its own at any time — the
@@ -211,11 +231,20 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     // wherever they dragged the live bubble to, PLUS this fixed corner copy
     // underneath it. One visible bubble is now the only source of it.
     const draw = () => {
-      ctx.fillStyle = '#111827'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      try {
+        ctx.fillStyle = '#111827'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-      if (screenVideo.readyState >= 2) {
-        ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height)
+        if (screenVideo.readyState >= 2) {
+          ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height)
+        }
+      } catch (err) {
+        // A single bad frame (e.g. the video element momentarily in a
+        // weird state right as a track ends) shouldn't kill the whole
+        // requestAnimationFrame chain — an uncaught throw here silently
+        // stops it, which stops feeding the recorder with no error
+        // surfaced anywhere. Skip this frame, keep the loop alive.
+        console.error('[recording] draw() frame skipped:', err)
       }
 
       animRef.current = requestAnimationFrame(draw)
@@ -243,6 +272,23 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         `${now.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}`
       )
       setStage('saving')
+    }
+    // Encoder-level failures (e.g. the browser's encoder choking on load)
+    // previously went completely unhandled — no listener at all — so the
+    // recording would just go dead with zero indication why. Not every
+    // browser is guaranteed to also fire 'stop' after an error, so finalize
+    // explicitly here with whatever was captured rather than leaving the UI
+    // stuck showing "recording" while nothing is actually happening.
+    rec.onerror = (event) => {
+      console.error('[recording] MediaRecorder error:', event)
+      if (recRef.current?.state === 'recording') {
+        stopRecording()
+      } else if (chunksRef.current.length > 0) {
+        clearInterval(intervalRef.current)
+        cancelAnimationFrame(animRef.current)
+        setBlob(new Blob(chunksRef.current, { type: mime }))
+        setStage('saving')
+      }
     }
 
     rec.start(1000)
