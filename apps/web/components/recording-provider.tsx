@@ -161,11 +161,28 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       canvas.height = settings.height || 720
 
       track.addEventListener('ended', () => {
-        // User stopped sharing from OS picker → move to idle (or keep recording if active)
-        setScreenStream(null)
-        setDisplaySurface(null)
-        cancelAnimationFrame(animRef.current)
-        setStage(s => (s === 'recording' ? s : 'idle'))
+        // The OS/browser can end screen sharing on its own at any time — the
+        // native "Stop sharing" bar, closing the shared window, some
+        // multi-monitor/virtual-desktop setups, etc. Previously this just
+        // cancelled the draw loop and cleared screenStream while leaving
+        // `stage` at 'recording': the MediaRecorder kept technically
+        // running, but with no more screen frames feeding the canvas, so it
+        // silently produced a dead/frozen recording with zero visible
+        // indication anything had gone wrong — from the coach's side this
+        // looked exactly like "opptaket bare stoppet" the moment they went
+        // back to check it. Actually stopping (and triggering the normal
+        // save flow) whenever this happens mid-recording means the coach
+        // gets the save dialog immediately with whatever was captured up to
+        // that point, instead of a silently-broken recording discovered
+        // later.
+        if (recRef.current?.state === 'recording') {
+          stopRecording()
+        } else {
+          setScreenStream(null)
+          setDisplaySurface(null)
+          cancelAnimationFrame(animRef.current)
+          setStage('idle')
+        }
       })
 
       setScreenStream(stream)
