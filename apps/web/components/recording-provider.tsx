@@ -204,30 +204,18 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
     const ctx = canvas.getContext('2d')!
 
-    // Draw loop: composites screen + webcam circle into the canvas every frame.
-    // canvas.drawImage reads decoded video frames regardless of element visibility.
+    // Draw loop: composites the screen into the canvas every frame. No
+    // separate webcam overlay here — the floating bubble is itself part of
+    // whatever gets captured (same tab, window, or monitor), so compositing
+    // a second, hardcoded corner copy just duplicated the coach's face:
+    // wherever they dragged the live bubble to, PLUS this fixed corner copy
+    // underneath it. One visible bubble is now the only source of it.
     const draw = () => {
-      const wv = webcamVidRef.current
       ctx.fillStyle = '#111827'
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
       if (screenVideo.readyState >= 2) {
         ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height)
-      }
-
-      if (wv && wv.readyState >= 2) {
-        const size   = Math.floor(canvas.width * 0.15)
-        const margin = 20
-        const cx = canvas.width  - size - margin + size / 2
-        const cy = canvas.height - size - margin + size / 2
-        const x  = canvas.width  - size - margin
-        const y  = canvas.height - size - margin
-        ctx.save()
-        ctx.beginPath()
-        ctx.arc(cx, cy, size / 2, 0, Math.PI * 2)
-        ctx.clip()
-        ctx.drawImage(wv, x, y, size, size)
-        ctx.restore()
       }
 
       animRef.current = requestAnimationFrame(draw)
@@ -405,9 +393,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
   const inSession = stage === 'preview' || stage === 'recording'
 
-  // See the floating webcam bubble's render comment below.
-  const hiddenForCapture = stage === 'recording' && displaySurface === 'monitor'
-
   const surfaceLabel = displaySurface === 'monitor' ? 'Hele skjermen'
     : displaySurface === 'window' ? 'Vindu'
     : displaySurface === 'browser' ? 'Nettleserfane'
@@ -458,26 +443,21 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
           }}
           className="select-none"
         >
-          {/* Webcam circle — visually hidden (opacity, not unmounted: the
-              canvas draw loop still reads frames from this same element for
-              the recorded corner overlay) while recording the entire
-              monitor. This bubble sits on top of everything on screen, so
-              sharing "Hele skjermen" would otherwise capture it a second
-              time in addition to the corner overlay the canvas composites
-              in, showing the coach's face twice in the finished recording.
-              Only matters once actual capture starts (stage 'recording');
-              harmless to show during preview, since nothing is saved yet. */}
+          {/* Webcam circle — the coach's only face overlay now (see the
+              draw-loop comment in startRecording): this bubble is itself
+              part of whatever gets captured, so it needs no special-casing
+              per capture mode. */}
           <div className="relative w-[120px] h-[120px] rounded-full overflow-hidden border-[3px] border-white/30 bg-gray-900 shadow-2xl ring-2 ring-black/30">
             {webcamStream && (
               <video
                 ref={webcamVidRef}
                 muted
                 playsInline
-                style={{ opacity: camOn && !hiddenForCapture ? 1 : 0 }}
+                style={{ opacity: camOn ? 1 : 0 }}
                 className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
               />
             )}
-            {(!webcamStream || !camOn || hiddenForCapture) && (
+            {(!webcamStream || !camOn) && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
                 <VideoOff className="w-6 h-6 text-gray-600" />
               </div>
