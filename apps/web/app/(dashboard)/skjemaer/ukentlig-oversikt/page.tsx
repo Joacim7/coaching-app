@@ -127,7 +127,14 @@ export default async function UkentligOversiktPage({
       for (const c of (carryOver ?? [])) {
         if (checkinByClient.has(c.client_id)) continue
         const fb = Array.isArray(c.feedback) ? c.feedback[0] : c.feedback
-        if (fb?.viewed_at) continue // already handled — a real gap, not a lost submission
+        // Already handled — a real gap, not a lost submission. Checking
+        // is_complete too (not just viewed_at) matters: feedback saved from
+        // the per-client check-ins tab before this carry-over feature
+        // existed never stamped viewed_at, so a coach who already sent
+        // feedback weeks ago could otherwise see that same client pop back
+        // up as a fresh "Levert" here once their old submission ages past
+        // the current week's Monday.
+        if (fb?.viewed_at || fb?.is_complete) continue
         checkinByClient.set(c.client_id, c)
       }
     }
