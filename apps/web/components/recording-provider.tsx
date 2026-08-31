@@ -405,6 +405,9 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
   const inSession = stage === 'preview' || stage === 'recording'
 
+  // See the floating webcam bubble's render comment below.
+  const hiddenForCapture = stage === 'recording' && displaySurface === 'monitor'
+
   const surfaceLabel = displaySurface === 'monitor' ? 'Hele skjermen'
     : displaySurface === 'window' ? 'Vindu'
     : displaySurface === 'browser' ? 'Nettleserfane'
@@ -455,18 +458,26 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
           }}
           className="select-none"
         >
-          {/* Webcam circle */}
+          {/* Webcam circle — visually hidden (opacity, not unmounted: the
+              canvas draw loop still reads frames from this same element for
+              the recorded corner overlay) while recording the entire
+              monitor. This bubble sits on top of everything on screen, so
+              sharing "Hele skjermen" would otherwise capture it a second
+              time in addition to the corner overlay the canvas composites
+              in, showing the coach's face twice in the finished recording.
+              Only matters once actual capture starts (stage 'recording');
+              harmless to show during preview, since nothing is saved yet. */}
           <div className="relative w-[120px] h-[120px] rounded-full overflow-hidden border-[3px] border-white/30 bg-gray-900 shadow-2xl ring-2 ring-black/30">
             {webcamStream && (
               <video
                 ref={webcamVidRef}
                 muted
                 playsInline
-                style={{ opacity: camOn ? 1 : 0 }}
+                style={{ opacity: camOn && !hiddenForCapture ? 1 : 0 }}
                 className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
               />
             )}
-            {(!webcamStream || !camOn) && (
+            {(!webcamStream || !camOn || hiddenForCapture) && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
                 <VideoOff className="w-6 h-6 text-gray-600" />
               </div>
