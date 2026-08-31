@@ -102,6 +102,37 @@ export default async function UkentligOversiktPage({
     if (!checkinByClient.has(c.client_id)) checkinByClient.set(c.client_id, c)
   }
 
+  // A check-in submitted just before the Mon–Sun boundary (e.g. Sunday
+  // night) falls into last week's bucket and would otherwise vanish from
+  // the coach's view the moment the new week starts, even though nobody's
+  // looked at it yet. On the current week, backfill any client who has no
+  // submission THIS week with their most recent still-unread one from
+  // before — so it keeps surfacing until a coach actually opens it,
+  // regardless of which week it happened to land in.
+  if (weekOffset === 0) {
+    const missingIds = clientIds.filter(id => !checkinByClient.has(id))
+    if (missingIds.length > 0) {
+      const { data: carryOver } = await supabase
+        .from('checkins')
+        .select(`
+          id, client_id, created_at, answers,
+          template:checkin_templates ( name, questions ),
+          feedback:checkin_feedback   ( comment, video_link, is_complete, viewed_at )
+        `)
+        .in('client_id', missingIds)
+        .eq('type', 'weekly')
+        .lt('created_at', monday.toISOString())
+        .order('created_at', { ascending: false })
+
+      for (const c of (carryOver ?? [])) {
+        if (checkinByClient.has(c.client_id)) continue
+        const fb = Array.isArray(c.feedback) ? c.feedback[0] : c.feedback
+        if (fb?.viewed_at) continue // already handled — a real gap, not a lost submission
+        checkinByClient.set(c.client_id, c)
+      }
+    }
+  }
+
   // 3. Build ClientRow[]
   const rows: ClientRow[] = clients.map(cl => {
     const raw = checkinByClient.get(cl.id) ?? null

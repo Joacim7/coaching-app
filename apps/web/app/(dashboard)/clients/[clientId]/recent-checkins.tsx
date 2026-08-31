@@ -349,6 +349,18 @@ export function RecentCheckins({
     if (selected?.id === id) setSelected(s => s ? { ...s, feedback } : s)
   }
 
+  // Saving a draft/feedback already creates the checkin_feedback row, but
+  // just opening one to read it doesn't — without this, a check-in reviewed
+  // only here (never touched from Ukentlig oversikt, e.g. any daily one)
+  // would stay "unread" forever, however many times a coach has actually
+  // looked at it.
+  function handleOpen(c: CheckinRow) {
+    setSelected(c)
+    if (!c.feedback) {
+      fetch(`/api/checkin-feedback/${c.id}/view`, { method: 'POST' }).catch(() => {})
+    }
+  }
+
   return (
     <>
       <div className="p-5">
@@ -384,7 +396,7 @@ export function RecentCheckins({
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-xs text-gray-400">{relDate(c.created_at, t)}</span>
                       <button
-                        onClick={() => setSelected(c)}
+                        onClick={() => handleOpen(c)}
                         className="text-xs font-medium text-[#2d8653] hover:text-[#1a5c3a] hover:underline whitespace-nowrap"
                       >
                         {t('clientDetail.checkins.seeAnswers')}
