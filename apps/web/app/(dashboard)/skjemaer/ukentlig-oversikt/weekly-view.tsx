@@ -124,8 +124,9 @@ function FeedbackModal({
 }) {
   const { t, locale } = useLocale()
   const dateLocale = locale === 'en' ? 'en-US' : 'nb-NO'
-  const checkin   = row.checkin!
-  const questions = checkin.template?.questions ?? []
+  const checkin    = row.checkin!
+  const questions  = checkin.template?.questions ?? []
+  const isComplete = !!row.feedback?.is_complete
 
   const [comment,    setComment]    = useState(row.feedback?.comment    ?? '')
   const [videoLink,  setVideoLink]  = useState(row.feedback?.video_link ?? '')
@@ -275,18 +276,18 @@ function FeedbackModal({
         <div className="shrink-0 px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex gap-2">
           <button
             onClick={() => save(false)}
-            disabled={saving || completing}
+            disabled={saving || completing || isComplete}
             className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
           >
             {saving ? t('common.saving') : t('common.save')}
           </button>
           <button
             onClick={() => save(true)}
-            disabled={saving || completing}
+            disabled={saving || completing || isComplete}
             className="flex-1 h-10 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)] hover:[background:#1a5c3a]"
           >
             <CheckCircle2 className="w-4 h-4" />
-            {completing ? t('weeklyOverview.completing') : t('weeklyOverview.markComplete')}
+            {isComplete ? t('weeklyOverview.alreadySent') : completing ? t('weeklyOverview.completing') : t('weeklyOverview.markComplete')}
           </button>
         </div>
       </div>

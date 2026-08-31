@@ -10,7 +10,7 @@ import type { TranslationKey } from '@/lib/i18n/translations'
 
 interface Question { id: string; text: string; type: string }
 interface Template { name: string; questions: Question[] }
-interface Feedback  { comment: string | null; video_link: string | null; is_complete: boolean }
+interface Feedback  { comment: string | null; video_link: string | null; is_complete: boolean; viewed_at?: string | null }
 
 export interface CheckinRow {
   id:           string
@@ -311,7 +311,7 @@ function CheckinModal({
           <Button
             variant="success"
             onClick={() => handleSave(false)}
-            disabled={savingDraft || sending || sent}
+            disabled={savingDraft || sending || sent || isSent}
             className="flex-1"
           >
             {draftSaved ? t('clientDetail.checkins.draftSaved') : savingDraft ? t('clientDetail.checkins.savingDraft') : t('clientDetail.checkins.saveDraft')}
@@ -319,11 +319,11 @@ function CheckinModal({
           <Button
             variant="success"
             onClick={() => handleSave(true)}
-            disabled={savingDraft || sending || sent}
+            disabled={savingDraft || sending || sent || isSent}
             className="flex-1"
           >
             <Send className="w-4 h-4" />
-            {sent ? t('clientDetail.checkins.sentConfirm') : sending ? t('clientDetail.checkins.sending') : t('clientDetail.checkins.sendFeedback')}
+            {sent || isSent ? t('clientDetail.checkins.sentConfirm') : sending ? t('clientDetail.checkins.sending') : t('clientDetail.checkins.sendFeedback')}
           </Button>
         </div>
       </div>
@@ -356,7 +356,7 @@ export function RecentCheckins({
   // looked at it.
   function handleOpen(c: CheckinRow) {
     setSelected(c)
-    if (!c.feedback) {
+    if (!c.feedback?.viewed_at) {
       fetch(`/api/checkin-feedback/${c.id}/view`, { method: 'POST' }).catch(() => {})
     }
   }

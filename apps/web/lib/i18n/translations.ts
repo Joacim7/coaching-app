@@ -313,6 +313,7 @@ const dict = {
   'weeklyOverview.openVideo':                  { nb: 'Åpne video', en: 'Open video' },
   'weeklyOverview.markComplete':               { nb: 'Marker ferdig', en: 'Mark complete' },
   'weeklyOverview.completing':                 { nb: 'Fullfører...', en: 'Completing...' },
+  'weeklyOverview.alreadySent':                { nb: 'Allerede sendt', en: 'Already sent' },
   'weeklyOverview.saveFailed':                 { nb: 'Kunne ikke lagre', en: 'Could not save' },
   'weeklyOverview.monthShort.1': { nb: 'jan', en: 'Jan' },
   'weeklyOverview.monthShort.2': { nb: 'feb', en: 'Feb' },

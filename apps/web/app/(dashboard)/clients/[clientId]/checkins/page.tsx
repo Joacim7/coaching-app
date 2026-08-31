@@ -39,7 +39,7 @@ export default async function ClientCheckinsPage({
       id, created_at, type, mood, notes, answers,
       weight_kg, sleep_hours, energy_level, steps, menstruation,
       template:checkin_templates ( name, questions ),
-      feedback:checkin_feedback ( comment, video_link, is_complete )
+      feedback:checkin_feedback ( comment, video_link, is_complete, viewed_at )
     `)
     .eq('client_id', clientId)
     .order('created_at', { ascending: false })
