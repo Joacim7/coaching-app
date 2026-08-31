@@ -42,8 +42,7 @@ export default async function TrainingPage({
       .select('id, session_title, date, sets_data')
       .eq('client_id', clientId)
       .order('date', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(5),
+      .order('created_at', { ascending: false }),
   ])
 
   if (!rel) notFound()
