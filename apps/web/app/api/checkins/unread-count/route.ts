@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-// Counts check-ins from this coach's clients that haven't been opened yet
-// (no checkin_feedback row, or one whose viewed_at is still null). This is
-// deliberately independent of calendar week and check-in type — Ukentlig
-// oversikt buckets weekly check-ins by Mon–Sun and can bury a Sunday-night
-// submission in "last week" until a coach thinks to click back, and it
-// never shows daily check-ins at all. This count is what actually answers
-// "has a client sent something I haven't seen yet".
+// Counts weekly check-ins from this coach's clients that haven't been
+// opened yet (no checkin_feedback row, or one whose viewed_at is still
+// null). Scoped to type='weekly' to match what the badge sits next to —
+// Ukentlig oversikt only ever shows weekly check-ins, never daily ones, so
+// counting daily quick-logs here inflated the badge with things that page
+// can't even display (daily check-ins have no per-item "open" action
+// anywhere, so they'd almost never get marked read, growing forever) and
+// pushed the count past its 99+ display cap for no actionable reason.
+// Deliberately independent of calendar week, unlike Ukentlig oversikt's own
+// Mon–Sun bucketing — a Sunday-night submission still counts as unread here
+// even after it's buried in "last week" until a coach clicks back to it.
 const LOOKBACK_DAYS = 90
 
 export async function GET() {
@@ -30,6 +34,7 @@ export async function GET() {
     .from('checkins')
     .select('id, feedback:checkin_feedback(viewed_at)')
     .in('client_id', clientIds)
+    .eq('type', 'weekly')
     .gte('created_at', since)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
