@@ -257,8 +257,19 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     screenStream.getAudioTracks().forEach(t => cs.addTrack(t))
     if (micOnRef.current) webcamStream?.getAudioTracks().forEach(t => cs.addTrack(t))
 
-    const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
-      .find(t => MediaRecorder.isTypeSupported(t)) ?? 'video/webm'
+    // H.264-in-MP4 first: it's the one format iOS's native player (and every
+    // other platform) can actually decode — a WebM/VP9 recording just shows
+    // a broken-video icon there, the container itself isn't supported at
+    // all, regardless of codec. Chrome/Edge 114+ and Safari can encode this
+    // directly; only genuinely old/Firefox-class browsers fall through to
+    // WebM, where playback stays best-effort (see the duration-fix below).
+    const mime = [
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+      'video/mp4',
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm',
+    ].find(t => MediaRecorder.isTypeSupported(t)) ?? 'video/webm'
 
     chunksRef.current = []
     const rec = new MediaRecorder(cs, { mimeType: mime, videoBitsPerSecond: 3_000_000 })
@@ -269,10 +280,14 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     // making a complete recording look like it cuts off partway through.
     // Patching the real duration in before handing the blob off fixes
     // playback everywhere it's later opened (coach preview, client link).
+    // MP4's own muxer already writes a proper duration, so this only needs
+    // to run for the WebM fallback path.
     async function finalize() {
       cancelAnimationFrame(animRef.current)
       const rawBlob = new Blob(chunksRef.current, { type: mime })
-      const fixedBlob = await fixWebmDuration(rawBlob, timerValRef.current * 1000, { logger: false }).catch(() => rawBlob)
+      const fixedBlob = mime.startsWith('video/webm')
+        ? await fixWebmDuration(rawBlob, timerValRef.current * 1000, { logger: false }).catch(() => rawBlob)
+        : rawBlob
       setBlob(fixedBlob)
       const now = new Date()
       setRecTitle(
@@ -392,10 +407,11 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Ikke innlogget')
 
-      const path = `${user.id}/${Date.now()}.webm`
+      const ext  = blob.type.includes('mp4') ? 'mp4' : 'webm'
+      const path = `${user.id}/${Date.now()}.${ext}`
       const { error: upE } = await supabase.storage
         .from('coach-recordings')
-        .upload(path, blob, { contentType: 'video/webm' })
+        .upload(path, blob, { contentType: blob.type || 'video/webm' })
       if (upE) throw new Error(`Opplasting feilet: ${upE.message}`)
 
       // Public bucket → permanent shareable URL (no expiry)
