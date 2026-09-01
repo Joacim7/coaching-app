@@ -9,6 +9,7 @@ import {
   Link2, Trash2, CheckCircle2, Loader2, AlertCircle, Monitor, X, Circle,
   MonitorCheck,
 } from 'lucide-react'
+import fixWebmDuration from 'fix-webm-duration'
 import { createClient } from '@/lib/supabase/client'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -262,10 +263,17 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     chunksRef.current = []
     const rec = new MediaRecorder(cs, { mimeType: mime, videoBitsPerSecond: 3_000_000 })
 
-    rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-    rec.onstop = () => {
+    // MediaRecorder's webm output has no duration in its header (a known
+    // Chromium/WebM gap), so players that rely on that metadata — Safari and
+    // iOS in particular — can't seek to or even reach the end of the file,
+    // making a complete recording look like it cuts off partway through.
+    // Patching the real duration in before handing the blob off fixes
+    // playback everywhere it's later opened (coach preview, client link).
+    async function finalize() {
       cancelAnimationFrame(animRef.current)
-      setBlob(new Blob(chunksRef.current, { type: mime }))
+      const rawBlob = new Blob(chunksRef.current, { type: mime })
+      const fixedBlob = await fixWebmDuration(rawBlob, timerValRef.current * 1000, { logger: false }).catch(() => rawBlob)
+      setBlob(fixedBlob)
       const now = new Date()
       setRecTitle(
         `Økt ${now.toLocaleDateString('nb-NO')} ` +
@@ -273,6 +281,9 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       )
       setStage('saving')
     }
+
+    rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+    rec.onstop = () => { finalize() }
     // Encoder-level failures (e.g. the browser's encoder choking on load)
     // previously went completely unhandled — no listener at all — so the
     // recording would just go dead with zero indication why. Not every
@@ -285,9 +296,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         stopRecording()
       } else if (chunksRef.current.length > 0) {
         clearInterval(intervalRef.current)
-        cancelAnimationFrame(animRef.current)
-        setBlob(new Blob(chunksRef.current, { type: mime }))
-        setStage('saving')
+        finalize()
       }
     }
 
