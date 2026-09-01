@@ -100,7 +100,6 @@ export function Sidebar() {
 
   const [userName, setUserName]         = useState('')
   const [userInitials, setUserInitials] = useState('?')
-  const [unreadCheckins, setUnreadCheckins] = useState(0)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     training: TRENING_PATHS.some(p  => pathname.startsWith(p)),
     nutrition: KOSTHOLD_PATHS.some(p => pathname.startsWith(p)),
@@ -120,15 +119,6 @@ export function Sidebar() {
       )
     })
   }, [])
-
-  // Refetched on every navigation so the badge clears shortly after a coach
-  // opens a check-in (Ukentlig oversikt marks it viewed on open).
-  useEffect(() => {
-    fetch('/api/checkins/unread-count')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { if (data) setUnreadCheckins(data.count) })
-      .catch(() => {})
-  }, [pathname])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -244,11 +234,6 @@ export function Sidebar() {
                           style={groupActive ? activeIcon : { color: '#9ca3af' }}
                         />
                         <span className="flex-1 text-left">{t(item.labelKey)}</span>
-                        {item.key === 'forms' && unreadCheckins > 0 && (
-                          <span className="flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                            {unreadCheckins > 99 ? '99+' : unreadCheckins}
-                          </span>
-                        )}
                         <ChevronRight
                           className={cn('w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0', isOpen ? 'rotate-90' : '')}
                           style={groupActive ? activeChevron : { color: '#d1d5db' }}
@@ -270,11 +255,6 @@ export function Sidebar() {
                                 style={childActive ? activeStyle : undefined}
                               >
                                 <span className="flex-1">{t(child.labelKey)}</span>
-                                {child.href === '/skjemaer/ukentlig-oversikt' && unreadCheckins > 0 && (
-                                  <span className="flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                                    {unreadCheckins > 99 ? '99+' : unreadCheckins}
-                                  </span>
-                                )}
                               </Link>
                             )
                           })}
