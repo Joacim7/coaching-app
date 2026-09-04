@@ -10,6 +10,7 @@ import {
   MonitorCheck,
 } from 'lucide-react'
 import fixWebmDuration from 'fix-webm-duration'
+import { fixMp4Duration } from '@/lib/fix-mp4-duration'
 import { createClient } from '@/lib/supabase/client'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -274,20 +275,24 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     chunksRef.current = []
     const rec = new MediaRecorder(cs, { mimeType: mime, videoBitsPerSecond: 3_000_000 })
 
-    // MediaRecorder's webm output has no duration in its header (a known
-    // Chromium/WebM gap), so players that rely on that metadata — Safari and
-    // iOS in particular — can't seek to or even reach the end of the file,
-    // making a complete recording look like it cuts off partway through.
-    // Patching the real duration in before handing the blob off fixes
-    // playback everywhere it's later opened (coach preview, client link).
-    // MP4's own muxer already writes a proper duration, so this only needs
-    // to run for the WebM fallback path.
+    // Neither MediaRecorder output format declares a real duration in its
+    // header — WebM's is simply absent (a known Chromium/WebM gap), and
+    // Chrome/Safari's fragmented-MP4 output writes a moov box whose
+    // mvhd/tkhd/mdhd duration fields are left at 0 (a documented,
+    // equally-real gap in that muxer). Either way, players that rely on
+    // that metadata can't reliably seek to — or in some players even play
+    // through to — the actual end of the file, making a complete recording
+    // look like it cuts off partway through. Patching the real duration in
+    // before handing the blob off fixes playback everywhere it's later
+    // opened (coach preview, client link), regardless of which format got
+    // recorded.
     async function finalize() {
       cancelAnimationFrame(animRef.current)
       const rawBlob = new Blob(chunksRef.current, { type: mime })
+      const durationMs = timerValRef.current * 1000
       const fixedBlob = mime.startsWith('video/webm')
-        ? await fixWebmDuration(rawBlob, timerValRef.current * 1000, { logger: false }).catch(() => rawBlob)
-        : rawBlob
+        ? await fixWebmDuration(rawBlob, durationMs, { logger: false }).catch(() => rawBlob)
+        : await fixMp4Duration(rawBlob, durationMs).catch(() => rawBlob)
       setBlob(fixedBlob)
       const now = new Date()
       setRecTitle(
