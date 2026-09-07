@@ -45,7 +45,12 @@ export async function POST(
     .maybeSingle()
   const wasAlreadyComplete = existingFeedback?.is_complete ?? false
 
-  // Upsert — one feedback row per check-in
+  // Upsert — one feedback row per check-in. Stamps viewed_at here too: a
+  // coach saving feedback (draft or complete) has obviously seen the
+  // check-in, and this endpoint is the one guaranteed-reliable write path —
+  // the separate /view route is a best-effort, fire-and-forget call from
+  // the UI's "opened" handler that can silently fail or race with this
+  // save, leaving viewed_at null forever even after feedback was sent.
   const { error } = await supabase
     .from('checkin_feedback')
     .upsert(
@@ -55,6 +60,7 @@ export async function POST(
         comment:     comment     ?? null,
         video_link:  videoLink   ?? null,
         is_complete: isComplete  ?? false,
+        viewed_at:   new Date().toISOString(),
         updated_at:  new Date().toISOString(),
       },
       { onConflict: 'checkin_id' }

@@ -35,8 +35,14 @@ type Status = 'not_submitted' | 'submitted' | 'in_progress' | 'done'
 
 function getStatus(row: ClientRow): Status {
   if (!row.checkin)                  return 'not_submitted'
+  // Completed feedback means "done" on its own — a coach who delivered
+  // feedback from the client's own check-ins tab (not this page) obviously
+  // opened it, but `viewed_at` is stamped by a separate best-effort call
+  // that can race with or fail independently of the save itself. Requiring
+  // both left a row stuck showing as merely "submitted" even though
+  // feedback had actually been sent.
+  if (row.feedback?.is_complete)     return 'done'
   if (!row.feedback?.viewed_at)      return 'submitted'        // submitted but coach hasn't opened it
-  if (row.feedback.is_complete)      return 'done'
   return 'in_progress'                                      // opened, not yet done
 }
 
