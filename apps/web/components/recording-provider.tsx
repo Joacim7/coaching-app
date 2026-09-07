@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import fixWebmDuration from 'fix-webm-duration'
 import { fixMp4Duration } from '@/lib/fix-mp4-duration'
+import { remuxToFlatMp4 } from '@/lib/remux-mp4'
 import { createClient } from '@/lib/supabase/client'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -305,24 +306,28 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     chunksRef.current = []
     const rec = new MediaRecorder(cs, { mimeType: mime, videoBitsPerSecond: 3_000_000 })
 
-    // Neither MediaRecorder output format declares a real duration in its
-    // header — WebM's is simply absent (a known Chromium/WebM gap), and
-    // Chrome/Safari's fragmented-MP4 output writes a moov box whose
-    // mvhd/tkhd/mdhd duration fields are left at 0 (a documented,
-    // equally-real gap in that muxer). Either way, players that rely on
-    // that metadata can't reliably seek to — or in some players even play
-    // through to — the actual end of the file, making a complete recording
-    // look like it cuts off partway through. Patching the real duration in
-    // before handing the blob off fixes playback everywhere it's later
-    // opened (coach preview, client link), regardless of which format got
-    // recorded.
+    // Neither MediaRecorder output format is safe to hand off as-is.
+    // WebM never declares a real duration in its header (a known
+    // Chromium/WebM gap) — fixWebmDuration patches that in place. MP4 has
+    // a worse problem: it's always fragmented (moov + mvex, then a
+    // moof/mdat pair per chunk), which desktop tools read fine but iOS's
+    // AVPlayer can decode the audio track from while failing to render
+    // video from at all. remuxToFlatMp4 losslessly rebuilds it as a flat
+    // MP4 (single moov with full sample tables) — that also gives it a
+    // correct duration as a side effect, so if it succeeds there's nothing
+    // left for fixMp4Duration to do. Only fall back to the duration-only
+    // patch if the remux itself fails for some reason, so a recording is
+    // never worse off than before this existed.
     async function finalize() {
       cancelAnimationFrame(animRef.current)
       const rawBlob = new Blob(chunksRef.current, { type: mime })
       const durationMs = timerValRef.current * 1000
       const fixedBlob = mime.startsWith('video/webm')
         ? await fixWebmDuration(rawBlob, durationMs, { logger: false }).catch(() => rawBlob)
-        : await fixMp4Duration(rawBlob, durationMs).catch(() => rawBlob)
+        : await remuxToFlatMp4(rawBlob).catch(async (err) => {
+            console.error('[recording] flat MP4 remux failed, falling back to duration-only patch:', err)
+            return fixMp4Duration(rawBlob, durationMs).catch(() => rawBlob)
+          })
       setBlob(fixedBlob)
       const now = new Date()
       setRecTitle(
