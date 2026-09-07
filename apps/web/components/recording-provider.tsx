@@ -86,6 +86,8 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const [timer,           setTimer]          = useState(0)
   const [displaySurface,  setDisplaySurface] = useState<string | null>(null)
   const [recordModalOpen, setRecordModalOpen] = useState(false)
+  const [micDevices,      setMicDevices]      = useState<MediaDeviceInfo[]>([])
+  const [selectedMicId,   setSelectedMicId]   = useState('')
 
   const [blob,        setBlob]        = useState<Blob | null>(null)
   const [previewUrl,  setPreviewUrl]  = useState<string | null>(null)
@@ -149,6 +151,24 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     return () => URL.revokeObjectURL(url)
   }, [blob])
 
+  // macOS can auto-switch the system's default audio input to a nearby
+  // paired iPhone (Continuity Microphone) without the coach choosing that —
+  // getUserMedia({ audio: true }) just takes whatever the OS reports as
+  // default, silently recording through the phone's mic instead of the
+  // Mac's. Listing input devices here lets the coach see and pick which one
+  // actually gets used instead of being at the mercy of that OS default.
+  useEffect(() => {
+    if (!recordModalOpen) return
+    function refreshMicDevices() {
+      navigator.mediaDevices.enumerateDevices()
+        .then(devices => setMicDevices(devices.filter(d => d.kind === 'audioinput')))
+        .catch(() => {})
+    }
+    refreshMicDevices()
+    navigator.mediaDevices.addEventListener('devicechange', refreshMicDevices)
+    return () => navigator.mediaDevices.removeEventListener('devicechange', refreshMicDevices)
+  }, [recordModalOpen])
+
   // ── Clean up all streams (shared helper) ───────────────────────────────────
   function releaseStreams(streams: { screen: MediaStream | null; webcam: MediaStream | null }) {
     streams.screen?.getTracks().forEach(t => t.stop())
@@ -210,10 +230,20 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       setScreenStream(stream)
       setStage('preview')
 
-      // Webcam is optional — don't block on failure
+      // Webcam is optional — don't block on failure. Uses whichever mic the
+      // coach picked in the record modal, if any, instead of leaving it to
+      // the OS's current default input (see the device-list effect above).
       try {
-        const cam = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        const cam = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: selectedMicId ? { deviceId: { exact: selectedMicId } } : true,
+        })
         setWebcamStream(cam)
+        // Device labels are blank until permission is granted — refresh now
+        // so the picker shows real names instead of "Microphone 1" etc.
+        navigator.mediaDevices.enumerateDevices()
+          .then(devices => setMicDevices(devices.filter(d => d.kind === 'audioinput')))
+          .catch(() => {})
       } catch { /* user has no webcam or denied */ }
     } catch { /* user cancelled the picker */ }
   }
@@ -640,6 +670,24 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                   <span className="ml-auto text-[10px] opacity-60">{camOn ? 'På' : 'Av'}</span>
                 </button>
               </div>
+
+              {/* Mic device picker — macOS can silently default audio input
+                  to a paired iPhone (Continuity Microphone); let the coach
+                  choose which device actually gets used. */}
+              {micOn && stage === 'idle' && micDevices.length > 1 && (
+                <select
+                  value={selectedMicId}
+                  onChange={e => setSelectedMicId(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl bg-white/10 text-white text-xs border border-white/10 focus:outline-none focus:ring-1 focus:ring-white/30"
+                >
+                  <option value="" className="bg-gray-900">Standard mikrofon</option>
+                  {micDevices.map(d => (
+                    <option key={d.deviceId} value={d.deviceId} className="bg-gray-900">
+                      {d.label || 'Ukjent mikrofon'}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               {/* Screen source selector */}
               {stage === 'idle' && (
