@@ -7,7 +7,7 @@ import {
 import {
   Mic, MicOff, Video as CamIcon, VideoOff, Square,
   Link2, Trash2, CheckCircle2, Loader2, AlertCircle, Monitor, X, Circle,
-  MonitorCheck,
+  MonitorCheck, Pause, Play,
 } from 'lucide-react'
 import fixWebmDuration from 'fix-webm-duration'
 import { fixMp4Duration } from '@/lib/fix-mp4-duration'
@@ -26,6 +26,7 @@ type BubblePos =
 
 export interface RecordingContextValue {
   stage:            RecordingStage
+  isPaused:         boolean
   timer:            number
   micOn:            boolean
   camOn:            boolean
@@ -35,6 +36,8 @@ export interface RecordingContextValue {
   recordModalOpen:  boolean
   startScreen:      () => Promise<void>
   startRecording:   () => void
+  pauseRecording:   () => void
+  resumeRecording:  () => void
   stopRecording:    () => void
   stopSharing:      () => void
   toggleMic:        () => void
@@ -82,6 +85,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const [screenStream,    setScreenStream]   = useState<MediaStream | null>(null)
   const [webcamStream,    setWebcamStream]   = useState<MediaStream | null>(null)
   const [stage,           setStage]          = useState<RecordingStage>('idle')
+  const [isPaused,        setIsPaused]       = useState(false)
   const [micOn,           setMicOn]          = useState(true)
   const [camOn,           setCamOn]          = useState(true)
   const [timer,           setTimer]          = useState(0)
@@ -106,6 +110,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const recRef          = useRef<MediaRecorder | null>(null)
   const chunksRef       = useRef<Blob[]>([])
   const animRef         = useRef<number>(0)
+  const drawRef         = useRef<(() => void) | null>(null) // resumeRecording restarts this
   const intervalRef     = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
   const timerValRef     = useRef(0)
   const micOnRef        = useRef(true)          // stable ref for closure inside startRecording
@@ -218,7 +223,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         // gets the save dialog immediately with whatever was captured up to
         // that point, instead of a silently-broken recording discovered
         // later.
-        if (recRef.current?.state === 'recording') {
+        if (recRef.current?.state === 'recording' || recRef.current?.state === 'paused') {
           stopRecording()
         } else {
           setScreenStream(null)
@@ -282,6 +287,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
       animRef.current = requestAnimationFrame(draw)
     }
+    drawRef.current = draw
     animRef.current = requestAnimationFrame(draw)
 
     // Build the stream to record: canvas video + audio tracks
@@ -347,7 +353,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     // stuck showing "recording" while nothing is actually happening.
     rec.onerror = (event) => {
       console.error('[recording] MediaRecorder error:', event)
-      if (recRef.current?.state === 'recording') {
+      if (recRef.current?.state === 'recording' || recRef.current?.state === 'paused') {
         stopRecording()
       } else if (chunksRef.current.length > 0) {
         clearInterval(intervalRef.current)
@@ -361,11 +367,33 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     timerValRef.current = 0
     setTimer(0)
     setStage('recording')
+    setIsPaused(false)
     setRecordModalOpen(false)
+    startTimerInterval()
+  }
+
+  function startTimerInterval() {
     intervalRef.current = setInterval(() => {
       timerValRef.current += 1
       setTimer(t => t + 1)
     }, 1000)
+  }
+
+  // ── Pause / resume recording ────────────────────────────────────────────────
+  function pauseRecording() {
+    if (recRef.current?.state !== 'recording') return
+    recRef.current.pause()
+    clearInterval(intervalRef.current)
+    cancelAnimationFrame(animRef.current)
+    setIsPaused(true)
+  }
+
+  function resumeRecording() {
+    if (recRef.current?.state !== 'paused') return
+    recRef.current.resume()
+    if (drawRef.current) animRef.current = requestAnimationFrame(drawRef.current)
+    startTimerInterval()
+    setIsPaused(false)
   }
 
   // ── Stop recording ─────────────────────────────────────────────────────────
@@ -379,7 +407,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   function stopSharing() {
     cancelAnimationFrame(animRef.current)
     clearInterval(intervalRef.current)
-    if (recRef.current?.state === 'recording') {
+    if (recRef.current?.state === 'recording' || recRef.current?.state === 'paused') {
       // Prevent onstop from showing save dialog
       recRef.current.ondataavailable = null
       recRef.current.onstop = null
@@ -390,6 +418,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     setWebcamStream(null)
     setDisplaySurface(null)
     setStage('idle')
+    setIsPaused(false)
     setTimer(0)
     setBubblePos({ pinned: true, right: 24, bottom: 88 })
   }
@@ -500,6 +529,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     setScreenStream(null)
     setWebcamStream(null)
     setStage('idle')
+    setIsPaused(false)
     setTimer(0)
     setBubblePos({ pinned: true, right: 24, bottom: 88 })
   }
@@ -512,10 +542,10 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     : displaySurface ? displaySurface : 'Skjerm valgt'
 
   const ctxValue: RecordingContextValue = {
-    stage, timer, micOn, camOn, screenStream, webcamStream, displaySurface,
+    stage, isPaused, timer, micOn, camOn, screenStream, webcamStream, displaySurface,
     recordModalOpen,
-    startScreen, startRecording, stopRecording, stopSharing, toggleMic, toggleCam,
-    openRecordModal, closeRecordModal,
+    startScreen, startRecording, pauseRecording, resumeRecording, stopRecording, stopSharing,
+    toggleMic, toggleCam, openRecordModal, closeRecordModal,
   }
 
   return (
@@ -579,9 +609,13 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
           {/* REC timer badge */}
           {stage === 'recording' && (
-            <div className="absolute -top-1 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-red-600 px-2.5 py-0.5 rounded-full shadow-lg whitespace-nowrap pointer-events-none">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              <span className="text-white text-[10px] font-mono font-bold">{fmtTime(timer)}</span>
+            <div className={`absolute -top-1 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full shadow-lg whitespace-nowrap pointer-events-none ${
+              isPaused ? 'bg-gray-700' : 'bg-red-600'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full bg-white ${isPaused ? '' : 'animate-pulse'}`} />
+              <span className="text-white text-[10px] font-mono font-bold">
+                {isPaused ? 'PAUSE' : fmtTime(timer)}
+              </span>
             </div>
           )}
 
@@ -608,6 +642,15 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               </button>
               {stage === 'recording' && (
                 <button
+                  onClick={() => (isPaused ? resumeRecording() : pauseRecording())}
+                  className="p-1.5 rounded-lg text-white hover:bg-white/10 transition-colors"
+                  title={isPaused ? 'Fortsett opptak' : 'Sett opptak på pause'}
+                >
+                  {isPaused ? <Play className="w-4 h-4 fill-current" /> : <Pause className="w-4 h-4 fill-current" />}
+                </button>
+              )}
+              {stage === 'recording' && (
+                <button
                   onClick={() => stopRecording()}
                   className="flex items-center gap-1 pl-1.5 pr-2.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors"
                   title="Stopp opptak"
@@ -632,11 +675,13 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
             {/* Header */}
             <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5">
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                stage === 'recording' ? 'bg-red-500 animate-pulse' : 'bg-red-600/50'
+                stage === 'recording' && !isPaused ? 'bg-red-500 animate-pulse' : 'bg-red-600/50'
               }`} />
               <span className="text-white font-semibold text-sm flex-1">Nova Record</span>
               {stage === 'recording' && (
-                <span className="text-red-400 text-xs font-mono mr-2">{fmtTime(timer)}</span>
+                <span className="text-red-400 text-xs font-mono mr-2">
+                  {isPaused ? 'Pause' : fmtTime(timer)}
+                </span>
               )}
               <button
                 onClick={closeRecordModal}
@@ -741,13 +786,22 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               )}
 
               {stage === 'recording' && (
-                <button
-                  onClick={() => { stopRecording(); setRecordModalOpen(false) }}
-                  className="w-full flex items-center justify-center gap-2.5 h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-red-900/30"
-                >
-                  <Square className="w-3.5 h-3.5 fill-white" />
-                  Stopp opptak
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => (isPaused ? resumeRecording() : pauseRecording())}
+                    className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white/10 hover:bg-white/[.15] text-white font-semibold text-sm transition-colors"
+                  >
+                    {isPaused ? <Play className="w-3.5 h-3.5 fill-white" /> : <Pause className="w-3.5 h-3.5 fill-white" />}
+                    {isPaused ? 'Fortsett' : 'Pause'}
+                  </button>
+                  <button
+                    onClick={() => { stopRecording(); setRecordModalOpen(false) }}
+                    className="flex-1 flex items-center justify-center gap-2.5 h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-red-900/30"
+                  >
+                    <Square className="w-3.5 h-3.5 fill-white" />
+                    Stopp opptak
+                  </button>
+                </div>
               )}
 
             </div>

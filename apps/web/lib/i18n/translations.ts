@@ -128,6 +128,7 @@ const dict = {
 
   // ── record / recordings ─────────────────────────────────────────────────
   'record.recordingStatus':            { nb: 'Tar opp · {time}', en: 'Recording · {time}' },
+  'record.pausedStatus':               { nb: 'På pause · {time}', en: 'Paused · {time}' },
   'record.readyToRecord':              { nb: 'Klar til opptak', en: 'Ready to record' },
   'record.inactive':                   { nb: 'Inaktiv', en: 'Inactive' },
   'record.startNewSession':            { nb: 'Start en ny økt', en: 'Start a new session' },
@@ -140,6 +141,8 @@ const dict = {
   'record.camera':                     { nb: 'Kamera', en: 'Camera' },
   'record.off':                        { nb: 'Av', en: 'Off' },
   'record.startRecordingBtn':          { nb: 'Start opptak', en: 'Start recording' },
+  'record.pauseRecordingBtn':          { nb: 'Pause', en: 'Pause' },
+  'record.resumeRecordingBtn':         { nb: 'Fortsett', en: 'Resume' },
   'record.stopRecordingBtn':           { nb: 'Stopp opptak', en: 'Stop recording' },
   'record.stopSharing':                { nb: 'Stopp deling', en: 'Stop sharing' },
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useEffect } from 'react'
-import { Monitor, MonitorOff, Circle, Square, Mic, MicOff, Video as CamIcon, VideoOff } from 'lucide-react'
+import { Monitor, MonitorOff, Circle, Square, Pause, Play, Mic, MicOff, Video as CamIcon, VideoOff } from 'lucide-react'
 import { useRecording } from '@/components/recording-provider'
 import { useLocale } from '@/components/locale-provider'
 
@@ -34,9 +34,9 @@ function CtrlBtn({ active, onClick, icon, label }: {
 
 export default function RecordPage() {
   const {
-    stage, timer, micOn, camOn,
+    stage, isPaused, timer, micOn, camOn,
     screenStream, displaySurface,
-    startScreen, startRecording, stopRecording, stopSharing,
+    startScreen, startRecording, pauseRecording, resumeRecording, stopRecording, stopSharing,
     toggleMic, toggleCam,
   } = useRecording()
   const { t } = useLocale()
@@ -65,12 +65,14 @@ export default function RecordPage() {
       {/* Top bar */}
       <div className="flex items-center gap-3 px-5 py-3 border-b border-white/5 flex-shrink-0">
         <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-          stage === 'recording' ? 'bg-red-500 animate-pulse' : 'bg-red-600/60'
+          stage === 'recording' && !isPaused ? 'bg-red-500 animate-pulse' : 'bg-red-600/60'
         }`} />
         <span className="text-white font-semibold text-sm tracking-wide">Nova Record</span>
         <span className="text-gray-500 text-xs">
           {stage === 'recording'
-            ? t('record.recordingStatus', { time: fmtTime(timer) })
+            ? isPaused
+              ? t('record.pausedStatus', { time: fmtTime(timer) })
+              : t('record.recordingStatus', { time: fmtTime(timer) })
             : stage === 'preview'
             ? t('record.readyToRecord')
             : t('record.inactive')}
@@ -133,8 +135,10 @@ export default function RecordPage() {
                   </div>
                   {stage === 'recording' && (
                     <div className="flex items-center gap-2 bg-red-600/20 border border-red-500/30 px-4 py-1.5 rounded-full">
-                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                      <span className="text-red-400 text-xs font-mono font-semibold">{fmtTime(timer)}</span>
+                      <span className={`w-2 h-2 rounded-full bg-red-500 ${isPaused ? '' : 'animate-pulse'}`} />
+                      <span className="text-red-400 text-xs font-mono font-semibold">
+                        {isPaused ? t('record.pauseRecordingBtn') : fmtTime(timer)}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -143,8 +147,10 @@ export default function RecordPage() {
               {/* REC badge when preview is visible */}
               {stage === 'recording' && !isMonitor && (
                 <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600 px-3 py-1.5 rounded-full shadow-lg pointer-events-none">
-                  <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                  <span className="text-white text-xs font-bold tracking-wider">REC</span>
+                  <span className={`w-2 h-2 rounded-full bg-white ${isPaused ? '' : 'animate-pulse'}`} />
+                  <span className="text-white text-xs font-bold tracking-wider">
+                    {isPaused ? t('record.pauseRecordingBtn').toUpperCase() : 'REC'}
+                  </span>
                   <span className="text-white/80 text-xs font-mono">{fmtTime(timer)}</span>
                 </div>
               )}
@@ -191,13 +197,22 @@ export default function RecordPage() {
                 {t('record.startRecordingBtn')}
               </button>
             ) : (
-              <button
-                onClick={stopRecording}
-                className="flex items-center gap-2 px-7 h-11 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-red-900/30"
-              >
-                <Square className="w-4 h-4 fill-white" />
-                {t('record.stopRecordingBtn')}
-              </button>
+              <>
+                <button
+                  onClick={() => (isPaused ? resumeRecording() : pauseRecording())}
+                  className="flex items-center gap-2 px-5 h-11 rounded-2xl bg-white/10 hover:bg-white/[.15] text-white font-semibold text-sm transition-colors"
+                >
+                  {isPaused ? <Play className="w-4 h-4 fill-white" /> : <Pause className="w-4 h-4 fill-white" />}
+                  {isPaused ? t('record.resumeRecordingBtn') : t('record.pauseRecordingBtn')}
+                </button>
+                <button
+                  onClick={stopRecording}
+                  className="flex items-center gap-2 px-7 h-11 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-red-900/30"
+                >
+                  <Square className="w-4 h-4 fill-white" />
+                  {t('record.stopRecordingBtn')}
+                </button>
+              </>
             )}
 
             <div className="w-px h-10 bg-white/10 mx-2" />
