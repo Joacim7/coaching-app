@@ -236,21 +236,38 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       setScreenStream(stream)
       setStage('preview')
 
-      // Webcam is optional — don't block on failure. Uses whichever mic the
-      // coach picked in the record modal, if any, instead of leaving it to
-      // the OS's current default input (see the device-list effect above).
-      try {
-        const cam = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: selectedMicId ? { deviceId: { exact: selectedMicId } } : true,
-        })
-        setWebcamStream(cam)
+      const micConstraint = selectedMicId ? { deviceId: { exact: selectedMicId } } : true
+      const refreshMicLabels = () => {
         // Device labels are blank until permission is granted — refresh now
         // so the picker shows real names instead of "Microphone 1" etc.
         navigator.mediaDevices.enumerateDevices()
           .then(devices => setMicDevices(devices.filter(d => d.kind === 'audioinput')))
           .catch(() => {})
-      } catch { /* user has no webcam or denied */ }
+      }
+
+      // Webcam + mic in one combined request first — the common case. But
+      // getUserMedia's constraints are all-or-nothing: a coach with no
+      // camera, a camera blocked at the OS level, or one already in use by
+      // another app would fail this ENTIRE call and lose their microphone
+      // audio too, silently, even though the mic itself was fine. That's
+      // exactly what was happening — some coaches' recordings came out
+      // with no audio at all, with zero error shown anywhere. Falling back
+      // to an audio-only request means a missing/blocked webcam only costs
+      // the camera bubble, never the narration.
+      try {
+        const cam = await navigator.mediaDevices.getUserMedia({ video: true, audio: micConstraint })
+        setWebcamStream(cam)
+        refreshMicLabels()
+      } catch (err) {
+        console.error('[recording] webcam+mic request failed, retrying audio-only:', err)
+        try {
+          const micOnly = await navigator.mediaDevices.getUserMedia({ audio: micConstraint })
+          setWebcamStream(micOnly)
+          refreshMicLabels()
+        } catch (micErr) {
+          console.error('[recording] microphone request also failed — recording will have no mic audio:', micErr)
+        }
+      }
     } catch { /* user cancelled the picker */ }
   }
 
@@ -535,6 +552,9 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   }
 
   const inSession = stage === 'preview' || stage === 'recording'
+  // webcamStream can now be audio-only (the mic-only fallback above), so a
+  // truthy stream no longer implies there's a video track to show.
+  const hasCameraTrack = !!webcamStream?.getVideoTracks().length
 
   const surfaceLabel = displaySurface === 'monitor' ? 'Hele skjermen'
     : displaySurface === 'window' ? 'Vindu'
@@ -591,7 +611,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               part of whatever gets captured, so it needs no special-casing
               per capture mode. */}
           <div className="relative w-[120px] h-[120px] rounded-full overflow-hidden border-[3px] border-white/30 bg-gray-900 shadow-2xl ring-2 ring-black/30">
-            {webcamStream && (
+            {hasCameraTrack && (
               <video
                 ref={webcamVidRef}
                 muted
@@ -600,7 +620,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                 className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
               />
             )}
-            {(!webcamStream || !camOn) && (
+            {(!hasCameraTrack || !camOn) && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
                 <VideoOff className="w-6 h-6 text-gray-600" />
               </div>
