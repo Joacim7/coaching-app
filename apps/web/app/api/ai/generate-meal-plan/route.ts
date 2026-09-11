@@ -675,6 +675,14 @@ function buildPrompt(target: MealTarget, count: number, preferences: string | un
   const guide = MEAL_GUIDES[target.name] ?? MEAL_GUIDES[target.name.replace('mat', '')] ?? 'Bruk vanlige norske råvarer som passer til dette måltidet.'
   const batchNote = batchNum > 1 ? `VIKTIG: Sett ${batchNum} — bruk HELT ANDRE matvarer enn sett 1 for god variasjon.\n` : ''
 
+  // The prompt text is otherwise identical for every client requesting the
+  // same meal type/count/preferences — an LLM given the same input tends to
+  // regress toward the same "canonical" answer, so two clients generated
+  // minutes apart could get near-identical meal plans. A fresh random seed
+  // per call breaks that: it changes nothing about the actual rules, but
+  // gives the model something unique to condition its sampling on each time.
+  const generationSeed = `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`
+
   const EXAMPLES: Record<string, string> = {
     Frokost:            '{"foods":["havregryn","helmelk","banan"],"recipe":["Kok opp 2,5 dl melk.","Rør inn havregryn og la det tykne 4–5 min.","Hell i bolle og topp med skivede bananer."]}',
     Lunsj:              '{"foods":["rugbrød","tunfisk","agurk"],"recipe":["Legg to rugbrødskiver på en tallerken.","Fordel tunfisk over brødet.","Legg agurk-skiver på toppen."]}',
@@ -701,6 +709,7 @@ function buildPrompt(target: MealTarget, count: number, preferences: string | un
   const carbSources = CARB_SOURCES[target.name] ?? 'brød, ris, potet, frukt'
 
   return `Du er en norsk ernæringsfysiolog. Svar KUN med gyldig JSON — ingen tekst utenfor JSON-blokken.
+Genereringsnøkkel: ${generationSeed} (unik per klient/forespørsel — bruk denne som et mentalt "terningkast" for å velge et ANNET sett med retter og kombinasjoner enn du typisk ville falt tilbake på; ikke la den påvirke selve innholdet i JSON-svaret).
 ${batchNote}
 Lag NØYAKTIG ${count} ulike og REALISTISKE ${target.name}-alternativer for en norsk matplan.
 ${preferences ? `Klientpreferanser: ${preferences}` : ''}
@@ -736,6 +745,7 @@ UFRAVIKELIGE REGLER:
    KVELDSMAT → knekkebrød (IKKE ris, pasta, havregryn)
    ⛔ HAVREGRYN TILHØRER KUN FROKOST — bruk det ALDRI i lunsj, middag, snack eller kveldsmat.
    ⛔ RIS/PASTA TILHØRER KUN MIDDAG — bruk dem ALDRI i frokost, lunsj, snack eller kveldsmat.
+10. VARIASJON PÅ TVERS AV KLIENTER — denne matplanen er for én bestemt klient blant mange. IKKE fall automatisk tilbake på de mest opplagte "standard"-kombinasjonene (f.eks. alltid kyllingbryst+ris+brokkoli til middag, alltid havregrøt+banan til frokost) bare fordi de er vanligst. Bruk genereringsnøkkelen over til å bevisst variere: velg tilfeldig blant ALLE gyldige protein-, karbohydrat- og grønnsakskilder for ${target.name} i stedet for det første som faller deg inn, slik at denne matplanen ser annerledes ut enn forrige gang du genererte ${target.name} for en annen klient.
 
 Veiledning for ${target.name} (følg disse eksemplene nøye):
 ${guide}
