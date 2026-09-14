@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { LineChart } from './line-chart'
 import { Scale, Moon, Footprints, Zap } from 'lucide-react'
-import { rollingWindowBounds } from '@/lib/client-metrics'
+import { rollingWindowBounds, calendarMonthBounds } from '@/lib/client-metrics'
 import { useLocale } from '@/components/locale-provider'
 import type { TranslationKey } from '@/lib/i18n/translations'
 
@@ -28,11 +28,13 @@ interface Props {
   data: MetricRow[]
 }
 
-// "Uke"/"Måned" are rolling N-day windows ending today (not calendar week/month),
-// using the same date-string bounds as Oversikt's "Nåværende" weight calculation.
+// "Uke" is a rolling 7-day window ending today (not a calendar week), using
+// the same date-string bounds as Oversikt's "Nåværende" weight calculation.
+// "Måned" is a real calendar month: the 1st of this month through today,
+// compared against the entire previous calendar month.
 function periodRange(filter: Filter) {
   if (filter === 'week')  return rollingWindowBounds(7)
-  if (filter === 'month') return rollingWindowBounds(30)
+  if (filter === 'month') return calendarMonthBounds()
   return { start: '', prevStart: '', prevEnd: '' }
 }
 

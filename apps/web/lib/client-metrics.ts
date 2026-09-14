@@ -61,6 +61,34 @@ export function rollingWindowBounds(days: number) {
   }
 }
 
+// Calendar-month bounds (not rolling): "this month" runs from the 1st of
+// the current UTC month through today; "previous month" is the entire
+// prior UTC calendar month. Kept in UTC to match the UTC date strings
+// getDailyMetrics() produces (created_at.slice(0, 10)) — mixing UTC-sliced
+// data against local-time month edges would shift the boundary near
+// midnight depending on the coach's timezone.
+export function calendarMonthBounds() {
+  const now = new Date()
+  const y = now.getUTCFullYear()
+  const m = now.getUTCMonth() // 0-indexed
+
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const toDateStr = (year: number, monthIndex: number, day: number) =>
+    `${year}-${pad(monthIndex + 1)}-${pad(day)}`
+
+  const start = toDateStr(y, m, 1)
+
+  // Previous month, handling the January → December-of-prior-year rollover
+  const prevMonthIndex = m === 0 ? 11 : m - 1
+  const prevYear        = m === 0 ? y - 1 : y
+
+  return {
+    start,
+    prevStart: toDateStr(prevYear, prevMonthIndex, 1),
+    prevEnd:   start, // exclusive upper bound — covers all of the previous month
+  }
+}
+
 // Average weight over the trailing `days` days, using the same per-day-deduped
 // series and rolling-window bounds as the Progresjon tab's "uke" filter.
 export function averageRecentWeight(rows: DailyMetricRow[], days = 7): number | null {
