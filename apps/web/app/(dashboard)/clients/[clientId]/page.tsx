@@ -43,7 +43,13 @@ export default async function ClientOverviewPage({
 
   const { data: rel } = await supabase
     .from('coach_clients')
-    .select('status, created_at, status_changed_at, profile:profiles!client_id(full_name, created_at, onboarding_email_sent_at)')
+    // `*` rather than naming status_changed_at explicitly: that column
+    // only exists once migration 076 has actually been run, and naming a
+    // column PostgREST doesn't have errors the whole query out (data
+    // comes back null → the notFound() below fires — a 404 on every
+    // client page). `*` degrades gracefully either way; the UI already
+    // treats a missing status_changed_at as "no date to show".
+    .select('*, profile:profiles!client_id(full_name, created_at, onboarding_email_sent_at)')
     .eq('coach_id', user!.id)
     .eq('client_id', clientId)
     .single()
