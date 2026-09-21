@@ -144,9 +144,15 @@ export default async function ClientDetailLayout({
                   <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
                   {t(sc.labelKey)}
                 </span>
-                <span className="text-xs text-gray-400">
-                  {t('clientDetail.hero.clientSince', { date: new Date(rel.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' }) })}
-                </span>
+                {status === 'inactive' && rel.status_changed_at ? (
+                  <span className="text-xs text-gray-400">
+                    {t('clientDetail.hero.inactiveSince', { date: new Date(rel.status_changed_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' }) })}
+                  </span>
+                ) : status !== 'inactive' ? (
+                  <span className="text-xs text-gray-400">
+                    {t('clientDetail.hero.clientSince', { date: new Date(rel.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' }) })}
+                  </span>
+                ) : null}
               </div>
               {goal ? (
                 <p className="text-sm text-[#2d8653] mt-1.5 font-medium">

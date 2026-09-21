@@ -43,7 +43,7 @@ export default async function ClientOverviewPage({
 
   const { data: rel } = await supabase
     .from('coach_clients')
-    .select('status, created_at, profile:profiles!client_id(full_name, created_at, onboarding_email_sent_at)')
+    .select('status, created_at, status_changed_at, profile:profiles!client_id(full_name, created_at, onboarding_email_sent_at)')
     .eq('coach_id', user!.id)
     .eq('client_id', clientId)
     .single()
@@ -398,12 +398,21 @@ export default async function ClientOverviewPage({
                 <span className="text-xs text-gray-500">{t('clientDetail.overview.status')}</span>
                 <span className="text-xs font-semibold text-gray-900">{t(STATUS_LABEL_KEY[status])}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">{t('clientDetail.overview.clientSince')}</span>
-                <span className="text-xs font-semibold text-gray-900">
-                  {new Date(rel.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </span>
-              </div>
+              {status === 'inactive' && rel.status_changed_at ? (
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">{t('clientDetail.overview.inactiveSince')}</span>
+                  <span className="text-xs font-semibold text-gray-900">
+                    {new Date(rel.status_changed_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+              ) : status !== 'inactive' ? (
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">{t('clientDetail.overview.clientSince')}</span>
+                  <span className="text-xs font-semibold text-gray-900">
+                    {new Date(rel.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+              ) : null}
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-500">{t('clientDetail.overview.checkins')}</span>
                 <span className="text-xs font-semibold text-gray-900">{checkins.length}+</span>

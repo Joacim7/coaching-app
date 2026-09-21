@@ -20,9 +20,17 @@ export async function PATCH(
     return NextResponse.json({ error: 'Ugyldig status' }, { status: 400 })
   }
 
+  // Stamped only on the transition INTO 'inactive' — not on every status
+  // change — so it reflects "since when has this client been inactive"
+  // rather than "when did status last change for any reason". Left
+  // untouched going the other way; re-deactivating later correctly
+  // refreshes it to that newer date.
+  const update: { status: ClientStatus; status_changed_at?: string } = { status }
+  if (status === 'inactive') update.status_changed_at = new Date().toISOString()
+
   const { error } = await supabase
     .from('coach_clients')
-    .update({ status })
+    .update(update)
     .eq('client_id', clientId)
     .eq('coach_id', user.id)
 
