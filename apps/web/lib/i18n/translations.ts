@@ -1050,6 +1050,7 @@ const dict = {
   'clientDetail.phases.today':               { nb: 'I dag', en: 'Today' },
   'clientDetail.phases.now':                 { nb: 'NÅ', en: 'NOW' },
   'clientDetail.phases.upcoming':            { nb: 'Kommende', en: 'Upcoming' },
+  'clientDetail.phases.ended':               { nb: 'Avsluttet', en: 'Completed' },
   'clientDetail.phases.editTooltip':         { nb: 'Rediger fase', en: 'Edit phase' },
   'clientDetail.phases.deleteTooltip':       { nb: 'Slett fase', en: 'Delete phase' },
   'clientDetail.phases.nowArrow':            { nb: '→ nå', en: '→ now' },

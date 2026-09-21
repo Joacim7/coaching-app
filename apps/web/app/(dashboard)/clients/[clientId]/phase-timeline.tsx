@@ -447,6 +447,10 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
               {phases.map(p => {
                 const isUpcoming = p.start_date > tlEnd
                 const isActive   = !isUpcoming && (!p.end_date || p.end_date >= tlEnd)
+                // A phase with an end_date in the past — already included in
+                // `phases` and rendered below same as any other, but with no
+                // badge at all it read as ambiguous rather than clearly done.
+                const isEnded    = !isUpcoming && !isActive
                 const typeLabelKey = PHASE_TYPES.find(pt => pt.value === p.phase_type)?.labelKey
 
                 if (editingId === p.id) {
@@ -492,6 +496,9 @@ export function PhaseTimeline({ clientId, clientSince, initialPhases, availableT
                           )}
                           {isUpcoming && (
                             <span className="text-[9px] font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-full">{t('clientDetail.phases.upcoming')}</span>
+                          )}
+                          {isEnded && (
+                            <span className="text-[9px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">{t('clientDetail.phases.ended')}</span>
                           )}
                         </div>
                         {p.description && (
