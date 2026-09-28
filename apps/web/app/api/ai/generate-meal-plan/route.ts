@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { searchMatvaretabellen } from '@/lib/matvaretabellen'
 import { lookupApprovedIngredient } from '@/lib/approved-ingredients'
 import { recipeImageUrl } from '@/lib/food-image'
+import { recipeToAlternative, type RecipeLibraryRow } from '@/lib/recipe-to-alternative'
 import type { MealPlanGenerateRequest, Meal, MealAlternative, Food, MealStructure } from '@coaching/types'
 
 // ── Meal structure definitions ─────────────────────────────────────────────────
@@ -892,65 +893,10 @@ async function callGroq(
 }
 
 // ── Recipe library: scale saved recipes to calorie target ────────────────────
-
-interface RecipeLibIngredient {
-  name: string
-  // New format (recipe editor + AI generator): per-100g values + gram amount
-  amount_g?: number
-  calories_per_100g?: number
-  protein_per_100g?: number
-  carbs_per_100g?: number
-  fat_per_100g?: number
-  // Legacy format
-  grams?: number
-  calories?: number
-  protein?: number
-  carbs?: number
-  fat?: number
-}
-
-interface RecipeLibRow {
-  id: string
-  title: string
-  instructions: string | null
-  image_url: string | null
-  calories_per_serving: number | null
-  protein_per_serving:  number | null
-  carbs_per_serving:    number | null
-  fat_per_serving:      number | null
-  ingredients: RecipeLibIngredient[]
-}
-
-function recipeToAlternative(recipe: RecipeLibRow, target: MealTarget, seed: number): MealAlternative {
-  const srcCals = recipe.calories_per_serving ?? 500
-  const scale   = srcCals > 5 ? target.calories / srcCals : 1
-
-  const ingredients = recipe.ingredients ?? []
-
-  const foods: Food[] = finalizeAmounts(ingredients.filter(ing => ing != null).map(ing => {
-    const rawG = ing.amount_g ?? ing.grams ?? 100
-    const g    = Math.max(1, Math.round(rawG * scale))
-    const f    = g / 100
-    // Prefer per-100g format (recipe editor + AI generator); fall back to absolute values (legacy)
-    const hasPer100  = ing.calories_per_100g != null
-    const calories   = hasPer100 ? Math.round((ing.calories_per_100g ?? 0) * f)          : Math.round((ing.calories ?? 0) * scale)
-    const protein_g  = hasPer100 ? Math.round((ing.protein_per_100g  ?? 0) * f * 10) / 10 : Math.round((ing.protein  ?? 0) * scale * 10) / 10
-    const carbs_g    = hasPer100 ? Math.round((ing.carbs_per_100g    ?? 0) * f * 10) / 10 : Math.round((ing.carbs    ?? 0) * scale * 10) / 10
-    const fat_g      = hasPer100 ? Math.round((ing.fat_per_100g      ?? 0) * f * 10) / 10 : Math.round((ing.fat      ?? 0) * scale * 10) / 10
-    return { name: ing.name, amount: `${g}g`, calories, protein_g, carbs_g, fat_g }
-  }))
-
-  let steps: string[] = []
-  if (recipe.instructions) {
-    try { steps = JSON.parse(recipe.instructions) as string[] } catch { steps = [recipe.instructions] }
-  }
-
-  // Use stored image only — Pexels images are fetched at recipe save/backfill time, not at display time
-  const image_url = recipe.image_url
-    ?? recipeImageUrl(ingredients.map(i => i.name.split(',')[0]), seed)
-
-  return { name: recipe.title, foods, recipe: steps, image_url }
-}
+// recipeToAlternative() itself now lives in @/lib/recipe-to-alternative —
+// shared with the recipe drag-and-drop sidebar's client-side drop handler,
+// so both paths scale a saved recipe identically. RecipeLibraryRow is that
+// module's row shape for a `recipes` table record.
 
 function shuffled<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -975,7 +921,7 @@ const PROTEIN_KEYWORDS: [RegExp, string][] = [
   [/egg/,                                         'egg'],
 ]
 
-function mainProteinOf(recipe: RecipeLibRow): string | null {
+function mainProteinOf(recipe: RecipeLibraryRow): string | null {
   const haystack = [recipe.title, ...(recipe.ingredients ?? []).map(i => i?.name ?? '')]
     .join(' ')
     .toLowerCase()
@@ -988,9 +934,9 @@ function mainProteinOf(recipe: RecipeLibRow): string | null {
 // Pick `count` recipes favouring protein-source variety: shuffle, then greedily
 // take recipes whose main protein hasn't been used yet, only allowing repeats
 // once every available protein source has already been picked once.
-function pickWithProteinVariety(candidates: RecipeLibRow[], count: number): RecipeLibRow[] {
+function pickWithProteinVariety(candidates: RecipeLibraryRow[], count: number): RecipeLibraryRow[] {
   const pool = shuffled(candidates)
-  const picked: RecipeLibRow[] = []
+  const picked: RecipeLibraryRow[] = []
   const usedProteins = new Set<string>()
 
   for (const r of pool) {
@@ -1056,7 +1002,7 @@ async function fetchFromLibrary(supabase: any, mealType: string, target: MealTar
     const foundTypes = [...new Set(data.map((r: any) => r.meal_type))]
     console.log(`[fetchFromLibrary] "${mealType}": matched meal_type values: ${JSON.stringify(foundTypes)}`)
 
-    const pool = data as RecipeLibRow[]
+    const pool = data as RecipeLibraryRow[]
     const withCals = pool.filter(r => (r.calories_per_serving ?? 0) > 0)
     console.log(`[fetchFromLibrary] ${target.name}: ${withCals.length}/${pool.length} have calories_per_serving > 0`)
 
@@ -1079,7 +1025,7 @@ async function fetchFromLibrary(supabase: any, mealType: string, target: MealTar
     const picked = pickWithProteinVariety(candidates, Math.min(count, candidates.length))
 
     console.log(`[fetchFromLibrary] ${target.name}: returning ${picked.length} alternatives (wanted ${count})`)
-    return picked.map((r, i) => recipeToAlternative(r, target, i))
+    return picked.map((r, i) => recipeToAlternative(r, target.calories, i))
   } catch (err) {
     console.error(`[fetchFromLibrary] Uncaught exception for ${target.name}:`, err)
     return null

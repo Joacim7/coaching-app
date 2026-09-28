@@ -1,7 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import {
+  DndContext, DragOverlay, useDraggable, useDroppable,
+  useSensor, useSensors, PointerSensor,
+  type DragEndEvent, type DragStartEvent,
+} from '@dnd-kit/core'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,15 +14,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Save, Sparkles, ChevronLeft, Plus, Trash2,
   ChevronDown, ChevronUp, Search, Flame, PenLine, Check, X, ArrowLeftRight, BookmarkPlus, EyeOff,
+  ChefHat, GripVertical,
 } from 'lucide-react'
 import Link from 'next/link'
 import { FoodSearchInput } from '@/components/food-search-input'
+import { RecipeDragSidebar, RecipeDragOverlayCard, type RecipeDragData } from '@/components/recipe-drag-sidebar'
+import { recipeToAlternative, scaleFoods, type RecipeLibraryRow } from '@/lib/recipe-to-alternative'
 import type { Meal, Food, MealPlan, MealAlternative, FoodSearchResult } from '@coaching/types'
 import {
   parseAmountDisplay, unitToGrams, gramsToUnit, smartUnitFor,
   type IngredientUnit,
 } from '@/lib/ingredient-units'
 import { useLocale } from '@/components/locale-provider'
+
+// Drag payload for copying an existing alternative to a different meal type
+// — sibling to RecipeDragData (recipe-drag-sidebar.tsx).
+type AltDragData = { type: 'alternative'; mealIdx: number; altIdx: number }
 import type { TranslationKey } from '@/lib/i18n/translations'
 
 type FoodLogEntry = {
@@ -568,6 +580,36 @@ function MealDistributionEditor({ meals, mealSplits, onChange, onDistributeEqual
   )
 }
 
+// ── Drag-and-drop: meal-type tab as a drop target ─────────────────────────────
+// Render-prop wrapper (not inlined in meals.map() below) since useDroppable
+// needs its own component instance per tab — hooks can't be called inside a
+// loop callback. Passes through setNodeRef/isOver so the existing tab pill's
+// own markup (rename input, delete button, etc.) doesn't need to change,
+// just gain a ref and a drop-hover style.
+
+function DroppableMealTab({ idx, children }: {
+  idx: number
+  children: (p: { setNodeRef: (el: HTMLElement | null) => void; isOver: boolean }) => ReactNode
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `meal-${idx}` })
+  return <>{children({ setNodeRef, isOver })}</>
+}
+
+// ── Drag-and-drop: an alternative card as a drag source ───────────────────────
+// Only the small grip handle (rendered by the caller, inside `children`)
+// actually starts the drag — `dragHandleProps` is handed down rather than
+// spread over the whole card so existing clicks (expand/collapse, delete,
+// per-food inputs) inside the card keep working untouched.
+
+function DraggableAltCard({ id, data, children }: {
+  id: string
+  data: AltDragData
+  children: (p: { setNodeRef: (el: HTMLElement | null) => void; dragHandleProps: Record<string, unknown>; isDragging: boolean }) => ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data })
+  return <>{children({ setNodeRef, dragHandleProps: { ...attributes, ...listeners }, isDragging })}</>
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function NutritionEditor({ clientId, clientName, coachId, initialPlans, initialFoodLogs, initialFavoriteMeals }: Props) {
@@ -604,6 +646,12 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   // amounts instead of keeping the stale per-100g anchor it captured at mount.
   const [mealRescaleVersion, setMealRescaleVersion] = useState<Record<number, number>>({})
   const [editingMealTabIdx, setEditingMealTabIdx] = useState<number | null>(null)
+
+  // Recipe drag-and-drop sidebar
+  const [recipeSidebarOpen, setRecipeSidebarOpen] = useState(false)
+  const [activeDragRecipe, setActiveDragRecipe] = useState<RecipeLibraryRow | null>(null)
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+
   const [saving,          setSaving]          = useState(false)
   const [saved,           setSaved]           = useState(false)
   const [error,           setError]           = useState<string | null>(null)
@@ -981,6 +1029,62 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
       return { ...m, alternatives: alts, foods: alts[0]?.foods ?? [] }
     }))
     setActiveAlt(prev => ({ ...prev, [mealIdx]: newAltIdx }))
+  }
+
+  // Same shape as addAlternative, but pushes a specific pre-built
+  // alternative instead of an empty one — used by the recipe/alt drop
+  // handler below.
+  function addAlternativeWith(mealIdx: number, alt: MealAlternative) {
+    const newAltIdx = getAlts(meals[mealIdx]).length
+    setMeals(prev => prev.map((m, mi) => {
+      if (mi !== mealIdx) return m
+      const alts = [...getAlts(m), alt]
+      return { ...m, alternatives: alts, foods: alts[0]?.foods ?? [] }
+    }))
+    setActiveAlt(prev => ({ ...prev, [mealIdx]: newAltIdx }))
+  }
+
+  // Same per-meal kcal math the "Måltidsfordeling" UI already displays
+  // (effectiveCalories * that meal's share) — used to scale whatever gets
+  // dropped on a meal-type tab to that slot's actual calorie budget.
+  function targetCaloriesForMeal(mealName: string): number {
+    const frac = mealSplits[mealName] ?? (meals.length > 0 ? 1 / meals.length : 0)
+    return Math.round(effectiveCalories * frac)
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    const data = event.active.data.current as RecipeDragData | AltDragData | undefined
+    setActiveDragRecipe(data?.type === 'recipe' ? data.recipe : null)
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveDragRecipe(null)
+    const { active, over } = event
+    if (!over) return
+
+    const destIdx = meals.findIndex((_, i) => `meal-${i}` === over.id)
+    if (destIdx === -1) return
+    const destMeal = meals[destIdx]
+    const targetCalories = targetCaloriesForMeal(destMeal.name)
+
+    const data = active.data.current as RecipeDragData | AltDragData | undefined
+    if (!data) return
+
+    if (data.type === 'recipe') {
+      const newAlt = recipeToAlternative(data.recipe, targetCalories, Date.now())
+      addAlternativeWith(destIdx, newAlt)
+      setExpandedMeal(destIdx)
+      return
+    }
+
+    // type === 'alternative' — copy, never move (source meal keeps its own copy)
+    if (data.mealIdx === destIdx) return // dropped back on its own meal type — no-op
+    const sourceAlt = getAlts(meals[data.mealIdx])[data.altIdx]
+    if (!sourceAlt) return
+    const sourceCalories = sourceAlt.foods.reduce((s, f) => s + f.calories, 0)
+    const scaledFoods = scaleFoods(sourceAlt.foods, sourceCalories, targetCalories)
+    addAlternativeWith(destIdx, { ...sourceAlt, foods: scaledFoods })
+    setExpandedMeal(destIdx)
   }
 
   function removeAlternative(mealIdx: number, altIdx: number) {
@@ -1503,6 +1607,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   )
 
   return (
+    <DndContext sensors={dndSensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
     <div>
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
@@ -1581,6 +1686,16 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
             {templateSaved ? t('clientDetail.nutrition.templateSaved') : savingTemplate ? t('common.saving') : t('clientDetail.nutrition.saveAsTemplate')}
           </button>
 
+          {meals.length > 0 && (
+            <button
+              onClick={() => setRecipeSidebarOpen(v => !v)}
+              className="text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 flex items-center gap-1.5 bg-white"
+            >
+              <ChefHat className="w-3.5 h-3.5" />
+              Oppskrifter
+            </button>
+          )}
+
           <Button onClick={handleSave} disabled={saving}>
             <Save className="w-4 h-4" />
             {saved ? t('clientDetail.nutrition.saved') : saving ? t('common.saving') : t('common.save')}
@@ -1591,7 +1706,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
       {meals.length > 0 ? (
 
         /* ── KAIZO LAYOUT: two-panel view when plan is loaded ──────────── */
-        <div className="flex border border-gray-200 rounded-2xl overflow-hidden bg-white" style={{ minHeight: '640px' }}>
+        <div className="flex gap-4 items-start">
+        {recipeSidebarOpen && <RecipeDragSidebar onClose={() => setRecipeSidebarOpen(false)} />}
+        <div className="flex border border-gray-200 rounded-2xl overflow-hidden bg-white flex-1 min-w-0" style={{ minHeight: '640px' }}>
 
           {/* Left: all alternatives */}
           <aside className="w-72 border-r border-gray-100 overflow-y-auto flex-shrink-0 flex flex-col">
@@ -1738,15 +1855,17 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                   const isActive = expandedMeal === mi
                   const isEditingTabName = editingMealTabIdx === mi
                   return (
+                    <DroppableMealTab key={mi} idx={mi}>
+                    {({ setNodeRef, isOver }) => (
                     <div
-                      key={mi}
+                      ref={setNodeRef}
                       onClick={() => { if (!isEditingTabName) setExpandedMeal(mi) }}
                       onDoubleClick={() => setEditingMealTabIdx(mi)}
                       className={`flex items-center gap-2 pl-4 pr-2 py-2 rounded-xl text-sm font-medium transition-all border cursor-pointer ${
                         isActive
                           ? 'text-white border-transparent shadow-sm [background:linear-gradient(to_right,#1a5c3a,#6ecfb0)]'
                           : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-                      }`}
+                      } ${isOver ? 'ring-2 ring-[#2d8653] ring-offset-1' : ''}`}
                     >
                       {isEditingTabName ? (
                         <input
@@ -1780,6 +1899,8 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
+                    )}
+                    </DroppableMealTab>
                   )
                 })}
                 {MEAL_OPTIONS.filter(opt => !meals.some(m => m.name === opt.name)).map(opt => (
@@ -1809,7 +1930,22 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                     const isEditingName = editingAltName?.mi === expandedMeal && editingAltName?.ai === ai
 
                     return (
-                      <div key={ai} className={`bg-white rounded-xl overflow-hidden transition-shadow ${isOpen ? 'shadow-md ring-1 ring-[#cdeee3]' : 'shadow-sm hover:shadow-md'}`}>
+                      <DraggableAltCard
+                        key={ai}
+                        id={`alt-${expandedMeal}-${ai}`}
+                        data={{ type: 'alternative', mealIdx: expandedMeal, altIdx: ai }}
+                      >
+                      {({ setNodeRef, dragHandleProps, isDragging }) => (
+                      <div ref={setNodeRef} className={`bg-white rounded-xl overflow-hidden transition-shadow flex items-stretch ${isOpen ? 'shadow-md ring-1 ring-[#cdeee3]' : 'shadow-sm hover:shadow-md'}`} style={{ opacity: isDragging ? 0.4 : 1 }}>
+                        <span
+                          {...dragHandleProps}
+                          onClick={e => e.stopPropagation()}
+                          className="flex items-center px-2 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 flex-shrink-0 touch-none"
+                          title="Dra til et annet måltid for å kopiere dit"
+                        >
+                          <GripVertical className="w-4 h-4" />
+                        </span>
+                        <div className="flex-1 min-w-0">
 
                         {/* Summary row */}
                         <div
@@ -1964,6 +2100,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                           </div>
                         )}
                       </div>
+                      </div>
+                      )}
+                      </DraggableAltCard>
                     )
                   })}
                   <Button
@@ -1977,6 +2116,7 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
               )}
             </div>
           </div>
+        </div>
         </div>
 
       ) : (
@@ -2416,5 +2556,9 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
         </div>
       )}
     </div>
+    <DragOverlay>
+      {activeDragRecipe && <RecipeDragOverlayCard recipe={activeDragRecipe} />}
+    </DragOverlay>
+    </DndContext>
   )
 }
