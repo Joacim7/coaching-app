@@ -12,6 +12,7 @@ export interface ClientRow {
   profileId: string
   name: string
   joinedAt: string
+  statusChangedAt: string | null
   status: ClientStatus
   hasMealPlan: boolean
   hasTrainingPlan: boolean
@@ -219,6 +220,10 @@ export function ClientList({ clients: initial }: { clients: ClientRow[]; coachId
                       <p className="text-xs text-gray-400 truncate">
                         {client.coachName
                           ? `${t('clients.coachPrefix')} ${client.coachName}`
+                          : client.status === 'inactive' && client.statusChangedAt
+                          ? `${t('clients.inactiveSince')} ${new Date(client.statusChangedAt).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                          : client.status === 'inactive'
+                          ? ''
                           : `${t('clients.clientSince')} ${new Date(client.joinedAt).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}`
                         }
                       </p>

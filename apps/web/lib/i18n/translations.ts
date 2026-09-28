@@ -186,6 +186,7 @@ const dict = {
   'clients.noResults.subtitle':             { nb: 'Prøv et annet søkeord eller filter', en: 'Try a different search term or filter' },
   'clients.coachPrefix':                    { nb: 'Coach:', en: 'Coach:' },
   'clients.clientSince':                    { nb: 'Klient siden', en: 'Client since' },
+  'clients.inactiveSince':                  { nb: 'Inaktiv siden', en: 'Inactive since' },
   'clients.changeStatusTitle':              { nb: 'Endre status', en: 'Change status' },
   'clients.setStatus':                      { nb: 'Sett status', en: 'Set status' },
   'clients.updateStatusError':              { nb: 'Kunne ikke oppdatere status', en: 'Could not update status' },

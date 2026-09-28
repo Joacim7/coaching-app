@@ -89,6 +89,7 @@ export default async function ClientsPage() {
       profileId:       profile.id,
       name:            profile.full_name ?? t('clients.unknownClient'),
       joinedAt:        rel.created_at,
+      statusChangedAt: rel.status_changed_at ?? null,
       status:          (rel.status ?? 'active') as ClientStatus,
       hasMealPlan:     mealSet.has(profile.id),
       hasTrainingPlan: trainSet.has(profile.id),
