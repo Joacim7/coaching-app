@@ -591,10 +591,13 @@ export default function StandaloneMealPlanEditor({
   }, [])
 
   // ── Daily totals (alt[0] of each meal) ──
-  const totalCals = meals.reduce((s, m) => s + (getAlts(m)[0]?.foods ?? []).reduce((ss, f) => ss + f.calories, 0), 0)
   const totalProtein = meals.reduce((s, m) => s + (getAlts(m)[0]?.foods ?? []).reduce((ss, f) => ss + f.protein_g, 0), 0)
   const totalCarbs = meals.reduce((s, m) => s + (getAlts(m)[0]?.foods ?? []).reduce((ss, f) => ss + f.carbs_g, 0), 0)
   const totalFat = meals.reduce((s, m) => s + (getAlts(m)[0]?.foods ?? []).reduce((ss, f) => ss + f.fat_g, 0), 0)
+  // Derived from the macros (Atwater factors), not summed from each food's
+  // own stored `calories` field — see nutrition-editor.tsx for why that
+  // field can drift from its own macros and skew every percentage below.
+  const totalCals = totalProtein * 4 + totalCarbs * 4 + totalFat * 9
 
   const displayProteinPct = totalCals > 0 ? (totalProtein * 4 / totalCals) * 100 : (effectiveProtein * 4 / effectiveCalories) * 100
   const displayCarbsPct   = totalCals > 0 ? (totalCarbs   * 4 / totalCals) * 100 : (effectiveCarbs   * 4 / effectiveCalories) * 100
@@ -1089,7 +1092,7 @@ export default function StandaloneMealPlanEditor({
                       const mP = alt0.foods.reduce((s, f) => s + f.protein_g, 0)
                       const mK = alt0.foods.reduce((s, f) => s + f.carbs_g, 0)
                       const mF = alt0.foods.reduce((s, f) => s + f.fat_g, 0)
-                      const mCal = alt0.foods.reduce((s, f) => s + f.calories, 0)
+                      const mCal = mP * 4 + mK * 4 + mF * 9
                       return (
                         <div className="space-y-2">
                           <MacroBar label={t('mealPlans.protein')} value={mP} target={effectiveProtein} unit="g" color="bg-green-500" pct={mCal > 0 ? (mP * 4 / mCal) * 100 : 0} />

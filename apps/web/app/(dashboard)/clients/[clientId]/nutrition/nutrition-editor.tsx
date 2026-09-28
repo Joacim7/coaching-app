@@ -1467,10 +1467,15 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
     const idx  = Math.min(activeAlt[mi] ?? 0, alts.length - 1)
     return alts[idx]?.foods ?? []
   }
-  const totalCals    = meals.reduce((s, m, mi) => s + selectedFoods(m, mi).reduce((ss, f) => ss + f.calories,   0), 0)
   const totalProtein = meals.reduce((s, m, mi) => s + selectedFoods(m, mi).reduce((ss, f) => ss + f.protein_g, 0), 0)
   const totalCarbs   = meals.reduce((s, m, mi) => s + selectedFoods(m, mi).reduce((ss, f) => ss + f.carbs_g,   0), 0)
   const totalFat     = meals.reduce((s, m, mi) => s + selectedFoods(m, mi).reduce((ss, f) => ss + f.fat_g,     0), 0)
+  // Derived from the macros (Atwater factors), not summed from each food's
+  // own stored `calories` field — that field can drift from its own
+  // protein/carbs/fat (rounding, source-data inconsistencies), which made
+  // the calorie total, and every percentage computed from it below, subtly
+  // inconsistent with the actual macros being displayed.
+  const totalCals    = totalProtein * 4 + totalCarbs * 4 + totalFat * 9
 
   const targetCals    = mode === 'ai' ? effectiveCalories : manualCalories
   const targetProt    = mode === 'ai' ? effectiveProtein  : Number(protein)
