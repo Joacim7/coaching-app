@@ -1138,7 +1138,7 @@ const dict = {
   'clientDetail.progression.energy':       { nb: 'Energi', en: 'Energy' },
   'clientDetail.progression.avg':          { nb: 'Snitt', en: 'Average' },
   'clientDetail.progression.vsPrevWeek':   { nb: 'forrige uke', en: 'previous week' },
-  'clientDetail.progression.vsPrevMonth':  { nb: 'forrige måned', en: 'previous month' },
+  'clientDetail.progression.totalChange':  { nb: 'totalt', en: 'total' },
   'clientDetail.progression.min':          { nb: 'Min', en: 'Min' },
   'clientDetail.progression.max':          { nb: 'Max', en: 'Max' },
   'clientDetail.progression.measurements': { nb: 'Målinger', en: 'Measurements' },

@@ -49,6 +49,16 @@ function calcStats(vals: number[]) {
   }
 }
 
+// Point-to-point change from the first to the most recent measurement in a
+// chronologically-ordered series (the data this reads is always sorted
+// ascending by date). Used only for the "Alt" filter, which has no
+// "previous period" to average against — the client's whole history either
+// moved in the right direction or it didn't, start to end.
+function totalChange(vals: number[]): number | null {
+  if (vals.length < 2) return null
+  return vals[vals.length - 1] - vals[0]
+}
+
 const FILTER_VALUES: Filter[] = ['week', 'month', 'all']
 
 export function ProgressionView({ data }: Props) {
@@ -62,8 +72,11 @@ export function ProgressionView({ data }: Props) {
     [data, start],
   )
 
+  // Only "week" compares against a previous period's average now — "month"
+  // shows just the current calendar month with no comparison at all, and
+  // "all" shows first-vs-last total change instead (see computeDelta below).
   const prevFiltered = useMemo(() => {
-    if (filter === 'all') return []
+    if (filter !== 'week') return []
     return data.filter(r => r.date >= prevStart && r.date < prevEnd)
   }, [data, prevStart, prevEnd, filter])
 
@@ -82,7 +95,33 @@ export function ProgressionView({ data }: Props) {
   const prevStStats = calcStats(prevFiltered.filter(r => r.steps        != null).map(r => r.steps!))
   const prevEStats  = calcStats(prevFiltered.filter(r => r.energy_level != null).map(r => r.energy_level!))
 
-  const periodLabel = filter === 'week' ? t('clientDetail.progression.vsPrevWeek') : filter === 'month' ? t('clientDetail.progression.vsPrevMonth') : null
+  // Delta + label shown under each card's average — semantics differ per
+  // filter, so it's fully resolved here (once) rather than inside the card:
+  //   week  → this period's average vs. the previous 7-day period's average
+  //   month → no comparison at all
+  //   all   → first-ever measurement vs. the most recent one (a total
+  //           change, not an average — there's no "previous period" for
+  //           all-time)
+  function computeDelta(
+    current: { avg: number } | null,
+    prev: { avg: number } | null,
+    seriesVals: number[],
+  ): { delta: number | null; label: string | null } {
+    if (filter === 'week') {
+      if (!current || !prev) return { delta: null, label: null }
+      return { delta: current.avg - prev.avg, label: `vs ${t('clientDetail.progression.vsPrevWeek')}` }
+    }
+    if (filter === 'all') {
+      const d = totalChange(seriesVals)
+      return { delta: d, label: d != null ? t('clientDetail.progression.totalChange') : null }
+    }
+    return { delta: null, label: null }
+  }
+
+  const wDelta  = computeDelta(wStats,  prevWStats,  weightData.map(d => d.value))
+  const sDelta  = computeDelta(sStats,  prevSStats,  sleepData.map(d => d.value))
+  const stDelta = computeDelta(stStats, prevStStats, stepsData.map(d => d.value))
+  const eDelta  = computeDelta(eStats,  prevEStats,  energyData.map(d => d.value))
 
   const hasAnyData = weightData.length + sleepData.length + stepsData.length + energyData.length > 0
 
@@ -125,10 +164,10 @@ export function ProgressionView({ data }: Props) {
               color="blue"
               unit="kg"
               stats={wStats}
-              prevAvg={prevWStats?.avg ?? null}
+              delta={wDelta.delta}
+              deltaLabel={wDelta.label}
               decimals={1}
               isGoodWhenDown
-              periodLabel={periodLabel}
             />
             <MetricCard
               icon={<Moon className="w-4 h-4" />}
@@ -136,10 +175,10 @@ export function ProgressionView({ data }: Props) {
               color="violet"
               unit="t"
               stats={sStats}
-              prevAvg={prevSStats?.avg ?? null}
+              delta={sDelta.delta}
+              deltaLabel={sDelta.label}
               decimals={1}
               isGoodWhenDown={false}
-              periodLabel={periodLabel}
             />
             <MetricCard
               icon={<Footprints className="w-4 h-4" />}
@@ -151,10 +190,10 @@ export function ProgressionView({ data }: Props) {
                 min: Math.round(stStats.min),
                 max: Math.round(stStats.max),
               } : null}
-              prevAvg={prevStStats ? Math.round(prevStStats.avg) : null}
+              delta={stDelta.delta}
+              deltaLabel={stDelta.label}
               decimals={0}
               isGoodWhenDown={false}
-              periodLabel={periodLabel}
             />
             <MetricCard
               icon={<Zap className="w-4 h-4" />}
@@ -162,10 +201,10 @@ export function ProgressionView({ data }: Props) {
               color="amber"
               unit="/10"
               stats={eStats}
-              prevAvg={prevEStats?.avg ?? null}
+              delta={eDelta.delta}
+              deltaLabel={eDelta.label}
               decimals={1}
               isGoodWhenDown={false}
-              periodLabel={periodLabel}
             />
           </div>
 
@@ -209,10 +248,13 @@ interface MetricCardProps {
   color: 'blue' | 'violet' | 'green' | 'amber'
   unit: string
   stats: { avg: number; min: number; max: number; count: number } | null
-  prevAvg: number | null
+  // Pre-resolved by the parent — its meaning (period-over-period average vs.
+  // first-to-last total change vs. no comparison at all) varies by the
+  // active filter, which this component doesn't need to know about.
+  delta: number | null
+  deltaLabel: string | null
   decimals: number
   isGoodWhenDown: boolean
-  periodLabel: string | null
 }
 
 const COLOR_MAP = {
@@ -222,16 +264,14 @@ const COLOR_MAP = {
   amber:  { bg: 'bg-amber-50',   icon: 'bg-amber-100 text-amber-600',   val: 'text-amber-900',  sub: 'text-amber-400'  },
 }
 
-function MetricCard({ icon, label, color, unit, stats, prevAvg, decimals, isGoodWhenDown, periodLabel }: MetricCardProps) {
+function MetricCard({ icon, label, color, unit, stats, delta, deltaLabel, decimals, isGoodWhenDown }: MetricCardProps) {
   const { t } = useLocale()
   const c = COLOR_MAP[color]
 
-  let delta: number | null = null
   let deltaColor = 'text-gray-400'
   let arrow = ''
 
-  if (stats && prevAvg != null) {
-    delta = stats.avg - prevAvg
+  if (delta != null) {
     const isImprovement = isGoodWhenDown ? delta < 0 : delta > 0
     deltaColor = isImprovement ? 'text-emerald-500' : delta === 0 ? 'text-gray-400' : 'text-red-400'
     arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→'
@@ -252,9 +292,9 @@ function MetricCard({ icon, label, color, unit, stats, prevAvg, decimals, isGood
           </p>
           <p className={`text-[10px] font-medium mt-0.5 mb-2 ${c.sub}`}>{t('clientDetail.progression.avg')}</p>
 
-          {delta != null && periodLabel && (
+          {delta != null && deltaLabel && (
             <p className={`text-xs font-semibold mb-2 ${deltaColor}`}>
-              {arrow} {Math.abs(delta).toFixed(decimals)}{unit} vs {periodLabel}
+              {arrow} {Math.abs(delta).toFixed(decimals)}{unit} {deltaLabel}
             </p>
           )}
 
