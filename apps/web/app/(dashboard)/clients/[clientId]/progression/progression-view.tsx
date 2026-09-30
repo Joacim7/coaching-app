@@ -30,8 +30,9 @@ interface Props {
 
 // "Uke" is a rolling 7-day window ending today (not a calendar week), using
 // the same date-string bounds as Oversikt's "Nåværende" weight calculation.
-// "Måned" is a real calendar month: the 1st of this month through today,
-// compared against the entire previous calendar month.
+// "Måned" is a real calendar month: the 1st of this month through today —
+// its delta is first-vs-last within that range (see computeDelta below),
+// not a comparison against the previous month.
 function periodRange(filter: Filter) {
   if (filter === 'week')  return rollingWindowBounds(7)
   if (filter === 'month') return calendarMonthBounds()
@@ -72,9 +73,9 @@ export function ProgressionView({ data }: Props) {
     [data, start],
   )
 
-  // Only "week" compares against a previous period's average now — "month"
-  // shows just the current calendar month with no comparison at all, and
-  // "all" shows first-vs-last total change instead (see computeDelta below).
+  // Only "week" compares against a previous period's average — "month" and
+  // "all" both show first-vs-last total change within their own already-
+  // filtered series instead (see computeDelta below).
   const prevFiltered = useMemo(() => {
     if (filter !== 'week') return []
     return data.filter(r => r.date >= prevStart && r.date < prevEnd)
@@ -97,11 +98,11 @@ export function ProgressionView({ data }: Props) {
 
   // Delta + label shown under each card's average — semantics differ per
   // filter, so it's fully resolved here (once) rather than inside the card:
-  //   week  → this period's average vs. the previous 7-day period's average
-  //   month → no comparison at all
-  //   all   → first-ever measurement vs. the most recent one (a total
-  //           change, not an average — there's no "previous period" for
-  //           all-time)
+  //   week        → this period's average vs. the previous 7-day period's average
+  //   month / all → first measurement vs. the most recent one within that
+  //                 filter's own already-filtered series (a total change,
+  //                 not an average — there's no "previous period" for
+  //                 either the current calendar month or all-time)
   function computeDelta(
     current: { avg: number } | null,
     prev: { avg: number } | null,
@@ -111,7 +112,7 @@ export function ProgressionView({ data }: Props) {
       if (!current || !prev) return { delta: null, label: null }
       return { delta: current.avg - prev.avg, label: `vs ${t('clientDetail.progression.vsPrevWeek')}` }
     }
-    if (filter === 'all') {
+    if (filter === 'month' || filter === 'all') {
       const d = totalChange(seriesVals)
       return { delta: d, label: d != null ? t('clientDetail.progression.totalChange') : null }
     }
