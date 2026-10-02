@@ -79,14 +79,29 @@ function smartUnitFor(name: string): IngredientUnit {
   if (n.includes('yoghurt'))                                                         return 'g'
   if (n.includes('melk') || n.includes('proteinmelk'))                                return 'dl'
   if (n.includes('olje'))                                                              return 'ss'
+  if (n.includes('havregryn') || n.includes('granola'))                               return 'dl'
+  if (/\bris\b/.test(n) || n.includes('pasta'))                                        return 'dl'
   return 'g'
+}
+
+// Grams per 1 "dl" for foods measured dry/by volume, where a fixed
+// water-density (100g/dl) is wrong — dry oats, rice and pasta are much
+// lighter per dl than their cooked/liquid equivalents. Everything else
+// (milk, yoghurt, etc.) keeps the water-density default.
+function gPerDl(name: string): number {
+  const n = name.toLowerCase()
+  if (n.includes('havregryn'))  return 40
+  if (/\bris\b/.test(n))        return 85
+  if (n.includes('pasta'))      return 45
+  if (n.includes('granola'))    return 45
+  return 100
 }
 
 function unitToGrams(amount: number, unit: IngredientUnit, name: string): number {
   switch (unit) {
     case 'g':   return amount
     case 'ml':  return amount
-    case 'dl':  return amount * 100
+    case 'dl':  return amount * gPerDl(name)
     case 'ss':  return amount * 15
     case 'ts':  return amount * 5
     case 'stk': return amount * gPerPiece(name)
@@ -97,7 +112,7 @@ function gramsToUnit(grams: number, unit: IngredientUnit, name: string): number 
   switch (unit) {
     case 'g':   return grams
     case 'ml':  return grams
-    case 'dl':  return grams / 100
+    case 'dl':  return grams / gPerDl(name)
     case 'ss':  return grams / 15
     case 'ts':  return grams / 5
     case 'stk': return Math.max(1, Math.round(grams / gPerPiece(name)))
