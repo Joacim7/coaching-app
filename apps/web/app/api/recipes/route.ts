@@ -7,10 +7,30 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Same visibility rules as the recipe library page (/recipes): every
+  // recipe in the coach's org, plus standard (seeded) recipes visible to
+  // everyone — not just recipes this coach personally created. Otherwise
+  // this list (used by the drag-and-drop sidebar) would silently omit
+  // most of what actually shows in the library.
+  const { data: membership } = await supabase
+    .from('org_members')
+    .select('org_id')
+    .eq('user_id', user.id)
+    .single()
+
+  let coachIds = [user.id]
+  if (membership) {
+    const { data: orgMates } = await supabase
+      .from('org_members')
+      .select('user_id')
+      .eq('org_id', membership.org_id)
+    if (orgMates?.length) coachIds = orgMates.map(m => m.user_id)
+  }
+
   const { data, error } = await supabase
     .from('recipes')
     .select('*')
-    .eq('coach_id', user.id)
+    .or(`coach_id.in.(${coachIds.join(',')}),is_standard.eq.true`)
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
