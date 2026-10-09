@@ -42,6 +42,7 @@ export interface TrainingSession {
   training_plan_id: string
   day_of_week: number // 1=Mon … 7=Sun
   title: string
+  notes?: string | null
   exercises: Exercise[]
   created_at: string
 }

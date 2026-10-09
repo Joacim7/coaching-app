@@ -75,6 +75,7 @@ type Session = {
   id: string
   day_of_week: number
   title: string
+  notes: string
   type: SessionType
   exercises: SessionExercise[]
   cardio_config: CardioConfig | null
@@ -104,6 +105,7 @@ interface Props {
       id: string
       day_of_week: number
       title: string
+      notes?: string | null
       session_type?: string | null
       exercises: unknown[]
     }>
@@ -190,6 +192,7 @@ function newSession(dayNum: number, type: SessionType = 'styrke'): Session {
     id: crypto.randomUUID(),
     day_of_week: dayNum,
     title: DAYS[dayNum - 1],
+    notes: '',
     type,
     exercises: [],
     cardio_config: null,
@@ -919,6 +922,7 @@ export default function StandaloneTrainingPlanEditor({
   const { t } = useLocale()
 
   const [title, setTitle]     = useState(initialPlan?.title ?? 'Ny treningsplan')
+  const [description, setDescription] = useState(initialPlan?.description ?? '')
   const [isDraft, setIsDraft] = useState(false)
   const [saving, setSaving]         = useState(false)
   const [saved, setSaved]           = useState(false)
@@ -955,6 +959,7 @@ export default function StandaloneTrainingPlanEditor({
           id: s.id,
           day_of_week: s.day_of_week,
           title: s.title,
+          notes: s.notes ?? '',
           type: isCardio ? 'cardio' : 'styrke',
           exercises: loadedExercises,
           cardio_config: isCardio && hasCardioConfig ? (firstEx as CardioConfig) : null,
@@ -1020,6 +1025,7 @@ export default function StandaloneTrainingPlanEditor({
       id: crypto.randomUUID(),
       day_of_week: nextDay,
       title: config.activity_type,
+      notes: '',
       type: 'cardio',
       exercises: [],
       cardio_config: config,
@@ -1065,7 +1071,7 @@ export default function StandaloneTrainingPlanEditor({
     })
   }, [])
 
-  const updateSession = useCallback((dayNum: number, field: 'title', value: string) => {
+  const updateSession = useCallback((dayNum: number, field: 'title' | 'notes', value: string) => {
     setSessions(prev => prev.map(s => s.day_of_week === dayNum ? { ...s, [field]: value } : s))
   }, [])
 
@@ -1273,6 +1279,7 @@ export default function StandaloneTrainingPlanEditor({
       training_plan_id: planId,
       day_of_week: s.day_of_week,
       title: s.title,
+      notes: s.notes || null,
       // Never wrote this before — training_sessions.session_type silently
       // stayed at its column default ('styrke') for every session ever
       // saved, cardio included. On the next load, isCardio (below) reads
@@ -1310,7 +1317,7 @@ export default function StandaloneTrainingPlanEditor({
           .from('training_plans')
           .insert({
             title,
-            description: null,
+            description: description || null,
             client_id: clientId ?? null,
             coach_id: coachId,
             is_active: !isDraft,
@@ -1324,7 +1331,7 @@ export default function StandaloneTrainingPlanEditor({
       } else {
         const { error } = await supabase
           .from('training_plans')
-          .update({ title, is_active: !isDraft })
+          .update({ title, description: description || null, is_active: !isDraft })
           .eq('id', planId)
         if (error) throw error
       }
@@ -1395,7 +1402,7 @@ export default function StandaloneTrainingPlanEditor({
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => { saveTimerRef.current = null; runSave() }, 2500)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-  }, [title, isDraft, sessions, runSave])
+  }, [title, description, isDraft, sessions, runSave])
 
   // Flushes a still-pending debounced save immediately when the coach
   // navigates away, instead of the effect above silently cancelling it on
@@ -1420,7 +1427,7 @@ export default function StandaloneTrainingPlanEditor({
         .from('training_plans')
         .insert({
           title,
-          description: null,
+          description: description || null,
           client_id: null,
           coach_id: coachId,
           is_active: true,
@@ -1645,6 +1652,20 @@ export default function StandaloneTrainingPlanEditor({
         </button>
       </div>
 
+      {/* ── Program-wide note ── */}
+      <div className="px-6 py-2.5 border-b border-gray-100 bg-white shrink-0">
+        <label className="flex items-start gap-2">
+          <Pencil className="w-3.5 h-3.5 text-gray-300 mt-1 shrink-0" />
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder={t('trainingEditor.programNotesPlaceholder')}
+            rows={1}
+            className="flex-1 text-sm text-gray-600 bg-transparent resize-none focus:outline-none placeholder:text-gray-300"
+          />
+        </label>
+      </div>
+
       {/* ── Two-column body ── */}
       <div className="flex flex-1 min-h-0">
 
@@ -1800,6 +1821,20 @@ export default function StandaloneTrainingPlanEditor({
                       : <><Dumbbell className="w-4 h-4" /> Styrke</>
                     }
                   </span>
+                </div>
+
+                {/* Session note */}
+                <div className="mb-4">
+                  <label className="flex items-start gap-2">
+                    <Pencil className="w-3.5 h-3.5 text-gray-300 mt-1 shrink-0" />
+                    <textarea
+                      value={activeSession.notes}
+                      onChange={e => updateSession(activeSession.day_of_week, 'notes', e.target.value)}
+                      placeholder={t('trainingEditor.sessionNotesPlaceholder')}
+                      rows={1}
+                      className="flex-1 text-sm text-gray-600 bg-transparent resize-none focus:outline-none border-b border-transparent hover:border-gray-200 focus:border-[#6ecfb0] transition-colors placeholder:text-gray-300"
+                    />
+                  </label>
                 </div>
 
                 {/* ── Styrkeøkt ── */}
