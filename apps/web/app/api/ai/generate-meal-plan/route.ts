@@ -684,17 +684,47 @@ function buildPrompt(target: MealTarget, count: number, preferences: string | un
   // gives the model something unique to condition its sampling on each time.
   const generationSeed = `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`
 
-  const EXAMPLES: Record<string, string> = {
-    Frokost:            '{"foods":["havregryn","helmelk","banan"],"recipe":["Kok opp 2,5 dl melk.","Rør inn havregryn og la det tykne 4–5 min.","Hell i bolle og topp med skivede bananer."]}',
-    Lunsj:              '{"foods":["rugbrød","tunfisk","agurk"],"recipe":["Legg to rugbrødskiver på en tallerken.","Fordel tunfisk over brødet.","Legg agurk-skiver på toppen."]}',
-    Middag:             '{"foods":["kyllingbryst","hvit ris","brokkoli"],"recipe":["Kok ris etter pakken.","Krydre kylling med salt og pepper; stek 6–7 min per side.","Kok brokkoli lett og server ved siden av."]}',
-    Snack:              '{"foods":["gresk yoghurt","blåbær"],"recipe":["Ha gresk yoghurt i en skål.","Topp med friske blåbær."]}',
-    Kveldsmat:          '{"foods":["cottage cheese","knekkebrød","agurk"],"recipe":["Ha cottage cheese i en skål.","Server med 2 knekkebrød og agurk-skiver."]}',
-    Ettermiddag:        '{"foods":["kvarg","blåbær"],"recipe":["Ha kvarg i en skål.","Topp med blåbær."]}',
-    Formiddagssnack:    '{"foods":["banan","mandler"],"recipe":["Spis en banan og en liten håndfull mandler."]}',
-    Ettermiddagssnack:  '{"foods":["cottage cheese","agurk"],"recipe":["Ha cottage cheese i en skål.","Skjær agurk i skiver og server ved siden av."]}',
+  // Two variants per meal type, one picked at random per call — showing the
+  // model the exact same example every single time (as a single static
+  // string used to) anchors it toward that answer regardless of the
+  // generationSeed/variation rules below, since an example is the strongest
+  // signal in the whole prompt.
+  const EXAMPLES: Record<string, string[]> = {
+    Frokost: [
+      '{"foods":["havregryn","helmelk","banan"],"recipe":["Kok opp 2,5 dl melk.","Rør inn havregryn og la det tykne 4–5 min.","Hell i bolle og topp med skivede bananer."]}',
+      '{"foods":["knekkebrød","egg","agurk"],"recipe":["Kok eggene i 7–8 min, avkjøl og skjær i skiver.","Legg eggskivene på knekkebrødet.","Topp med agurkskiver."]}',
+    ],
+    Lunsj: [
+      '{"foods":["rugbrød","tunfisk","agurk"],"recipe":["Legg to rugbrødskiver på en tallerken.","Fordel tunfisk over brødet.","Legg agurk-skiver på toppen."]}',
+      '{"foods":["wrap","kyllingbryst","paprika"],"recipe":["Stek kyllingbryst og skjær i strimler.","Skjær paprika i strimler.","Fyll wrapen med kylling og paprika, rull sammen."]}',
+    ],
+    Middag: [
+      '{"foods":["kyllingbryst","hvit ris","brokkoli"],"recipe":["Kok ris etter pakken.","Krydre kylling med salt og pepper; stek 6–7 min per side.","Kok brokkoli lett og server ved siden av."]}',
+      '{"foods":["laksefilet","søtpotet","asparges"],"recipe":["Ovnsbak søtpotet i skiver på 200°C i ca. 20 min.","Stek laksefileten i panne 4–5 min per side.","Kok asparges lett og server alt sammen."]}',
+    ],
+    Snack: [
+      '{"foods":["gresk yoghurt","blåbær"],"recipe":["Ha gresk yoghurt i en skål.","Topp med friske blåbær."]}',
+      '{"foods":["eple","mandler"],"recipe":["Skjær eplet i skiver.","Server med en liten håndfull mandler."]}',
+    ],
+    Kveldsmat: [
+      '{"foods":["cottage cheese","knekkebrød","agurk"],"recipe":["Ha cottage cheese i en skål.","Server med 2 knekkebrød og agurk-skiver."]}',
+      '{"foods":["kesam","knekkebrød"],"recipe":["Ha kesam i en skål.","Server med 2 knekkebrød ved siden av."]}',
+    ],
+    Ettermiddag: [
+      '{"foods":["kvarg","blåbær"],"recipe":["Ha kvarg i en skål.","Topp med blåbær."]}',
+      '{"foods":["knekkebrød","skinke"],"recipe":["Legg skinke på knekkebrødet.","Server umiddelbart."]}',
+    ],
+    Formiddagssnack: [
+      '{"foods":["banan","mandler"],"recipe":["Spis en banan og en liten håndfull mandler."]}',
+      '{"foods":["gresk yoghurt","druer"],"recipe":["Ha gresk yoghurt i en skål.","Topp med druer."]}',
+    ],
+    Ettermiddagssnack: [
+      '{"foods":["cottage cheese","agurk"],"recipe":["Ha cottage cheese i en skål.","Skjær agurk i skiver og server ved siden av."]}',
+      '{"foods":["knekkebrød","makrell i tomat"],"recipe":["Legg knekkebrødene på en tallerken.","Fordel makrell i tomat over knekkebrødene."]}',
+    ],
   }
-  const exampleJson = EXAMPLES[target.name] ?? EXAMPLES['Snack']
+  const exampleVariants = EXAMPLES[target.name] ?? EXAMPLES['Snack']
+  const exampleJson = exampleVariants[Math.floor(Math.random() * exampleVariants.length)]
 
   // Meal-type-specific carb sources — injected into rule 8 so the AI only sees valid options
   const CARB_SOURCES: Record<string, string> = {

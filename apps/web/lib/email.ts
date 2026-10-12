@@ -66,6 +66,21 @@ export async function sendWelcomeEmail({
             <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;text-align:center">
               Lenken er personlig og er bare til deg.
             </p>
+
+            <!-- App download links -->
+            <p style="margin:28px 0 12px;font-size:13px;color:#6b7280;text-align:center;font-weight:600">
+              Last ned appen her:
+            </p>
+            <div style="text-align:center">
+              <a href="https://apps.apple.com/us/app/nova-performance/id6794401639"
+                 style="display:inline-block;margin:0 6px 8px;padding:10px 20px;background-color:#111827;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:13px">
+                 Last ned i App Store
+              </a>
+              <a href="https://play.google.com/store/apps/details?id=no.novaperformance.app"
+                 style="display:inline-block;margin:0 6px 8px;padding:10px 20px;background-color:#111827;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:13px">
+                 Last ned på Google Play
+              </a>
+            </div>
           </td>
         </tr>
 
