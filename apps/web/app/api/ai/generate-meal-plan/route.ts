@@ -669,12 +669,96 @@ function correctMacros(foods: Food[], t: MealTarget): Food[] {
   return scaleProportional(result, t.calories)
 }
 
+// ── Dietary restrictions: parse free-text preferences into hard filters ──────
+// `preferences` is a coach-typed free-text field ("vegetariansk", "ikke bruk
+// løk", "ekskluder kylling"...). Previously this only ever reached the AI
+// prompt as a single unemphasized line — the recipe-library path (now the
+// primary source for most meal types, see fetchFromLibrary) never looked at
+// it at all, so a vegetarian client could silently be served a library
+// chicken recipe. Both paths now filter through the same forbidden-word list
+// derived here, so a restriction holds regardless of which path serves the
+// meal.
+
+const MEAT_FISH_POULTRY_WORDS = [
+  'kylling', 'kalkun', 'biff', 'svin', 'svinefilet', 'skinke', 'bacon',
+  'kjøttdeig', 'karbonadedeig', 'pølse', 'kjøttboller', 'pulled pork', 'oksekjøtt',
+  'laks', 'torsk', 'sei', 'hyse', 'ørret', 'makrell', 'sild', 'tunfisk',
+  'reke', 'krabbe', 'scampi', 'fisk', 'sjømat', 'lam', 'entrecote',
+  'indrefilet', 'mørbrad', 'koteletter',
+]
+const DAIRY_EGG_WORDS = [
+  'egg', 'melk', 'ost', 'yoghurt', 'rømme', 'fløte', 'smør',
+  'kesam', 'kvarg', 'fetaost', 'mozzarella', 'parmesan', 'cottage cheese',
+]
+
+interface ParsedPreferences {
+  vegetarian: boolean
+  vegan: boolean
+  excluded: string[]
+}
+
+function parsePreferences(preferences: string | undefined): ParsedPreferences {
+  const text = (preferences ?? '').toLowerCase()
+  const vegan = /\bvegansk\b|\bvegan\b/.test(text)
+  const vegetarian = vegan || /\bvegetarisk\b|\bvegetarianer\b|\bvegetariansk\b/.test(text)
+
+  const excluded = new Set<string>()
+  const triggerPatterns = [
+    /ikke\s+bruk\s+([^,.;]+)/g,
+    /ekskluder(?:er)?\s+([^,.;]+)/g,
+    /unngå\s+([^,.;]+)/g,
+    /allergisk\s+(?:mot|for|på)\s+([^,.;]+)/g,
+    /allergi\s+(?:mot|for|på)\s+([^,.;]+)/g,
+    /\buten\s+([^,.;]+)/g,
+  ]
+  for (const re of triggerPatterns) {
+    for (const m of text.matchAll(re)) {
+      for (const word of m[1].split(/\s+og\s+|,|\//)) {
+        const w = word.trim()
+        if (w.length > 1) excluded.add(w)
+      }
+    }
+  }
+  return { vegetarian, vegan, excluded: [...excluded] }
+}
+
+function forbiddenWordsFor(prefs: ParsedPreferences): string[] {
+  const words = [...prefs.excluded]
+  if (prefs.vegetarian) words.push(...MEAT_FISH_POULTRY_WORDS)
+  if (prefs.vegan) words.push(...DAIRY_EGG_WORDS)
+  return words
+}
+
+// Checks a flat list of food/ingredient names (any case) against the
+// forbidden-word list — substring match, since both AI food names ("stekt
+// kyllingbryst") and library ingredient names ("Kyllingbryst") commonly carry
+// extra words around the forbidden term itself.
+function violatesPreferences(names: string[], forbidden: string[]): boolean {
+  if (!forbidden.length) return false
+  const haystack = names.join(' ').toLowerCase()
+  return forbidden.some(w => haystack.includes(w))
+}
+
 // ── Prompt: ask AI for food names + recipe ONLY ───────────────────────────────
 // Amounts and macros are computed from Matvaretabellen — not invented by the AI.
 
 function buildPrompt(target: MealTarget, count: number, preferences: string | undefined, batchNum: number): string {
   const guide = MEAL_GUIDES[target.name] ?? MEAL_GUIDES[target.name.replace('mat', '')] ?? 'Bruk vanlige norske råvarer som passer til dette måltidet.'
   const batchNote = batchNum > 1 ? `VIKTIG: Sett ${batchNum} — bruk HELT ANDRE matvarer enn sett 1 for god variasjon.\n` : ''
+
+  // Parsed on top of (not instead of) the raw preferences text below — this
+  // block exists specifically to outrank every other rule in the prompt, since
+  // a free-text preference line placed among many other rules otherwise reads
+  // as one more stylistic suggestion rather than a hard constraint.
+  const prefs = parsePreferences(preferences)
+  const forbidden = forbiddenWordsFor(prefs)
+  const dietaryBlock = forbidden.length
+    ? `⛔⛔ KRITISK DIETTKRAV — DETTE OVERSTYRER ALLE ANDRE REGLER UNDER ⛔⛔\n` +
+      (prefs.vegetarian ? `Klienten er VEGETARIANER. Bruk ALDRI kjøtt, fugl, fisk eller sjømat (f.eks. kylling, biff, svin, laks, torsk, reker, tunfisk) i noen av alternativene.\n` : '') +
+      (prefs.vegan ? `Klienten er VEGANER. Bruk ALDRI egg, melk, ost, yoghurt eller andre meieriprodukter i noen av alternativene.\n` : '') +
+      (prefs.excluded.length ? `Klienten skal ALDRI ha disse ingrediensene, uansett årsak: ${prefs.excluded.join(', ')}. Disse ordene skal IKKE forekomme i "foods" i noe alternativ.\n` : '') +
+      `Et alternativ som bryter dette kravet er et FEIL svar selv om alt annet om alternativet er riktig — planlegg derfor proteinkilde og ingredienser i hvert alternativ med dette kravet først.\n\n`
+    : ''
 
   // The prompt text is otherwise identical for every client requesting the
   // same meal type/count/preferences — an LLM given the same input tends to
@@ -740,7 +824,7 @@ function buildPrompt(target: MealTarget, count: number, preferences: string | un
   const carbSources = CARB_SOURCES[target.name] ?? 'brød, ris, potet, frukt'
 
   return `Du er en norsk ernæringsfysiolog. Svar KUN med gyldig JSON — ingen tekst utenfor JSON-blokken.
-Genereringsnøkkel: ${generationSeed} (unik per klient/forespørsel — bruk denne som et mentalt "terningkast" for å velge et ANNET sett med retter og kombinasjoner enn du typisk ville falt tilbake på; ikke la den påvirke selve innholdet i JSON-svaret).
+${dietaryBlock}Genereringsnøkkel: ${generationSeed} (unik per klient/forespørsel — bruk denne som et mentalt "terningkast" for å velge et ANNET sett med retter og kombinasjoner enn du typisk ville falt tilbake på; ikke la den påvirke selve innholdet i JSON-svaret).
 ${batchNote}
 Lag NØYAKTIG ${count} ulike og REALISTISKE ${target.name}-alternativer for en norsk matplan.
 ${preferences ? `Klientpreferanser: ${preferences}` : ''}
@@ -988,7 +1072,7 @@ function pickWithProteinVariety(candidates: RecipeLibraryRow[], count: number): 
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchFromLibrary(supabase: any, mealType: string, target: MealTarget, count: number): Promise<MealAlternative[] | null> {
+async function fetchFromLibrary(supabase: any, mealType: string, target: MealTarget, count: number, preferences: string | undefined): Promise<MealAlternative[] | null> {
   console.log(`[fetchFromLibrary] CALLED — mealType="${mealType}" target=${target.calories}kcal want=${count}`)
 
   try {
@@ -1032,7 +1116,26 @@ async function fetchFromLibrary(supabase: any, mealType: string, target: MealTar
     const foundTypes = [...new Set(data.map((r: any) => r.meal_type))]
     console.log(`[fetchFromLibrary] "${mealType}": matched meal_type values: ${JSON.stringify(foundTypes)}`)
 
-    const pool = data as RecipeLibraryRow[]
+    const rawPool = data as RecipeLibraryRow[]
+
+    // Dietary restrictions ("vegetariansk", "ikke bruk løk", ...) must hold
+    // here too, not just in the AI prompt — this library path is the primary
+    // source for most meal types now, so skipping this check would silently
+    // serve a client meat/fish/an excluded ingredient despite their stated
+    // restriction. If nothing in the library satisfies it, fall back to AI
+    // generation rather than serving a non-matching recipe.
+    const forbidden = forbiddenWordsFor(parsePreferences(preferences))
+    const pool = forbidden.length
+      ? rawPool.filter(r => !violatesPreferences([r.title, ...(r.ingredients ?? []).map(i => i?.name ?? '')], forbidden))
+      : rawPool
+    if (forbidden.length) {
+      console.log(`[fetchFromLibrary] ${target.name}: ${pool.length}/${rawPool.length} pass dietary filter (forbidden=${JSON.stringify(forbidden)})`)
+      if (pool.length === 0) {
+        console.log(`[fetchFromLibrary] ${target.name}: no standard recipes satisfy dietary restrictions — falling back to AI`)
+        return null
+      }
+    }
+
     const withCals = pool.filter(r => (r.calories_per_serving ?? 0) > 0)
     console.log(`[fetchFromLibrary] ${target.name}: ${withCals.length}/${pool.length} have calories_per_serving > 0`)
 
@@ -1166,7 +1269,7 @@ export async function POST(req: Request) {
   console.log(`[generate-meal-plan] Checking recipe library for ${mealTargets.length} meal slots...`)
   const libAltsMap = new Map<number, MealAlternative[]>()
   for (let mi = 0; mi < mealTargets.length; mi++) {
-    const lib = await fetchFromLibrary(supabase, mealTargets[mi].name, mealTargets[mi], alternatives_per_meal)
+    const lib = await fetchFromLibrary(supabase, mealTargets[mi].name, mealTargets[mi], alternatives_per_meal, preferences)
     if (lib) {
       libAltsMap.set(mi, lib)
     }
@@ -1184,6 +1287,14 @@ export async function POST(req: Request) {
   const MAX_RETRIES = 2
   const mealRawAlts: RawAlt[][] = mealTargets.map(() => [])
 
+  // Belt-and-suspenders: the prompt tells the model to never violate the
+  // dietary restriction, but an LLM can still slip — drop any generated
+  // alternative that actually contains a forbidden word before it's kept,
+  // so a restriction is guaranteed rather than just requested. Dropping an
+  // attempt's alts down to 0 here correctly falls through to the existing
+  // retry loop below.
+  const forbiddenWords = forbiddenWordsFor(parsePreferences(preferences))
+
   for (let b = 0; b < numBatches; b++) {
     const batchCount = Math.min(BATCH, alternatives_per_meal - b * BATCH)
     console.log(`[generate-meal-plan] Batch ${b + 1}/${numBatches}: ${batchCount} alts × ${mealTargets.length} meals (sequential)`)
@@ -1198,6 +1309,13 @@ export async function POST(req: Request) {
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         const attemptCtx: ErrCtx = { message: null, status: 500 }
         alts = await fetchBatch(groq, target, batchCount, preferences, b + 1, mealIdx, attemptCtx)
+        if (forbiddenWords.length) {
+          const before = alts.length
+          alts = alts.filter(a => !violatesPreferences(a.foods, forbiddenWords))
+          if (alts.length < before) {
+            console.log(`[generate-meal-plan] ${target.name} dropped ${before - alts.length}/${before} AI alt(s) violating dietary restrictions`)
+          }
+        }
         if (alts.length > 0) break
         console.log(`[generate-meal-plan] ${target.name} attempt ${attempt} got 0 alts${attemptCtx.message ? ': ' + attemptCtx.message : ''}, retrying...`)
         if (attemptCtx.message) errCtx.message = attemptCtx.message
