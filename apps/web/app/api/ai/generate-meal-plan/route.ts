@@ -1006,7 +1006,7 @@ async function fetchFromLibrary(supabase: any, mealType: string, target: MealTar
       .select('id,title,instructions,image_url,calories_per_serving,protein_per_serving,carbs_per_serving,fat_per_serving,ingredients,meal_type')
       .eq('is_standard', true)
       .ilike('meal_type', mealType)
-      .limit(100)
+      .limit(200)
 
     if (error) {
       console.error(`[fetchFromLibrary] DB error querying meal_type="${mealType}":`, error.message)
