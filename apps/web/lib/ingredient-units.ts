@@ -18,6 +18,8 @@ export function gPerPiece(name: string): number {
   if (n.includes('salamiskive') || n.includes('salami'))                            return 6
   if (n.includes('osteskive') || n.includes('norvegia') || n.includes('jarlsberg')) return 12
   if (n.includes('ost') && !n.includes('toast'))                                    return 12
+  if (n.includes('tortilla'))                                                       return 40
+  if (n.includes('potet') && !n.includes('søtpotet'))                               return 100
   return 100
 }
 
@@ -72,6 +74,8 @@ export function smartUnitFor(name: string): IngredientUnit {
   if (n.includes('olje'))                                                              return 'ss'
   if (n.includes('havregryn') || n.includes('granola'))                               return 'dl'
   if (/\bris\b/.test(n) || n.includes('pasta'))                                        return 'dl'
+  if (n.includes('tortilla'))                                                          return 'stk'
+  if (n.includes('potet') && !n.includes('søtpotet'))                                  return 'stk'
   return 'g'
 }
 
