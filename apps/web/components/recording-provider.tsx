@@ -114,6 +114,14 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   // Refs that must survive navigation
   const hiddenScreenRef = useRef<HTMLVideoElement>(null) // for canvas compositing
   const webcamVidRef    = useRef<HTMLVideoElement>(null) // in the floating bubble
+  // Keeps webcamStream's audio track actively flowing even when there's no
+  // video track to show it in (audio-only mode never renders the bubble's
+  // <video>, so without this the mic stream is never attached to anything
+  // at all — some browsers appear to keep a getUserMedia audio track in a
+  // low-activity state until it's actually attached to a playing media
+  // element, which would explain MediaRecorder receiving near-zero samples
+  // despite the track reporting live/enabled/unmuted.
+  const hiddenAudioRef  = useRef<HTMLAudioElement>(null)
   const canvasRef       = useRef<HTMLCanvasElement>(null)
   const recRef          = useRef<MediaRecorder | null>(null)
   const chunksRef       = useRef<Blob[]>([])
@@ -140,6 +148,17 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const el = webcamVidRef.current
+    if (!el || !webcamStream) return
+    el.srcObject = webcamStream
+    el.play().catch(() => {})
+  }, [webcamStream])
+
+  // See hiddenAudioRef's declaration — always attached (video mode included;
+  // harmless there since the bubble's own <video> already carries the same
+  // stream) so the mic track is never left unattached to anything, which
+  // audio-only mode would otherwise do since it renders no <video> at all.
+  useEffect(() => {
+    const el = hiddenAudioRef.current
     if (!el || !webcamStream) return
     el.srcObject = webcamStream
     el.play().catch(() => {})
@@ -321,6 +340,10 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       audioTracks.forEach(t => { t.enabled = true })
       if (!micOn) setMicOn(true)
 
+      console.log('[recording] audio-only start — tracks:', audioTracks.map(t => ({
+        label: t.label, readyState: t.readyState, muted: t.muted, enabled: t.enabled,
+      })))
+
       // webm/opus first, not mp4: pure audio/mp4 recording was observed
       // producing an unplayable file — webm/opus is MediaRecorder's
       // original, most battle-tested audio format. mp4 stays as the
@@ -332,7 +355,14 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       ].find(t => MediaRecorder.isTypeSupported(t)) ?? 'audio/webm'
 
       chunksRef.current = []
-      const rec = new MediaRecorder(new MediaStream(audioTracks), { mimeType: audioMime })
+      // Built via addTrack on an empty stream, not the array constructor —
+      // mirrors exactly how the proven video path builds its recording
+      // stream (canvas.captureStream() then addTrack for audio), in case
+      // the constructor form behaves differently for a browser's encoder
+      // pipeline.
+      const audioOnlyStream = new MediaStream()
+      audioTracks.forEach(t => audioOnlyStream.addTrack(t))
+      const rec = new MediaRecorder(audioOnlyStream, { mimeType: audioMime })
 
       // Guards finalizeAudio() against running more than once per session —
       // a second setBlob() call would revoke the first blob's object URL
@@ -366,8 +396,14 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         setStage('saving')
       }
 
-      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-      rec.onstop = () => { finalizeAudio() }
+      rec.ondataavailable = (e) => {
+        console.log('[recording] audio-only ondataavailable — size:', e.data.size)
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+      rec.onstop = () => {
+        console.log('[recording] audio-only onstop — chunks collected:', chunksRef.current.length)
+        finalizeAudio()
+      }
       rec.onerror = (event) => {
         console.error('[recording] MediaRecorder error:', event)
         if (recRef.current?.state === 'recording' || recRef.current?.state === 'paused') {
@@ -711,6 +747,14 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         ref={hiddenScreenRef}
         muted
         playsInline
+        aria-hidden
+        style={{ position: 'fixed', left: -9999, top: 0, width: 1, height: 1 }}
+      />
+      {/* Keeps webcamStream's audio track actively flowing — see
+          hiddenAudioRef's declaration above. */}
+      <audio
+        ref={hiddenAudioRef}
+        muted
         aria-hidden
         style={{ position: 'fixed', left: -9999, top: 0, width: 1, height: 1 }}
       />
