@@ -354,13 +354,19 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
           return
         }
         const rawBlob = new Blob(chunksRef.current, { type: audioMime })
-        const durationMs = timerValRef.current * 1000
-        // Only the duration-fix step applies here — remuxToFlatMp4 exists
-        // solely to fix iOS AVPlayer failing to render a *video* track from
-        // fragmented MP4, which is moot with no video track at all.
-        const fixedBlob = audioMime.startsWith('audio/webm')
-          ? await fixWebmDuration(rawBlob, durationMs, { logger: false }).catch(() => rawBlob)
-          : await fixMp4Duration(rawBlob, durationMs).catch(() => rawBlob)
+        console.log('[recording] audio-only rawBlob — size:', rawBlob.size, 'type:', rawBlob.type)
+        // Skipping the duration-fix patchers here entirely (fixWebmDuration /
+        // fixMp4Duration) — neither has ever actually been exercised by this
+        // app before now (video has only ever taken the MP4-remux path in
+        // production, never the WebM duration-patcher; fixMp4Duration is
+        // only a fallback that's never fired either), so they're an
+        // unverified variable in a pipeline that's otherwise just the
+        // browser's own, already-valid encoder output. A missing/zero
+        // duration header is a cosmetic seeking limitation, not a
+        // playability blocker in any mainstream player — trading that for
+        // guaranteed-correct playback is the obvious tradeoff while this is
+        // being debugged.
+        const fixedBlob = rawBlob
         setBlob(fixedBlob)
         const now = new Date()
         setRecTitle(
@@ -1041,7 +1047,18 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               {/* Preview — audio or video depending on how this was captured */}
               {previewUrl && (
                 audioOnlyMode ? (
-                  <audio src={previewUrl} controls className="w-full" />
+                  <audio
+                    src={previewUrl}
+                    controls
+                    className="w-full"
+                    onError={e => {
+                      const err = (e.target as HTMLAudioElement).error
+                      console.error('[recording] save-dialog <audio> error — code:', err?.code, 'message:', err?.message)
+                    }}
+                    onLoadedMetadata={e => {
+                      console.log('[recording] save-dialog <audio> loaded — duration:', (e.target as HTMLAudioElement).duration)
+                    }}
+                  />
                 ) : (
                   <video
                     src={previewUrl}

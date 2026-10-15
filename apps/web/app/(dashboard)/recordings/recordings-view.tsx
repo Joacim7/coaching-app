@@ -256,6 +256,13 @@ export function RecordingsView({ initialRecordings }: Props) {
                 controls
                 autoPlay
                 className="w-full px-5 py-6 bg-black"
+                onError={e => {
+                  const err = (e.target as HTMLAudioElement).error
+                  console.error('[recordings] playback <audio> error — code:', err?.code, 'message:', err?.message, 'src:', playing.share_url)
+                }}
+                onLoadedMetadata={e => {
+                  console.log('[recordings] playback <audio> loaded — duration:', (e.target as HTMLAudioElement).duration)
+                }}
               />
             ) : (
               <video
