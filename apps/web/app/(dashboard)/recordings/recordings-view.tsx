@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Play, Download, Trash2, Video, X, Clock, HardDrive, Plus, Link2, Check } from 'lucide-react'
+import { Play, Download, Trash2, Video, Mic, X, Clock, HardDrive, Plus, Link2, Check } from 'lucide-react'
 import Link from 'next/link'
 import { useLocale } from '@/components/locale-provider'
 
@@ -15,6 +15,7 @@ export interface RecordingRow {
   file_size_bytes: number | null
   created_at: string
   share_url?: string | null
+  kind: 'video' | 'audio'
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -118,9 +119,14 @@ export function RecordingsView({ initialRecordings }: Props) {
 
   function handleDownload(rec: RecordingRow) {
     if (!rec.share_url) return
+    // Derived from the real file extension, not hardcoded — file_path has
+    // always carried the actual extension (mp4/webm, now also m4a for audio
+    // recordings), so this also fixes pre-existing rows that downloaded as
+    // ".webm" even when the underlying file was actually ".mp4".
+    const ext = rec.file_path?.split('.').pop() || 'webm'
     const a = document.createElement('a')
     a.href     = rec.share_url
-    a.download = `${rec.title}.webm`
+    a.download = `${rec.title}.${ext}`
     a.click()
   }
 
@@ -173,7 +179,9 @@ export function RecordingsView({ initialRecordings }: Props) {
             >
               {/* Thumbnail */}
               <div className="w-12 h-12 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0">
-                <Video className="w-5 h-5 text-gray-500" />
+                {rec.kind === 'audio'
+                  ? <Mic className="w-5 h-5 text-gray-500" />
+                  : <Video className="w-5 h-5 text-gray-500" />}
               </div>
 
               {/* Info */}
@@ -242,12 +250,21 @@ export function RecordingsView({ initialRecordings }: Props) {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <video
-              src={playing.share_url ?? undefined}
-              controls
-              autoPlay
-              className="w-full max-h-[70vh] bg-black"
-            />
+            {playing.kind === 'audio' ? (
+              <audio
+                src={playing.share_url ?? undefined}
+                controls
+                autoPlay
+                className="w-full px-5 py-6 bg-black"
+              />
+            ) : (
+              <video
+                src={playing.share_url ?? undefined}
+                controls
+                autoPlay
+                className="w-full max-h-[70vh] bg-black"
+              />
+            )}
           </div>
         </div>
       )}
