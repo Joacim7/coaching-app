@@ -15,7 +15,7 @@ export interface RecordingRow {
   file_size_bytes: number | null
   created_at: string
   share_url?: string | null
-  kind: 'video' | 'audio'
+  kind?: 'video' | 'audio' | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ export function RecordingsView({ initialRecordings }: Props) {
     if (!rec.share_url) return
     // Derived from the real file extension, not hardcoded — file_path has
     // always carried the actual extension (mp4/webm, now also m4a for audio
-    // recordings), so this also fixes pre-existing rows that downloaded as
+    // recordings), so this also fixes rows that previously downloaded as
     // ".webm" even when the underlying file was actually ".mp4".
     const ext = rec.file_path?.split('.').pop() || 'webm'
     const a = document.createElement('a')
@@ -256,13 +256,6 @@ export function RecordingsView({ initialRecordings }: Props) {
                 controls
                 autoPlay
                 className="w-full px-5 py-6 bg-black"
-                onError={e => {
-                  const err = (e.target as HTMLAudioElement).error
-                  console.error('[recordings] playback <audio> error — code:', err?.code, 'message:', err?.message, 'src:', playing.share_url)
-                }}
-                onLoadedMetadata={e => {
-                  console.log('[recordings] playback <audio> loaded — duration:', (e.target as HTMLAudioElement).duration)
-                }}
               />
             ) : (
               <video

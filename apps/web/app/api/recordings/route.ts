@@ -35,9 +35,6 @@ export async function POST(req: Request) {
       file_path:        file_path        ?? null,
       file_size_bytes:  file_size_bytes  ?? null,
       share_url:        share_url        ?? null,
-      // Coerced, not a raw passthrough — defends the DB CHECK constraint
-      // against a malformed/stale client payload instead of letting an
-      // arbitrary string hit the insert and 500.
       kind:             kind === 'audio' ? 'audio' : 'video',
     })
     .select()

@@ -95,10 +95,10 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const [selectedMicId,   setSelectedMicId]   = useState('')
   // Only drives which idle-stage button/controls render in the launch modal
   // — the actual recording/finalize/upload logic branches on `!screenStream`
-  // instead (see audioOnlyMode below), since that's reliably accurate for a
-  // session's whole lifecycle while this flag could otherwise go stale (e.g.
-  // toggled to 'audio' then a screen recording started from a different
-  // entry point into this same shared context, like the /record page).
+  // instead (see audioOnlyMode below), which is reliably accurate for a
+  // session's whole lifecycle, whereas this flag alone could go stale if a
+  // screen recording were ever started from a different entry point (e.g.
+  // the /record page) without this toggle being reset first.
   const [captureMode,     setCaptureMode]     = useState<'video' | 'audio'>('video')
   const [startErr,        setStartErr]        = useState('')
 
@@ -305,7 +305,10 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   // ── Start recording ────────────────────────────────────────────────────────
   function startRecording() {
     // Audio-only: no canvas, no screen — build the recorder straight from
-    // the mic stream's own audio track(s).
+    // the mic stream's own audio track(s). Entirely self-contained in this
+    // guard clause; everything below (the video/canvas path) is reached
+    // only when screenStream is set, i.e. only via startScreen(), and is
+    // otherwise completely untouched.
     if (!screenStream) {
       if (!webcamStream) return
       const audioTracks = webcamStream.getAudioTracks()
@@ -313,61 +316,48 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
       // Force the track(s) enabled regardless of the mic toggle's current
       // state — recording from a disabled (muted-at-the-track-level) track
-      // is indistinguishable from "zero data captured" in some browsers,
-      // and there's no legitimate reason to let a voice recording start
-      // muted. Keep the UI toggle in sync so it doesn't lie about this.
+      // risks zero captured data in some browsers, and there's no
+      // legitimate reason to let a voice recording start muted.
       audioTracks.forEach(t => { t.enabled = true })
       if (!micOn) setMicOn(true)
 
-      console.log('[recording] audio-only start — tracks:', audioTracks.map(t => ({
-        label: t.label, readyState: t.readyState, muted: t.muted, enabled: t.enabled,
-      })))
-
-      // webm/opus first, not mp4: unlike video/mp4 (Chrome 114+'s well-proven
-      // H.264 MediaRecorder path), pure audio/mp4 recording produced an
-      // unplayable file — webm/opus has been MediaRecorder's original, most
-      // battle-tested audio format since it first shipped. mp4 stays as the
-      // fallback since Safari has no webm MediaRecorder support at all, only
-      // mp4/aac.
+      // webm/opus first, not mp4: pure audio/mp4 recording was observed
+      // producing an unplayable file — webm/opus is MediaRecorder's
+      // original, most battle-tested audio format. mp4 stays as the
+      // fallback since Safari has no webm MediaRecorder support at all.
       const audioMime = [
         'audio/webm;codecs=opus',
         'audio/webm',
         'audio/mp4',
       ].find(t => MediaRecorder.isTypeSupported(t)) ?? 'audio/webm'
-      console.log('[recording] audio-only mimeType chosen:', audioMime)
 
       chunksRef.current = []
       const rec = new MediaRecorder(new MediaStream(audioTracks), { mimeType: audioMime })
 
+      // Guards finalizeAudio() against running more than once per session —
+      // a second setBlob() call would revoke the first blob's object URL
+      // (see the previewUrl effect) out from under an <audio> element still
+      // trying to load it.
+      let finalized = false
+
       async function finalizeAudio() {
+        if (finalized) return
+        finalized = true
         if (chunksRef.current.length === 0) {
-          console.error('[recording] audio-only recording ended with zero chunks collected')
           // Nothing was actually captured — tear down and reopen the launch
-          // modal with a clear error, instead of a silently-broken save
-          // dialog with an empty, unplayable preview (discardRecording()
-          // itself resets to stage='idle' with the modal closed, so the
-          // error has to be set after it and the modal reopened explicitly
-          // for it to actually be visible).
+          // modal with a clear error instead of a silently-broken save
+          // dialog with an empty, unplayable preview.
           discardRecording()
           setStartErr('Opptaket inneholder ingen lyd. Prøv igjen.')
           setRecordModalOpen(true)
           return
         }
         const rawBlob = new Blob(chunksRef.current, { type: audioMime })
-        console.log('[recording] audio-only rawBlob — size:', rawBlob.size, 'type:', rawBlob.type)
-        // Skipping the duration-fix patchers here entirely (fixWebmDuration /
-        // fixMp4Duration) — neither has ever actually been exercised by this
-        // app before now (video has only ever taken the MP4-remux path in
-        // production, never the WebM duration-patcher; fixMp4Duration is
-        // only a fallback that's never fired either), so they're an
-        // unverified variable in a pipeline that's otherwise just the
-        // browser's own, already-valid encoder output. A missing/zero
-        // duration header is a cosmetic seeking limitation, not a
-        // playability blocker in any mainstream player — trading that for
-        // guaranteed-correct playback is the obvious tradeoff while this is
-        // being debugged.
-        const fixedBlob = rawBlob
-        setBlob(fixedBlob)
+        // No duration-fix patchers here — a missing/zero duration header is
+        // a cosmetic seeking limitation, not a playability blocker, and
+        // keeping this path as just the browser's own raw encoder output
+        // avoids any risk from unverified post-processing.
+        setBlob(rawBlob)
         const now = new Date()
         setRecTitle(
           `Opptak ${now.toLocaleDateString('nb-NO')} ` +
@@ -376,14 +366,8 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         setStage('saving')
       }
 
-      rec.ondataavailable = (e) => {
-        console.log('[recording] audio-only ondataavailable — size:', e.data.size)
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-      rec.onstop = () => {
-        console.log('[recording] audio-only onstop — chunks collected:', chunksRef.current.length)
-        finalizeAudio()
-      }
+      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      rec.onstop = () => { finalizeAudio() }
       rec.onerror = (event) => {
         console.error('[recording] MediaRecorder error:', event)
         if (recRef.current?.state === 'recording' || recRef.current?.state === 'paused') {
@@ -394,16 +378,8 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Confirmed by console evidence: calling start() with no timeslice
-      // produced exactly one ondataavailable at stop(), containing only
-      // ~110 bytes (pure container headers, zero audio) despite a
-      // multi-second recording — whatever was actually captured never got
-      // flushed. A small timeslice forces periodic buffering/delivery
-      // throughout the recording instead of depending entirely on
-      // whatever happens at stop() time.
       rec.start(250)
       recRef.current = rec
-      console.log('[recording] audio-only MediaRecorder started, state:', rec.state)
       timerValRef.current = 0
       setTimer(0)
       setStage('recording')
@@ -548,11 +524,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   function resumeRecording() {
     if (recRef.current?.state !== 'paused') return
     recRef.current.resume()
-    // drawRef.current persists for the provider's whole lifetime, not per
-    // session — guarding on screenStream stops a stale video-session draw
-    // loop from restarting against an unused canvas during an audio-only
-    // recording resumed later in the same page-load.
-    if (screenStream && drawRef.current) animRef.current = requestAnimationFrame(drawRef.current)
+    if (drawRef.current) animRef.current = requestAnimationFrame(drawRef.current)
     startTimerInterval()
     setIsPaused(false)
   }
@@ -1048,18 +1020,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               {/* Preview — audio or video depending on how this was captured */}
               {previewUrl && (
                 audioOnlyMode ? (
-                  <audio
-                    src={previewUrl}
-                    controls
-                    className="w-full"
-                    onError={e => {
-                      const err = (e.target as HTMLAudioElement).error
-                      console.error('[recording] save-dialog <audio> error — code:', err?.code, 'message:', err?.message)
-                    }}
-                    onLoadedMetadata={e => {
-                      console.log('[recording] save-dialog <audio> loaded — duration:', (e.target as HTMLAudioElement).duration)
-                    }}
-                  />
+                  <audio src={previewUrl} controls className="w-full" />
                 ) : (
                   <video
                     src={previewUrl}
