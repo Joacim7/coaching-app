@@ -311,6 +311,18 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       const audioTracks = webcamStream.getAudioTracks()
       if (audioTracks.length === 0) return
 
+      // Force the track(s) enabled regardless of the mic toggle's current
+      // state — recording from a disabled (muted-at-the-track-level) track
+      // is indistinguishable from "zero data captured" in some browsers,
+      // and there's no legitimate reason to let a voice recording start
+      // muted. Keep the UI toggle in sync so it doesn't lie about this.
+      audioTracks.forEach(t => { t.enabled = true })
+      if (!micOn) setMicOn(true)
+
+      console.log('[recording] audio-only start — tracks:', audioTracks.map(t => ({
+        label: t.label, readyState: t.readyState, muted: t.muted, enabled: t.enabled,
+      })))
+
       // webm/opus first, not mp4: unlike video/mp4 (Chrome 114+'s well-proven
       // H.264 MediaRecorder path), pure audio/mp4 recording produced an
       // unplayable file — webm/opus has been MediaRecorder's original, most
@@ -322,12 +334,14 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         'audio/webm',
         'audio/mp4',
       ].find(t => MediaRecorder.isTypeSupported(t)) ?? 'audio/webm'
+      console.log('[recording] audio-only mimeType chosen:', audioMime)
 
       chunksRef.current = []
       const rec = new MediaRecorder(new MediaStream(audioTracks), { mimeType: audioMime })
 
       async function finalizeAudio() {
         if (chunksRef.current.length === 0) {
+          console.error('[recording] audio-only recording ended with zero chunks collected')
           // Nothing was actually captured — tear down and reopen the launch
           // modal with a clear error, instead of a silently-broken save
           // dialog with an empty, unplayable preview (discardRecording()
@@ -356,8 +370,14 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         setStage('saving')
       }
 
-      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-      rec.onstop = () => { finalizeAudio() }
+      rec.ondataavailable = (e) => {
+        console.log('[recording] audio-only ondataavailable — size:', e.data.size)
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+      rec.onstop = () => {
+        console.log('[recording] audio-only onstop — chunks collected:', chunksRef.current.length)
+        finalizeAudio()
+      }
       rec.onerror = (event) => {
         console.error('[recording] MediaRecorder error:', event)
         if (recRef.current?.state === 'recording' || recRef.current?.state === 'paused') {
@@ -368,8 +388,15 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      rec.start(1000)
+      // No timeslice argument (unlike the video recorder below) — some
+      // browsers' MediaRecorder implementations have had bugs around
+      // periodic dataavailable delivery specifically for audio-only
+      // streams. A short voice recording has no memory-pressure reason to
+      // chunk incrementally anyway; relying solely on the guaranteed final
+      // flush triggered by stop() is simpler and more robust here.
+      rec.start()
       recRef.current = rec
+      console.log('[recording] audio-only MediaRecorder started, state:', rec.state)
       timerValRef.current = 0
       setTimer(0)
       setStage('recording')
