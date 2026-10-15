@@ -394,13 +394,14 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // No timeslice argument (unlike the video recorder below) — some
-      // browsers' MediaRecorder implementations have had bugs around
-      // periodic dataavailable delivery specifically for audio-only
-      // streams. A short voice recording has no memory-pressure reason to
-      // chunk incrementally anyway; relying solely on the guaranteed final
-      // flush triggered by stop() is simpler and more robust here.
-      rec.start()
+      // Confirmed by console evidence: calling start() with no timeslice
+      // produced exactly one ondataavailable at stop(), containing only
+      // ~110 bytes (pure container headers, zero audio) despite a
+      // multi-second recording — whatever was actually captured never got
+      // flushed. A small timeslice forces periodic buffering/delivery
+      // throughout the recording instead of depending entirely on
+      // whatever happens at stop() time.
+      rec.start(250)
       recRef.current = rec
       console.log('[recording] audio-only MediaRecorder started, state:', rec.state)
       timerValRef.current = 0
