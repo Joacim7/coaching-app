@@ -311,16 +311,34 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       const audioTracks = webcamStream.getAudioTracks()
       if (audioTracks.length === 0) return
 
+      // webm/opus first, not mp4: unlike video/mp4 (Chrome 114+'s well-proven
+      // H.264 MediaRecorder path), pure audio/mp4 recording produced an
+      // unplayable file — webm/opus has been MediaRecorder's original, most
+      // battle-tested audio format since it first shipped. mp4 stays as the
+      // fallback since Safari has no webm MediaRecorder support at all, only
+      // mp4/aac.
       const audioMime = [
-        'audio/mp4',
         'audio/webm;codecs=opus',
         'audio/webm',
+        'audio/mp4',
       ].find(t => MediaRecorder.isTypeSupported(t)) ?? 'audio/webm'
 
       chunksRef.current = []
       const rec = new MediaRecorder(new MediaStream(audioTracks), { mimeType: audioMime })
 
       async function finalizeAudio() {
+        if (chunksRef.current.length === 0) {
+          // Nothing was actually captured — tear down and reopen the launch
+          // modal with a clear error, instead of a silently-broken save
+          // dialog with an empty, unplayable preview (discardRecording()
+          // itself resets to stage='idle' with the modal closed, so the
+          // error has to be set after it and the modal reopened explicitly
+          // for it to actually be visible).
+          discardRecording()
+          setStartErr('Opptaket inneholder ingen lyd. Prøv igjen.')
+          setRecordModalOpen(true)
+          return
+        }
         const rawBlob = new Blob(chunksRef.current, { type: audioMime })
         const durationMs = timerValRef.current * 1000
         // Only the duration-fix step applies here — remuxToFlatMp4 exists
