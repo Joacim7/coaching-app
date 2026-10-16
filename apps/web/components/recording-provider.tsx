@@ -340,9 +340,19 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       audioTracks.forEach(t => { t.enabled = true })
       if (!micOn) setMicOn(true)
 
+      const startedAt = Date.now()
       console.log('[recording] audio-only start — tracks:', audioTracks.map(t => ({
         label: t.label, readyState: t.readyState, muted: t.muted, enabled: t.enabled,
       })))
+      // Direct evidence for whether the track itself is dying (vs. the
+      // recorder/encoder) — if 'ended' or 'mute' fires almost immediately
+      // after start, that's the actual root cause, not anything encoder- or
+      // container-related that the last two fixes targeted.
+      audioTracks.forEach(t => {
+        t.addEventListener('ended', () => console.error('[recording] audio track ENDED at +' + (Date.now() - startedAt) + 'ms'))
+        t.addEventListener('mute',  () => console.warn('[recording] audio track MUTED at +' + (Date.now() - startedAt) + 'ms'))
+        t.addEventListener('unmute', () => console.log('[recording] audio track unmuted at +' + (Date.now() - startedAt) + 'ms'))
+      })
 
       // webm/opus first, not mp4: pure audio/mp4 recording was observed
       // producing an unplayable file — webm/opus is MediaRecorder's
@@ -397,15 +407,15 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       }
 
       rec.ondataavailable = (e) => {
-        console.log('[recording] audio-only ondataavailable — size:', e.data.size)
+        console.log('[recording] audio-only ondataavailable at +' + (Date.now() - startedAt) + 'ms — size:', e.data.size)
         if (e.data.size > 0) chunksRef.current.push(e.data)
       }
       rec.onstop = () => {
-        console.log('[recording] audio-only onstop — chunks collected:', chunksRef.current.length)
+        console.log('[recording] audio-only onstop at +' + (Date.now() - startedAt) + 'ms — chunks collected:', chunksRef.current.length, 'recorder state was:', rec.state)
         finalizeAudio()
       }
       rec.onerror = (event) => {
-        console.error('[recording] MediaRecorder error:', event)
+        console.error('[recording] MediaRecorder error at +' + (Date.now() - startedAt) + 'ms:', event)
         if (recRef.current?.state === 'recording' || recRef.current?.state === 'paused') {
           stopRecording()
         } else if (chunksRef.current.length > 0) {
@@ -573,6 +583,10 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   // ── Stop recording ─────────────────────────────────────────────────────────
   function stopRecording() {
     clearInterval(intervalRef.current)
+    // Diagnostic: if this ever logs 'inactive', the recorder had already
+    // died on its own before the user clicked Stop — i.e. the UI's timer
+    // kept counting even though recording had already silently ended.
+    console.log('[recording] stopRecording() called — recorder state:', recRef.current?.state, 'timerValRef:', timerValRef.current)
     recRef.current?.stop()
     // onstop fires asynchronously → sets stage='saving'
   }
