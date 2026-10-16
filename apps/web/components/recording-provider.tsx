@@ -314,6 +314,17 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   // ── Start audio-only (mic, no screen capture) ──────────────────────────────
   async function startAudioOnly() {
     setStartErr('')
+    // Guard against being called more than once without a teardown in
+    // between (e.g. the coach clicking "Start lydopptak" again after it
+    // appeared to do nothing) — without this, every call requested a brand
+    // new getUserMedia stream and created a brand new AudioContext,
+    // unconditionally overwriting webcamStream/audioKeepAliveRef and
+    // leaking the previous live mic track + AudioContext every time. Each
+    // leaked session keeps the physical microphone open indefinitely,
+    // which can degrade or outright break every other mic capture on the
+    // page, including video mode's own.
+    if (webcamStream) releaseStreams({ screen: null, webcam: webcamStream })
+    closeAudioKeepAlive()
     try {
       const micConstraint = selectedMicId ? { deviceId: { exact: selectedMicId } } : true
       const stream = await navigator.mediaDevices.getUserMedia({ audio: micConstraint })
