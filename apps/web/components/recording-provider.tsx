@@ -114,20 +114,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   // Refs that must survive navigation
   const hiddenScreenRef = useRef<HTMLVideoElement>(null) // for canvas compositing
   const webcamVidRef    = useRef<HTMLVideoElement>(null) // in the floating bubble
-  // Attempt #1 at keeping webcamStream's audio track actively flowing in
-  // audio-only mode (no <video> ever renders there to attach it to). Console
-  // evidence showed this alone wasn't enough — the recorder stayed in
-  // 'recording' state and the track never fired ended/mute for the whole
-  // session, yet zero real samples ever reached the encoder. Left in place
-  // (harmless) alongside the AudioContext-based fix below, which is the
-  // more robust, element-heuristics-independent mechanism.
-  const hiddenAudioRef  = useRef<HTMLAudioElement>(null)
-  // Pulls the mic track through a real-time Web Audio processing graph
-  // (silent gain, never reaches actual speaker output) purely to force the
-  // browser to keep delivering live samples — unlike attaching to a muted
-  // media element, an AudioContext graph has no "nothing will ever be
-  // heard, so don't bother" optimization path to fall into.
-  const audioKeepAliveRef = useRef<AudioContext | null>(null)
   const canvasRef       = useRef<HTMLCanvasElement>(null)
   const recRef          = useRef<MediaRecorder | null>(null)
   const chunksRef       = useRef<Blob[]>([])
@@ -154,17 +140,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const el = webcamVidRef.current
-    if (!el || !webcamStream) return
-    el.srcObject = webcamStream
-    el.play().catch(() => {})
-  }, [webcamStream])
-
-  // See hiddenAudioRef's declaration — always attached (video mode included;
-  // harmless there since the bubble's own <video> already carries the same
-  // stream) so the mic track is never left unattached to anything, which
-  // audio-only mode would otherwise do since it renders no <video> at all.
-  useEffect(() => {
-    const el = hiddenAudioRef.current
     if (!el || !webcamStream) return
     el.srcObject = webcamStream
     el.play().catch(() => {})
@@ -212,13 +187,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   function releaseStreams(streams: { screen: MediaStream | null; webcam: MediaStream | null }) {
     streams.screen?.getTracks().forEach(t => t.stop())
     streams.webcam?.getTracks().forEach(t => t.stop())
-  }
-
-  // Closes the audio keep-alive AudioContext (see audioKeepAliveRef) so one
-  // doesn't leak every time an audio-only session ends.
-  function closeAudioKeepAlive() {
-    audioKeepAliveRef.current?.close().catch(() => {})
-    audioKeepAliveRef.current = null
   }
 
   // ── Start screen share ─────────────────────────────────────────────────────
@@ -312,53 +280,30 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   }
 
   // ── Start audio-only (mic, no screen capture) ──────────────────────────────
+  // Deliberately minimal: getUserMedia({audio:true}) then nothing else.
+  // Several speculative additions (AudioContext keep-alive, a hidden
+  // <audio> element, a device-id constraint) were tried and stripped back
+  // out here — none were confirmed to fix the underlying issue, and they
+  // only added places for something to go wrong. Re-add any of them later
+  // only with real evidence that this minimal version itself isn't enough.
   async function startAudioOnly() {
     setStartErr('')
     // Guard against being called more than once without a teardown in
     // between (e.g. the coach clicking "Start lydopptak" again after it
     // appeared to do nothing) — without this, every call requested a brand
-    // new getUserMedia stream and created a brand new AudioContext,
-    // unconditionally overwriting webcamStream/audioKeepAliveRef and
-    // leaking the previous live mic track + AudioContext every time. Each
-    // leaked session keeps the physical microphone open indefinitely,
-    // which can degrade or outright break every other mic capture on the
-    // page, including video mode's own.
+    // new getUserMedia stream, unconditionally overwriting webcamStream and
+    // leaking the previous live mic track every time. Each leaked session
+    // keeps the physical microphone open indefinitely, which can degrade or
+    // outright break every other mic capture on the page, including video
+    // mode's own.
     if (webcamStream) releaseStreams({ screen: null, webcam: webcamStream })
-    closeAudioKeepAlive()
     try {
-      const micConstraint = selectedMicId ? { deviceId: { exact: selectedMicId } } : true
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: micConstraint })
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      console.log('[recording] audio-only getUserMedia succeeded — tracks:', stream.getAudioTracks().map(t => ({
+        label: t.label, readyState: t.readyState, muted: t.muted, enabled: t.enabled,
+      })))
       setWebcamStream(stream) // same slot video mode's mic-only fallback already uses
       setStage('preview')
-
-      // See audioKeepAliveRef's declaration — without this, console
-      // evidence showed MediaRecorder receiving zero real samples for the
-      // track's entire lifetime despite it reporting live/enabled the
-      // whole time.
-      try {
-        const audioCtx = new AudioContext()
-        // A suspended context doesn't process its graph at all — the
-        // source node wouldn't actually pull samples either, defeating the
-        // whole point. Creating it inside this click-triggered async chain
-        // should normally start it running, but resume() explicitly in
-        // case the browser still started it suspended.
-        if (audioCtx.state === 'suspended') await audioCtx.resume()
-        const source = audioCtx.createMediaStreamSource(stream)
-        const silentGain = audioCtx.createGain()
-        silentGain.gain.value = 0
-        source.connect(silentGain)
-        silentGain.connect(audioCtx.destination)
-        audioKeepAliveRef.current = audioCtx
-        console.log('[recording] audio keep-alive AudioContext created, state:', audioCtx.state)
-      } catch (keepAliveErr) {
-        console.error('[recording] audio keep-alive graph failed to init:', keepAliveErr)
-      }
-
-      // Labels are blank until permission is granted — refresh now so the
-      // mic picker (still usable in audio mode) shows real device names.
-      navigator.mediaDevices.enumerateDevices()
-        .then(devices => setMicDevices(devices.filter(d => d.kind === 'audioinput')))
-        .catch(() => {})
     } catch (err) {
       // Unlike startScreen()'s silent catch above — a getDisplayMedia
       // rejection almost always just means "user cancelled the picker" — a
@@ -376,76 +321,33 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     // guard clause; everything below (the video/canvas path) is reached
     // only when screenStream is set, i.e. only via startScreen(), and is
     // otherwise completely untouched.
+    // Deliberately minimal — see startAudioOnly()'s comment. Just
+    // getUserMedia's own stream straight into MediaRecorder with no
+    // options, and start() with no timeslice. Every previous attempt here
+    // (track-enable forcing, addTrack reconstruction, MIME candidate
+    // fallback loop) is stripped back out; re-add only with real evidence
+    // this minimal form itself isn't enough.
     if (!screenStream) {
       if (!webcamStream) return
       const audioTracks = webcamStream.getAudioTracks()
       if (audioTracks.length === 0) return
 
-      // Force the track(s) enabled regardless of the mic toggle's current
-      // state — recording from a disabled (muted-at-the-track-level) track
-      // risks zero captured data in some browsers, and there's no
-      // legitimate reason to let a voice recording start muted.
-      audioTracks.forEach(t => { t.enabled = true })
-      if (!micOn) setMicOn(true)
-
-      const startedAt = Date.now()
       console.log('[recording] audio-only start — tracks:', audioTracks.map(t => ({
         label: t.label, readyState: t.readyState, muted: t.muted, enabled: t.enabled,
       })))
-      // Direct evidence for whether the track itself is dying (vs. the
-      // recorder/encoder) — if 'ended' or 'mute' fires almost immediately
-      // after start, that's the actual root cause, not anything encoder- or
-      // container-related that the last two fixes targeted.
-      audioTracks.forEach(t => {
-        t.addEventListener('ended', () => console.error('[recording] audio track ENDED at +' + (Date.now() - startedAt) + 'ms'))
-        t.addEventListener('mute',  () => console.warn('[recording] audio track MUTED at +' + (Date.now() - startedAt) + 'ms'))
-        t.addEventListener('unmute', () => console.log('[recording] audio track unmuted at +' + (Date.now() - startedAt) + 'ms'))
-      })
 
-      // Built via addTrack on an empty stream, not the array constructor —
-      // mirrors exactly how the proven video path builds its recording
-      // stream (canvas.captureStream() then addTrack for audio), in case
-      // the constructor form behaves differently for a browser's encoder
-      // pipeline.
-      const audioOnlyStream = new MediaStream()
-      audioTracks.forEach(t => audioOnlyStream.addTrack(t))
-
-      // isTypeSupported() claiming a MIME type is supported doesn't
-      // guarantee MediaRecorder.start() will actually accept it for THIS
-      // specific stream/track — confirmed by a real NotSupportedError at
-      // start() despite isTypeSupported() returning true beforehand. So
-      // actually attempt construction + start for each candidate in turn
-      // (undefined last — omitting mimeType entirely lets the browser pick
-      // its own default, the most permissive possible fallback) instead of
-      // trusting the capability check alone.
-      const mimeCandidates: (string | undefined)[] = [
-        'audio/webm;codecs=opus',
-        'audio/ogg;codecs=opus',
-        'audio/webm',
-        'audio/mp4',
-        undefined,
-      ]
-      let rec: MediaRecorder | null = null
-      for (const candidate of mimeCandidates) {
-        if (candidate && !MediaRecorder.isTypeSupported(candidate)) continue
-        try {
-          const attempt = candidate ? new MediaRecorder(audioOnlyStream, { mimeType: candidate }) : new MediaRecorder(audioOnlyStream)
-          chunksRef.current = []
-          attempt.start(250)
-          console.log('[recording] audio recorder started — requested:', candidate ?? '(browser default)', 'actual rec.mimeType:', attempt.mimeType)
-          rec = attempt
-          break
-        } catch (err) {
-          console.error('[recording] audio recorder rejected mimeType', candidate ?? '(none)', ':', err)
-        }
-      }
-      if (!rec) {
-        setStartErr('Nettleseren støtter ikke lydopptak med denne mikrofonen. Prøv en annen nettleser.')
+      let rec: MediaRecorder
+      try {
+        rec = new MediaRecorder(webcamStream)
+      } catch (err) {
+        console.error('[recording] MediaRecorder construction failed:', err)
+        setStartErr('Nettleseren støtter ikke lydopptak med denne mikrofonen.')
         setRecordModalOpen(true)
         return
       }
-      const audioMime = rec.mimeType || 'audio/webm'
+      console.log('[recording] audio recorder created — rec.mimeType:', rec.mimeType)
 
+      chunksRef.current = []
       // Guards finalizeAudio() against running more than once per session —
       // a second setBlob() call would revoke the first blob's object URL
       // (see the previewUrl effect) out from under an <audio> element still
@@ -464,11 +366,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
           setRecordModalOpen(true)
           return
         }
-        const rawBlob = new Blob(chunksRef.current, { type: audioMime })
-        // No duration-fix patchers here — a missing/zero duration header is
-        // a cosmetic seeking limitation, not a playability blocker, and
-        // keeping this path as just the browser's own raw encoder output
-        // avoids any risk from unverified post-processing.
+        const rawBlob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' })
         setBlob(rawBlob)
         const now = new Date()
         setRecTitle(
@@ -479,15 +377,15 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       }
 
       rec.ondataavailable = (e) => {
-        console.log('[recording] audio-only ondataavailable at +' + (Date.now() - startedAt) + 'ms — size:', e.data.size)
+        console.log('[recording] audio-only ondataavailable — size:', e.data.size)
         if (e.data.size > 0) chunksRef.current.push(e.data)
       }
       rec.onstop = () => {
-        console.log('[recording] audio-only onstop at +' + (Date.now() - startedAt) + 'ms — chunks collected:', chunksRef.current.length, 'recorder state was:', rec.state)
+        console.log('[recording] audio-only onstop — chunks collected:', chunksRef.current.length, 'recorder state was:', rec.state)
         finalizeAudio()
       }
       rec.onerror = (event) => {
-        console.error('[recording] MediaRecorder error at +' + (Date.now() - startedAt) + 'ms:', event)
+        console.error('[recording] MediaRecorder error:', event)
         if (recRef.current?.state === 'recording' || recRef.current?.state === 'paused') {
           stopRecording()
         } else if (chunksRef.current.length > 0) {
@@ -496,9 +394,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Already started inside the candidate-selection loop above — not
-      // repeated here, since re-calling start() on an already-recording
-      // MediaRecorder throws InvalidStateError.
+      rec.start()
       recRef.current = rec
       timerValRef.current = 0
       setTimer(0)
@@ -675,7 +571,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       recRef.current.onstop = null
       recRef.current.stop()
     }
-    closeAudioKeepAlive()
     releaseStreams({ screen: screenStream, webcam: webcamStream })
     setScreenStream(null)
     setWebcamStream(null)
@@ -773,7 +668,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       await navigator.clipboard.writeText(urlData.publicUrl)
       setLinkCopied(true)
 
-      closeAudioKeepAlive()
       releaseStreams({ screen: screenStream, webcam: webcamStream })
       setScreenStream(null)
       setWebcamStream(null)
@@ -795,7 +689,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
   function discardRecording() {
     setBlob(null)
-    closeAudioKeepAlive()
     releaseStreams({ screen: screenStream, webcam: webcamStream })
     setScreenStream(null)
     setWebcamStream(null)
@@ -843,14 +736,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         ref={hiddenScreenRef}
         muted
         playsInline
-        aria-hidden
-        style={{ position: 'fixed', left: -9999, top: 0, width: 1, height: 1 }}
-      />
-      {/* Keeps webcamStream's audio track actively flowing — see
-          hiddenAudioRef's declaration above. */}
-      <audio
-        ref={hiddenAudioRef}
-        muted
         aria-hidden
         style={{ position: 'fixed', left: -9999, top: 0, width: 1, height: 1 }}
       />
