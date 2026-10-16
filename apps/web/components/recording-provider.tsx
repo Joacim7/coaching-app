@@ -114,14 +114,20 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   // Refs that must survive navigation
   const hiddenScreenRef = useRef<HTMLVideoElement>(null) // for canvas compositing
   const webcamVidRef    = useRef<HTMLVideoElement>(null) // in the floating bubble
-  // Keeps webcamStream's audio track actively flowing even when there's no
-  // video track to show it in (audio-only mode never renders the bubble's
-  // <video>, so without this the mic stream is never attached to anything
-  // at all — some browsers appear to keep a getUserMedia audio track in a
-  // low-activity state until it's actually attached to a playing media
-  // element, which would explain MediaRecorder receiving near-zero samples
-  // despite the track reporting live/enabled/unmuted.
+  // Attempt #1 at keeping webcamStream's audio track actively flowing in
+  // audio-only mode (no <video> ever renders there to attach it to). Console
+  // evidence showed this alone wasn't enough — the recorder stayed in
+  // 'recording' state and the track never fired ended/mute for the whole
+  // session, yet zero real samples ever reached the encoder. Left in place
+  // (harmless) alongside the AudioContext-based fix below, which is the
+  // more robust, element-heuristics-independent mechanism.
   const hiddenAudioRef  = useRef<HTMLAudioElement>(null)
+  // Pulls the mic track through a real-time Web Audio processing graph
+  // (silent gain, never reaches actual speaker output) purely to force the
+  // browser to keep delivering live samples — unlike attaching to a muted
+  // media element, an AudioContext graph has no "nothing will ever be
+  // heard, so don't bother" optimization path to fall into.
+  const audioKeepAliveRef = useRef<AudioContext | null>(null)
   const canvasRef       = useRef<HTMLCanvasElement>(null)
   const recRef          = useRef<MediaRecorder | null>(null)
   const chunksRef       = useRef<Blob[]>([])
@@ -206,6 +212,13 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   function releaseStreams(streams: { screen: MediaStream | null; webcam: MediaStream | null }) {
     streams.screen?.getTracks().forEach(t => t.stop())
     streams.webcam?.getTracks().forEach(t => t.stop())
+  }
+
+  // Closes the audio keep-alive AudioContext (see audioKeepAliveRef) so one
+  // doesn't leak every time an audio-only session ends.
+  function closeAudioKeepAlive() {
+    audioKeepAliveRef.current?.close().catch(() => {})
+    audioKeepAliveRef.current = null
   }
 
   // ── Start screen share ─────────────────────────────────────────────────────
@@ -306,6 +319,30 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: micConstraint })
       setWebcamStream(stream) // same slot video mode's mic-only fallback already uses
       setStage('preview')
+
+      // See audioKeepAliveRef's declaration — without this, console
+      // evidence showed MediaRecorder receiving zero real samples for the
+      // track's entire lifetime despite it reporting live/enabled the
+      // whole time.
+      try {
+        const audioCtx = new AudioContext()
+        // A suspended context doesn't process its graph at all — the
+        // source node wouldn't actually pull samples either, defeating the
+        // whole point. Creating it inside this click-triggered async chain
+        // should normally start it running, but resume() explicitly in
+        // case the browser still started it suspended.
+        if (audioCtx.state === 'suspended') await audioCtx.resume()
+        const source = audioCtx.createMediaStreamSource(stream)
+        const silentGain = audioCtx.createGain()
+        silentGain.gain.value = 0
+        source.connect(silentGain)
+        silentGain.connect(audioCtx.destination)
+        audioKeepAliveRef.current = audioCtx
+        console.log('[recording] audio keep-alive AudioContext created, state:', audioCtx.state)
+      } catch (keepAliveErr) {
+        console.error('[recording] audio keep-alive graph failed to init:', keepAliveErr)
+      }
+
       // Labels are blank until permission is granted — refresh now so the
       // mic picker (still usable in audio mode) shows real device names.
       navigator.mediaDevices.enumerateDevices()
@@ -601,6 +638,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       recRef.current.onstop = null
       recRef.current.stop()
     }
+    closeAudioKeepAlive()
     releaseStreams({ screen: screenStream, webcam: webcamStream })
     setScreenStream(null)
     setWebcamStream(null)
@@ -698,6 +736,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       await navigator.clipboard.writeText(urlData.publicUrl)
       setLinkCopied(true)
 
+      closeAudioKeepAlive()
       releaseStreams({ screen: screenStream, webcam: webcamStream })
       setScreenStream(null)
       setWebcamStream(null)
@@ -719,6 +758,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
   function discardRecording() {
     setBlob(null)
+    closeAudioKeepAlive()
     releaseStreams({ screen: screenStream, webcam: webcamStream })
     setScreenStream(null)
     setWebcamStream(null)
