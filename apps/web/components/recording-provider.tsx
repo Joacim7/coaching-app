@@ -93,14 +93,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const [recordModalOpen, setRecordModalOpen] = useState(false)
   const [micDevices,      setMicDevices]      = useState<MediaDeviceInfo[]>([])
   const [selectedMicId,   setSelectedMicId]   = useState('')
-  // Only drives which idle-stage button/controls render in the launch modal
-  // — the actual recording/finalize/upload logic branches on `!screenStream`
-  // instead (see audioOnlyMode below), which is reliably accurate for a
-  // session's whole lifecycle, whereas this flag alone could go stale if a
-  // screen recording were ever started from a different entry point (e.g.
-  // the /record page) without this toggle being reset first.
-  const [captureMode,     setCaptureMode]     = useState<'video' | 'audio'>('video')
-  const [startErr,        setStartErr]        = useState('')
 
   const [blob,        setBlob]        = useState<Blob | null>(null)
   const [previewUrl,  setPreviewUrl]  = useState<string | null>(null)
@@ -279,132 +271,8 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     } catch { /* user cancelled the picker */ }
   }
 
-  // ── Start audio-only (mic, no screen capture) ──────────────────────────────
-  // Deliberately minimal: getUserMedia({audio:true}) then nothing else.
-  // Several speculative additions (AudioContext keep-alive, a hidden
-  // <audio> element, a device-id constraint) were tried and stripped back
-  // out here — none were confirmed to fix the underlying issue, and they
-  // only added places for something to go wrong. Re-add any of them later
-  // only with real evidence that this minimal version itself isn't enough.
-  async function startAudioOnly() {
-    setStartErr('')
-    // Guard against being called more than once without a teardown in
-    // between (e.g. the coach clicking "Start lydopptak" again after it
-    // appeared to do nothing) — without this, every call requested a brand
-    // new getUserMedia stream, unconditionally overwriting webcamStream and
-    // leaking the previous live mic track every time. Each leaked session
-    // keeps the physical microphone open indefinitely, which can degrade or
-    // outright break every other mic capture on the page, including video
-    // mode's own.
-    if (webcamStream) releaseStreams({ screen: null, webcam: webcamStream })
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      console.log('[recording] audio-only getUserMedia succeeded — tracks:', stream.getAudioTracks().map(t => ({
-        label: t.label, readyState: t.readyState, muted: t.muted, enabled: t.enabled,
-      })))
-      setWebcamStream(stream) // same slot video mode's mic-only fallback already uses
-      setStage('preview')
-    } catch (err) {
-      // Unlike startScreen()'s silent catch above — a getDisplayMedia
-      // rejection almost always just means "user cancelled the picker" — a
-      // getUserMedia(audio) rejection here can only mean a real permission
-      // failure, so it has to be surfaced rather than swallowed.
-      console.error('[recording] microphone request failed:', err)
-      setStartErr('Kunne ikke få tilgang til mikrofonen. Sjekk at nettleseren har fått tillatelse.')
-    }
-  }
-
   // ── Start recording ────────────────────────────────────────────────────────
   function startRecording() {
-    // Audio-only: no canvas, no screen — build the recorder straight from
-    // the mic stream's own audio track(s). Entirely self-contained in this
-    // guard clause; everything below (the video/canvas path) is reached
-    // only when screenStream is set, i.e. only via startScreen(), and is
-    // otherwise completely untouched.
-    // Deliberately minimal — see startAudioOnly()'s comment. Just
-    // getUserMedia's own stream straight into MediaRecorder with no
-    // options, and start() with no timeslice. Every previous attempt here
-    // (track-enable forcing, addTrack reconstruction, MIME candidate
-    // fallback loop) is stripped back out; re-add only with real evidence
-    // this minimal form itself isn't enough.
-    if (!screenStream) {
-      if (!webcamStream) return
-      const audioTracks = webcamStream.getAudioTracks()
-      if (audioTracks.length === 0) return
-
-      console.log('[recording] audio-only start — tracks:', audioTracks.map(t => ({
-        label: t.label, readyState: t.readyState, muted: t.muted, enabled: t.enabled,
-      })))
-
-      let rec: MediaRecorder
-      try {
-        rec = new MediaRecorder(webcamStream)
-      } catch (err) {
-        console.error('[recording] MediaRecorder construction failed:', err)
-        setStartErr('Nettleseren støtter ikke lydopptak med denne mikrofonen.')
-        setRecordModalOpen(true)
-        return
-      }
-      console.log('[recording] audio recorder created — rec.mimeType:', rec.mimeType)
-
-      chunksRef.current = []
-      // Guards finalizeAudio() against running more than once per session —
-      // a second setBlob() call would revoke the first blob's object URL
-      // (see the previewUrl effect) out from under an <audio> element still
-      // trying to load it.
-      let finalized = false
-
-      async function finalizeAudio() {
-        if (finalized) return
-        finalized = true
-        if (chunksRef.current.length === 0) {
-          // Nothing was actually captured — tear down and reopen the launch
-          // modal with a clear error instead of a silently-broken save
-          // dialog with an empty, unplayable preview.
-          discardRecording()
-          setStartErr('Opptaket inneholder ingen lyd. Prøv igjen.')
-          setRecordModalOpen(true)
-          return
-        }
-        const rawBlob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' })
-        setBlob(rawBlob)
-        const now = new Date()
-        setRecTitle(
-          `Opptak ${now.toLocaleDateString('nb-NO')} ` +
-          `${now.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}`
-        )
-        setStage('saving')
-      }
-
-      rec.ondataavailable = (e) => {
-        console.log('[recording] audio-only ondataavailable — size:', e.data.size)
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-      rec.onstop = () => {
-        console.log('[recording] audio-only onstop — chunks collected:', chunksRef.current.length, 'recorder state was:', rec.state)
-        finalizeAudio()
-      }
-      rec.onerror = (event) => {
-        console.error('[recording] MediaRecorder error:', event)
-        if (recRef.current?.state === 'recording' || recRef.current?.state === 'paused') {
-          stopRecording()
-        } else if (chunksRef.current.length > 0) {
-          clearInterval(intervalRef.current)
-          finalizeAudio()
-        }
-      }
-
-      rec.start()
-      recRef.current = rec
-      timerValRef.current = 0
-      setTimer(0)
-      setStage('recording')
-      setIsPaused(false)
-      setRecordModalOpen(false)
-      startTimerInterval()
-      return
-    }
-
     const canvas      = canvasRef.current
     const screenVideo = hiddenScreenRef.current
     if (!canvas || !screenVideo || !screenStream) return
@@ -477,17 +345,12 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       cancelAnimationFrame(animRef.current)
       const rawBlob = new Blob(chunksRef.current, { type: mime })
       const durationMs = timerValRef.current * 1000
-      console.log('[recording] video finalize — mime:', mime, 'timerValRef:', timerValRef.current, 'durationMs:', durationMs, 'rawBlob size:', rawBlob.size)
       const fixedBlob = mime.startsWith('video/webm')
         ? await fixWebmDuration(rawBlob, durationMs, { logger: false }).catch(() => rawBlob)
-        : await remuxToFlatMp4(rawBlob).then(b => {
-            console.log('[recording] flat MP4 remux succeeded — output size:', b.size)
-            return b
-          }).catch(async (err) => {
+        : await remuxToFlatMp4(rawBlob).catch(async (err) => {
             console.error('[recording] flat MP4 remux failed, falling back to duration-only patch:', err)
             return fixMp4Duration(rawBlob, durationMs).catch(() => rawBlob)
           })
-      console.log('[recording] video finalize — final blob size:', fixedBlob.size, 'type:', fixedBlob.type)
       setBlob(fixedBlob)
       const now = new Date()
       setRecTitle(
@@ -553,10 +416,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   // ── Stop recording ─────────────────────────────────────────────────────────
   function stopRecording() {
     clearInterval(intervalRef.current)
-    // Diagnostic: if this ever logs 'inactive', the recorder had already
-    // died on its own before the user clicked Stop — i.e. the UI's timer
-    // kept counting even though recording had already silently ended.
-    console.log('[recording] stopRecording() called — recorder state:', recRef.current?.state, 'timerValRef:', timerValRef.current)
     recRef.current?.stop()
     // onstop fires asynchronously → sets stage='saving'
   }
@@ -634,16 +493,11 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Ikke innlogget')
 
-      // Read before releaseStreams/setScreenStream(null) run below, while
-      // it's still an accurate signal of which kind of session this was.
-      const kind: 'video' | 'audio' = screenStream ? 'video' : 'audio'
-      const ext = kind === 'audio'
-        ? (blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm')
-        : (blob.type.includes('mp4') ? 'mp4' : 'webm')
+      const ext  = blob.type.includes('mp4') ? 'mp4' : 'webm'
       const path = `${user.id}/${Date.now()}.${ext}`
       const { error: upE } = await supabase.storage
         .from('coach-recordings')
-        .upload(path, blob, { contentType: blob.type || (kind === 'audio' ? 'audio/webm' : 'video/webm') })
+        .upload(path, blob, { contentType: blob.type || 'video/webm' })
       if (upE) throw new Error(`Opplasting feilet: ${upE.message}`)
 
       // Public bucket → permanent shareable URL (no expiry)
@@ -660,7 +514,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
           file_path:        path,
           file_size_bytes:  blob.size,
           share_url:        urlData.publicUrl,
-          kind,
         }),
       })
       if (!res.ok) throw new Error('Kunne ikke lagre metadata')
@@ -702,11 +555,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   // webcamStream can now be audio-only (the mic-only fallback above), so a
   // truthy stream no longer implies there's a video track to show.
   const hasCameraTrack = !!webcamStream?.getVideoTracks().length
-
-  // Only trust captureMode (the UI toggle) before anything has actually
-  // started — once a session exists, !screenStream is ground truth for
-  // "this session has no screen capture" for its whole lifecycle.
-  const audioOnlyMode = stage === 'idle' ? captureMode === 'audio' : !screenStream
 
   const surfaceLabel = displaySurface === 'monitor' ? 'Hele skjermen'
     : displaySurface === 'window' ? 'Vindu'
@@ -763,7 +611,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               part of whatever gets captured, so it needs no special-casing
               per capture mode. */}
           <div className="relative w-[120px] h-[120px] rounded-full overflow-hidden border-[3px] border-white/30 bg-gray-900 shadow-2xl ring-2 ring-black/30">
-            {hasCameraTrack && !audioOnlyMode && (
+            {hasCameraTrack && (
               <video
                 ref={webcamVidRef}
                 muted
@@ -774,9 +622,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
             )}
             {(!hasCameraTrack || !camOn) && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                {audioOnlyMode
-                  ? <Mic className="w-6 h-6 text-gray-400" />
-                  : <VideoOff className="w-6 h-6 text-gray-600" />}
+                <VideoOff className="w-6 h-6 text-gray-600" />
               </div>
             )}
           </div>
@@ -805,17 +651,15 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               >
                 {micOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
               </button>
-              {!audioOnlyMode && (
-                <button
-                  onClick={() => toggleCam()}
-                  className={`p-1.5 rounded-lg transition-colors ${
-                    camOn ? 'text-white hover:bg-white/10' : 'text-red-400 bg-red-500/20 hover:bg-red-500/30'
-                  }`}
-                  title={camOn ? 'Slå av kamera' : 'Slå på kamera'}
-                >
-                  {camOn ? <CamIcon className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
-                </button>
-              )}
+              <button
+                onClick={() => toggleCam()}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  camOn ? 'text-white hover:bg-white/10' : 'text-red-400 bg-red-500/20 hover:bg-red-500/30'
+                }`}
+                title={camOn ? 'Slå av kamera' : 'Slå på kamera'}
+              >
+                {camOn ? <CamIcon className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
+              </button>
               {stage === 'recording' && (
                 <button
                   onClick={() => (isPaused ? resumeRecording() : pauseRecording())}
@@ -869,30 +713,8 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
             <div className="px-5 py-5 space-y-4">
 
-              {/* Capture mode toggle */}
-              {stage === 'idle' && (
-                <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
-                  <button
-                    onClick={() => setCaptureMode('video')}
-                    className={`flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-semibold transition-colors ${
-                      captureMode === 'video' ? 'bg-white/15 text-white' : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    <Monitor className="w-3.5 h-3.5" /> Skjerm
-                  </button>
-                  <button
-                    onClick={() => setCaptureMode('audio')}
-                    className={`flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-semibold transition-colors ${
-                      captureMode === 'audio' ? 'bg-white/15 text-white' : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    <Mic className="w-3.5 h-3.5" /> Bare lyd
-                  </button>
-                </div>
-              )}
-
               {/* Mic + Camera toggles */}
-              <div className={audioOnlyMode ? '' : 'grid grid-cols-2 gap-2'}>
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={toggleMic}
                   className={`flex items-center gap-2.5 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
@@ -905,20 +727,18 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                   <span className="truncate">Mikrofon</span>
                   <span className="ml-auto text-[10px] opacity-60">{micOn ? 'På' : 'Av'}</span>
                 </button>
-                {!audioOnlyMode && (
-                  <button
-                    onClick={toggleCam}
-                    className={`flex items-center gap-2.5 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
-                      camOn
-                        ? 'bg-white/10 text-white hover:bg-white/[.15]'
-                        : 'bg-red-500/15 text-red-400 hover:bg-red-500/25'
-                    }`}
-                  >
-                    {camOn ? <CamIcon className="w-4 h-4 flex-shrink-0" /> : <VideoOff className="w-4 h-4 flex-shrink-0" />}
-                    <span className="truncate">Kamera</span>
-                    <span className="ml-auto text-[10px] opacity-60">{camOn ? 'På' : 'Av'}</span>
-                  </button>
-                )}
+                <button
+                  onClick={toggleCam}
+                  className={`flex items-center gap-2.5 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                    camOn
+                      ? 'bg-white/10 text-white hover:bg-white/[.15]'
+                      : 'bg-red-500/15 text-red-400 hover:bg-red-500/25'
+                  }`}
+                >
+                  {camOn ? <CamIcon className="w-4 h-4 flex-shrink-0" /> : <VideoOff className="w-4 h-4 flex-shrink-0" />}
+                  <span className="truncate">Kamera</span>
+                  <span className="ml-auto text-[10px] opacity-60">{camOn ? 'På' : 'Av'}</span>
+                </button>
               </div>
 
               {/* Mic device picker — macOS can silently default audio input
@@ -939,8 +759,8 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                 </select>
               )}
 
-              {/* Screen source selector (video mode) / mic start (audio mode) */}
-              {stage === 'idle' && captureMode === 'video' && (
+              {/* Screen source selector */}
+              {stage === 'idle' && (
                 <button
                   onClick={startScreen}
                   className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border border-dashed border-white/15 text-gray-400 hover:text-white hover:border-white/30 hover:bg-white/5 transition-colors text-sm"
@@ -950,32 +770,11 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                 </button>
               )}
 
-              {stage === 'idle' && captureMode === 'audio' && (
-                <button
-                  onClick={startAudioOnly}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border border-dashed border-white/15 text-gray-400 hover:text-white hover:border-white/30 hover:bg-white/5 transition-colors text-sm"
-                >
-                  <Mic className="w-4 h-4 flex-shrink-0" />
-                  <span className="flex-1 text-left">Start lydopptak</span>
-                </button>
-              )}
-
-              {stage === 'idle' && startErr && (
-                <div className="flex items-start gap-2 bg-red-500/10 px-3 py-2.5 rounded-xl">
-                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-400">{startErr}</p>
-                </div>
-              )}
-
               {(stage === 'preview' || stage === 'recording') && (
                 <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#2d8653]/10 border border-[#2d8653]/20">
-                  {audioOnlyMode
-                    ? <Mic className="w-4 h-4 text-[#6ecfb0] flex-shrink-0" />
-                    : <MonitorCheck className="w-4 h-4 text-[#6ecfb0] flex-shrink-0" />}
+                  <MonitorCheck className="w-4 h-4 text-[#6ecfb0] flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white font-medium truncate">
-                      {audioOnlyMode ? 'Mikrofon klar' : surfaceLabel}
-                    </p>
+                    <p className="text-sm text-white font-medium truncate">{surfaceLabel}</p>
                     <p className="text-xs text-gray-500">Klar til opptak</p>
                   </div>
                   {stage !== 'recording' && (
@@ -992,7 +791,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               {/* Primary action */}
               {stage === 'idle' && (
                 <p className="text-center text-xs text-gray-600">
-                  {captureMode === 'audio' ? 'Trykk for å starte et lydopptak' : 'Velg en skjermkilde for å begynne'}
+                  Velg en skjermkilde for å begynne
                 </p>
               )}
 
@@ -1042,17 +841,13 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                 </p>
               </div>
 
-              {/* Preview — audio or video depending on how this was captured */}
+              {/* Video preview */}
               {previewUrl && (
-                audioOnlyMode ? (
-                  <audio src={previewUrl} controls className="w-full" />
-                ) : (
-                  <video
-                    src={previewUrl}
-                    controls
-                    className="w-full aspect-video rounded-xl bg-black object-contain"
-                  />
-                )
+                <video
+                  src={previewUrl}
+                  controls
+                  className="w-full aspect-video rounded-xl bg-black object-contain"
+                />
               )}
 
               <div>
