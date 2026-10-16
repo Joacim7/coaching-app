@@ -93,6 +93,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const [recordModalOpen, setRecordModalOpen] = useState(false)
   const [micDevices,      setMicDevices]      = useState<MediaDeviceInfo[]>([])
   const [selectedMicId,   setSelectedMicId]   = useState('')
+  const [mode,            setMode]            = useState<'video' | 'audio'>('video')
 
   const [blob,        setBlob]        = useState<Blob | null>(null)
   const [previewUrl,  setPreviewUrl]  = useState<string | null>(null)
@@ -384,6 +385,42 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     }
 
     rec.start(1000)
+    recRef.current = rec
+
+    timerValRef.current = 0
+    setTimer(0)
+    setStage('recording')
+    setIsPaused(false)
+    setRecordModalOpen(false)
+    startTimerInterval()
+  }
+
+  // ── Start audio-only recording ─────────────────────────────────────────────
+  async function startAudioOnly() {
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch (err) {
+      console.error('[recording] audio-only getUserMedia failed:', err)
+      return
+    }
+    // Reuse webcamStream so toggleMic / releaseStreams cover it as well.
+    setWebcamStream(stream)
+    drawRef.current = null
+
+    chunksRef.current = []
+    const rec = new MediaRecorder(stream)
+    rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+    rec.onstop = () => {
+      setBlob(new Blob(chunksRef.current, { type: rec.mimeType }))
+      const now = new Date()
+      setRecTitle(
+        `Økt ${now.toLocaleDateString('nb-NO')} ` +
+        `${now.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}`
+      )
+      setStage('saving')
+    }
+    rec.start(250)
     recRef.current = rec
 
     timerValRef.current = 0
@@ -720,6 +757,23 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
             <div className="px-5 py-5 space-y-4">
 
+              {/* Video / audio-only mode */}
+              {stage === 'idle' && (
+                <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/5">
+                  {(['video', 'audio'] as const).map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setMode(m)}
+                      className={`h-8 rounded-lg text-xs font-semibold transition-colors ${
+                        mode === m ? 'bg-white/15 text-white' : 'text-gray-500 hover:text-white'
+                      }`}
+                    >
+                      {m === 'video' ? 'Video' : 'Bare lyd'}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Mic + Camera toggles */}
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -767,7 +821,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               )}
 
               {/* Screen source selector */}
-              {stage === 'idle' && (
+              {stage === 'idle' && mode === 'video' && (
                 <button
                   onClick={startScreen}
                   className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border border-dashed border-white/15 text-gray-400 hover:text-white hover:border-white/30 hover:bg-white/5 transition-colors text-sm"
@@ -777,7 +831,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                 </button>
               )}
 
-              {(stage === 'preview' || stage === 'recording') && (
+              {(stage === 'preview' || stage === 'recording') && mode === 'video' && (
                 <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#2d8653]/10 border border-[#2d8653]/20">
                   <MonitorCheck className="w-4 h-4 text-[#6ecfb0] flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -796,7 +850,17 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               )}
 
               {/* Primary action */}
-              {stage === 'idle' && (
+              {stage === 'idle' && mode === 'audio' && (
+                <button
+                  onClick={startAudioOnly}
+                  className="w-full flex items-center justify-center gap-2.5 h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-red-900/30"
+                >
+                  <Circle className="w-3.5 h-3.5 fill-white" />
+                  Start opptak
+                </button>
+              )}
+
+              {stage === 'idle' && mode === 'video' && (
                 <p className="text-center text-xs text-gray-600">
                   Velg en skjermkilde for å begynne
                 </p>
@@ -849,7 +913,10 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               </div>
 
               {/* Video preview */}
-              {previewUrl && (
+              {previewUrl && blob.type.startsWith('audio/') && (
+                <audio src={previewUrl} controls className="w-full" />
+              )}
+              {previewUrl && !blob.type.startsWith('audio/') && (
                 <video
                   src={previewUrl}
                   controls
