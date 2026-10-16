@@ -497,12 +497,17 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       cancelAnimationFrame(animRef.current)
       const rawBlob = new Blob(chunksRef.current, { type: mime })
       const durationMs = timerValRef.current * 1000
+      console.log('[recording] video finalize — mime:', mime, 'timerValRef:', timerValRef.current, 'durationMs:', durationMs, 'rawBlob size:', rawBlob.size)
       const fixedBlob = mime.startsWith('video/webm')
         ? await fixWebmDuration(rawBlob, durationMs, { logger: false }).catch(() => rawBlob)
-        : await remuxToFlatMp4(rawBlob).catch(async (err) => {
+        : await remuxToFlatMp4(rawBlob).then(b => {
+            console.log('[recording] flat MP4 remux succeeded — output size:', b.size)
+            return b
+          }).catch(async (err) => {
             console.error('[recording] flat MP4 remux failed, falling back to duration-only patch:', err)
             return fixMp4Duration(rawBlob, durationMs).catch(() => rawBlob)
           })
+      console.log('[recording] video finalize — final blob size:', fixedBlob.size, 'type:', fixedBlob.type)
       setBlob(fixedBlob)
       const now = new Date()
       setRecTitle(
