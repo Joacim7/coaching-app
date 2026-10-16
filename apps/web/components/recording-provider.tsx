@@ -402,17 +402,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         t.addEventListener('unmute', () => console.log('[recording] audio track unmuted at +' + (Date.now() - startedAt) + 'ms'))
       })
 
-      // webm/opus first, not mp4: pure audio/mp4 recording was observed
-      // producing an unplayable file — webm/opus is MediaRecorder's
-      // original, most battle-tested audio format. mp4 stays as the
-      // fallback since Safari has no webm MediaRecorder support at all.
-      const audioMime = [
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/mp4',
-      ].find(t => MediaRecorder.isTypeSupported(t)) ?? 'audio/webm'
-
-      chunksRef.current = []
       // Built via addTrack on an empty stream, not the array constructor —
       // mirrors exactly how the proven video path builds its recording
       // stream (canvas.captureStream() then addTrack for audio), in case
@@ -420,7 +409,42 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       // pipeline.
       const audioOnlyStream = new MediaStream()
       audioTracks.forEach(t => audioOnlyStream.addTrack(t))
-      const rec = new MediaRecorder(audioOnlyStream, { mimeType: audioMime })
+
+      // isTypeSupported() claiming a MIME type is supported doesn't
+      // guarantee MediaRecorder.start() will actually accept it for THIS
+      // specific stream/track — confirmed by a real NotSupportedError at
+      // start() despite isTypeSupported() returning true beforehand. So
+      // actually attempt construction + start for each candidate in turn
+      // (undefined last — omitting mimeType entirely lets the browser pick
+      // its own default, the most permissive possible fallback) instead of
+      // trusting the capability check alone.
+      const mimeCandidates: (string | undefined)[] = [
+        'audio/webm;codecs=opus',
+        'audio/ogg;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        undefined,
+      ]
+      let rec: MediaRecorder | null = null
+      for (const candidate of mimeCandidates) {
+        if (candidate && !MediaRecorder.isTypeSupported(candidate)) continue
+        try {
+          const attempt = candidate ? new MediaRecorder(audioOnlyStream, { mimeType: candidate }) : new MediaRecorder(audioOnlyStream)
+          chunksRef.current = []
+          attempt.start(250)
+          console.log('[recording] audio recorder started — requested:', candidate ?? '(browser default)', 'actual rec.mimeType:', attempt.mimeType)
+          rec = attempt
+          break
+        } catch (err) {
+          console.error('[recording] audio recorder rejected mimeType', candidate ?? '(none)', ':', err)
+        }
+      }
+      if (!rec) {
+        setStartErr('Nettleseren støtter ikke lydopptak med denne mikrofonen. Prøv en annen nettleser.')
+        setRecordModalOpen(true)
+        return
+      }
+      const audioMime = rec.mimeType || 'audio/webm'
 
       // Guards finalizeAudio() against running more than once per session —
       // a second setBlob() call would revoke the first blob's object URL
@@ -472,7 +496,9 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      rec.start(250)
+      // Already started inside the candidate-selection loop above — not
+      // repeated here, since re-calling start() on an already-recording
+      // MediaRecorder throws InvalidStateError.
       recRef.current = rec
       timerValRef.current = 0
       setTimer(0)
@@ -717,7 +743,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       // it's still an accurate signal of which kind of session this was.
       const kind: 'video' | 'audio' = screenStream ? 'video' : 'audio'
       const ext = kind === 'audio'
-        ? (blob.type.includes('mp4') ? 'm4a' : 'webm')
+        ? (blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm')
         : (blob.type.includes('mp4') ? 'mp4' : 'webm')
       const path = `${user.id}/${Date.now()}.${ext}`
       const { error: upE } = await supabase.storage
