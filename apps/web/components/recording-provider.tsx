@@ -150,11 +150,15 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!blob) return
     const url = URL.createObjectURL(blob)
+    console.log('[recording] previewUrl created:', url, 'blob size:', blob.size, 'type:', blob.type, 'at', new Date().toISOString())
     // Unavoidable: the object URL and its cleanup are inherently paired to
     // this effect run — there's no way to derive it during render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPreviewUrl(url)
-    return () => URL.revokeObjectURL(url)
+    return () => {
+      console.log('[recording] previewUrl revoked:', url, 'at', new Date().toISOString())
+      URL.revokeObjectURL(url)
+    }
   }, [blob])
 
   // macOS can auto-switch the system's default audio input to a nearby
@@ -342,6 +346,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     // patch if the remux itself fails for some reason, so a recording is
     // never worse off than before this existed.
     async function finalize() {
+      console.log('[recording] video finalize() called at', new Date().toISOString(), '— chunks:', chunksRef.current.length)
       cancelAnimationFrame(animRef.current)
       const rawBlob = new Blob(chunksRef.current, { type: mime })
       const durationMs = timerValRef.current * 1000
@@ -422,6 +427,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
   // ── Stop sharing (abort without saving) ───────────────────────────────────
   function stopSharing() {
+    console.trace('[recording] stopSharing() called at', new Date().toISOString())
     cancelAnimationFrame(animRef.current)
     clearInterval(intervalRef.current)
     if (recRef.current?.state === 'recording' || recRef.current?.state === 'paused') {
@@ -541,6 +547,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   }
 
   function discardRecording() {
+    console.trace('[recording] discardRecording() called at', new Date().toISOString())
     setBlob(null)
     releaseStreams({ screen: screenStream, webcam: webcamStream })
     setScreenStream(null)
