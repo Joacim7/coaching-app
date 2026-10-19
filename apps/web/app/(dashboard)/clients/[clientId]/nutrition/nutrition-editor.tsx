@@ -301,7 +301,7 @@ function NutritionFoodRow({ food, mealIdx, altIdx, foodIdx, updateFood, removeFo
     const safe = isNaN(raw) ? 1 : Math.max(newUnit === 'stk' ? 1 : 0, raw)
     setUnit(newUnit)
     setUnitAmount(safe)
-    if (newUnit !== 'g') updateFood(mealIdx, altIdx, foodIdx, 'amount_display', `${safe} ${newUnit}`)
+    updateFood(mealIdx, altIdx, foodIdx, 'amount_display', `${safe} ${newUnit}`)
   }
 
   function handleUnitAmountChange(raw: number) {
@@ -311,7 +311,7 @@ function NutritionFoodRow({ food, mealIdx, altIdx, foodIdx, updateFood, removeFo
     setUnitAmount(safe)
     setAmountG(newG)
     updateFood(mealIdx, altIdx, foodIdx, 'amount',         `${newG}g`)
-    if (unit !== 'g') updateFood(mealIdx, altIdx, foodIdx, 'amount_display', `${safe} ${unit}`)
+    updateFood(mealIdx, altIdx, foodIdx, 'amount_display', `${safe} ${unit}`)
     updateFood(mealIdx, altIdx, foodIdx, 'calories',       Math.round(per100.calories  * f))
     updateFood(mealIdx, altIdx, foodIdx, 'protein_g',      Math.round(per100.protein_g * f * 10) / 10)
     updateFood(mealIdx, altIdx, foodIdx, 'carbs_g',        Math.round(per100.carbs_g   * f * 10) / 10)
@@ -325,7 +325,7 @@ function NutritionFoodRow({ food, mealIdx, altIdx, foodIdx, updateFood, removeFo
     setAmountG(newG)
     setUnitAmount(safeUA)
     updateFood(mealIdx, altIdx, foodIdx, 'amount',    `${newG}g`)
-    if (unit !== 'g') updateFood(mealIdx, altIdx, foodIdx, 'amount_display', `${safeUA} ${unit}`)
+    updateFood(mealIdx, altIdx, foodIdx, 'amount_display', `${safeUA} ${unit}`)
     updateFood(mealIdx, altIdx, foodIdx, 'protein_g', Math.round(per100.protein_g * f * 10) / 10)
     updateFood(mealIdx, altIdx, foodIdx, 'carbs_g',   Math.round(per100.carbs_g   * f * 10) / 10)
     updateFood(mealIdx, altIdx, foodIdx, 'fat_g',     Math.round(per100.fat_g     * f * 10) / 10)

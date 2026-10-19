@@ -89,7 +89,7 @@ export function parseAmountDisplay(
   if (parts.length === 2) {
     const unitAmount = parseFloat(parts[0])
     const unit = parts[1] as IngredientUnit
-    if (!isNaN(unitAmount) && unit !== 'g' && Object.keys(UNIT_LABELS).includes(unit)) {
+    if (!isNaN(unitAmount) && Object.keys(UNIT_LABELS).includes(unit)) {
       return { unit, unitAmount }
     }
   }

@@ -191,7 +191,7 @@ function FoodRow({ food, onUpdate, onRemove, onFoodSelect }: FoodRowProps) {
     const safe = isNaN(raw) ? 1 : Math.max(newUnit === 'stk' ? 1 : 0, raw)
     setUnit(newUnit)
     setUnitAmount(safe)
-    if (newUnit !== 'g') onUpdate('amount_display', `${safe} ${newUnit}`)
+    onUpdate('amount_display', `${safe} ${newUnit}`)
   }
 
   function handleUnitAmountChange(raw: number) {
@@ -201,7 +201,7 @@ function FoodRow({ food, onUpdate, onRemove, onFoodSelect }: FoodRowProps) {
     setUnitAmount(safe)
     setAmountG(newG)
     onUpdate('amount',         `${newG}g`)
-    if (unit !== 'g') onUpdate('amount_display', `${safe} ${unit}`)
+    onUpdate('amount_display', `${safe} ${unit}`)
     onUpdate('calories',       Math.round(per100.calories  * f))
     onUpdate('protein_g',      Math.round(per100.protein_g * f * 10) / 10)
     onUpdate('carbs_g',        Math.round(per100.carbs_g   * f * 10) / 10)
@@ -215,7 +215,7 @@ function FoodRow({ food, onUpdate, onRemove, onFoodSelect }: FoodRowProps) {
     setAmountG(newG)
     setUnitAmount(safeUA)
     onUpdate('amount',    `${newG}g`)
-    if (unit !== 'g') onUpdate('amount_display', `${safeUA} ${unit}`)
+    onUpdate('amount_display', `${safeUA} ${unit}`)
     onUpdate('protein_g', Math.round(per100.protein_g * f * 10) / 10)
     onUpdate('carbs_g',   Math.round(per100.carbs_g   * f * 10) / 10)
     onUpdate('fat_g',     Math.round(per100.fat_g     * f * 10) / 10)
