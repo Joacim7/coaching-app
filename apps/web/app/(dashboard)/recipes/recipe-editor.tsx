@@ -95,8 +95,10 @@ function smartUnitFor(name: string): IngredientUnit {
 function gPerDl(name: string): number {
   const n = name.toLowerCase()
   if (n.includes('havregryn'))  return 40
-  if (/\bris\b/.test(n))        return 85
-  if (n.includes('pasta'))      return 45
+  if (/\bris\b/.test(n))        return 90
+  if (n.includes('pasta'))      return 100
+  if (n.includes('bulgur'))     return 85
+  if (n.includes('couscous'))   return 75
   if (n.includes('granola'))    return 45
   return 100
 }
