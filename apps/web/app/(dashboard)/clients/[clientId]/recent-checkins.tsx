@@ -5,6 +5,7 @@ import { CheckCircle2, Send, X, Link as LinkIcon, MessageSquare, ExternalLink } 
 import { Button } from '@/components/ui/button'
 import { useLocale } from '@/components/locale-provider'
 import type { TranslationKey } from '@/lib/i18n/translations'
+import { useRecordingKind } from '@/lib/use-recording-kind'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -91,6 +92,7 @@ function CheckinModal({
   const { t } = useLocale()
   const [comment,     setComment]     = useState(checkin.feedback?.comment    ?? '')
   const [videoLink,   setVideoLink]   = useState(checkin.feedback?.video_link ?? '')
+  const videoKind = useRecordingKind(videoLink)
   const [savingDraft, setSavingDraft] = useState(false)
   const [sending,     setSending]     = useState(false)
   const [error,       setError]       = useState('')
@@ -294,7 +296,7 @@ function CheckinModal({
                     className="inline-flex items-center gap-1 text-xs text-[#2d8653] hover:underline mt-1"
                   >
                     <ExternalLink className="w-3 h-3" />
-                    {t('clientDetail.checkins.openVideo')}
+                    {t(videoKind === 'audio' ? 'clientDetail.checkins.openAudio' : 'clientDetail.checkins.openVideo')}
                   </a>
                 )}
               </div>
