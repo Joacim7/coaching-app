@@ -408,19 +408,33 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     setWebcamStream(stream)
     drawRef.current = null
 
-    chunksRef.current = []
-    const rec = new MediaRecorder(stream)
-    rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-    rec.onstop = () => {
-      setBlob(new Blob(chunksRef.current, { type: rec.mimeType }))
-      const now = new Date()
-      setRecTitle(
-        `Økt ${now.toLocaleDateString('nb-NO')} ` +
-        `${now.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}`
-      )
-      setStage('saving')
+    // Chrome's default audio format is WebM/Opus, which iOS (the client
+    // app's player) can't play at all. Ask for AAC-in-MP4 when the browser
+    // can record it, and fall back to the browser default if it won't start.
+    const AAC_MP4 = 'audio/mp4;codecs=mp4a.40.2'
+    const startRecorder = (options?: MediaRecorderOptions) => {
+      chunksRef.current = []
+      const r = new MediaRecorder(stream, options)
+      r.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      r.onstop = () => {
+        setBlob(new Blob(chunksRef.current, { type: r.mimeType }))
+        const now = new Date()
+        setRecTitle(
+          `Økt ${now.toLocaleDateString('nb-NO')} ` +
+          `${now.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}`
+        )
+        setStage('saving')
+      }
+      r.start(250)
+      return r
     }
-    rec.start(250)
+    let rec: MediaRecorder
+    try {
+      rec = startRecorder(MediaRecorder.isTypeSupported(AAC_MP4) ? { mimeType: AAC_MP4 } : undefined)
+    } catch (err) {
+      console.error('[recording] AAC/MP4 audio recorder failed to start, using browser default:', err)
+      rec = startRecorder()
+    }
     recRef.current = rec
 
     timerValRef.current = 0
