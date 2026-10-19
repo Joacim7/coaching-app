@@ -48,7 +48,10 @@ function RecipeCard({ recipe }: { recipe: RecipeLibraryRow }) {
 // Renders the drag ghost that follows the cursor — a lighter copy of
 // RecipeCard without the useDraggable wiring, since DragOverlay renders
 // outside the normal DOM flow and manages its own positioning.
-export function RecipeDragOverlayCard({ recipe }: { recipe: RecipeLibraryRow }) {
+// Also used for alternatives being reordered/copied, which only carry these three fields.
+export type DragOverlayItem = Pick<RecipeLibraryRow, 'title' | 'image_url' | 'calories_per_serving'>
+
+export function RecipeDragOverlayCard({ recipe }: { recipe: DragOverlayItem }) {
   return (
     <div className="flex items-center gap-2.5 p-2 rounded-xl border border-[#2d8653] bg-white shadow-lg w-56">
       {recipe.image_url ? (

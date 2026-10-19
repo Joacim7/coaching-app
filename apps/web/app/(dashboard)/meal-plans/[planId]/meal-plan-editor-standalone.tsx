@@ -19,8 +19,9 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { FoodSearchInput } from '@/components/food-search-input'
-import { RecipeDragSidebar, RecipeDragOverlayCard, type RecipeDragData } from '@/components/recipe-drag-sidebar'
-import { recipeToAlternative, scaleFoods, type RecipeLibraryRow } from '@/lib/recipe-to-alternative'
+import { RecipeDragSidebar, RecipeDragOverlayCard, type RecipeDragData, type DragOverlayItem } from '@/components/recipe-drag-sidebar'
+import { recipeToAlternative, scaleFoods } from '@/lib/recipe-to-alternative'
+import { mealPlanCollision, parseMealDropTarget, insertAt, moveItem } from '@/lib/meal-plan-dnd'
 import type { Meal, Food, MealPlan, MealAlternative, FoodSearchResult } from '@coaching/types'
 import {
   parseAmountDisplay, unitToGrams, gramsToUnit, smartUnitFor,
@@ -358,10 +359,25 @@ function MealTabButton({ idx, name, altsCount, isActive, onClick }: {
 function DraggableAltCard({ id, data, children }: {
   id: string
   data: AltDragData
-  children: (p: { setNodeRef: (el: HTMLElement | null) => void; dragHandleProps: Record<string, unknown>; isDragging: boolean }) => ReactNode
+  children: (p: { setNodeRef: (el: HTMLElement | null) => void; dragHandleProps: Record<string, unknown>; isDragging: boolean; isOver: boolean }) => ReactNode
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data })
-  return <>{children({ setNodeRef, dragHandleProps: { ...attributes, ...listeners }, isDragging })}</>
+  // Each card is also a drop target, so alternatives can be reordered and
+  // recipes dropped at a specific position inside the open meal.
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `slot-${data.mealIdx}-${data.altIdx}` })
+  const setRefs = (el: HTMLElement | null) => { setNodeRef(el); setDropRef(el) }
+  return <>{children({ setNodeRef: setRefs, dragHandleProps: { ...attributes, ...listeners }, isDragging, isOver })}</>
+}
+
+// The open meal's whole alternatives list — dropping anywhere on it that
+// isn't a card adds to the end of that meal.
+function DroppableMealBody({ idx, className, children }: { idx: number; className?: string; children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `body-${idx}` })
+  return (
+    <div ref={setNodeRef} className={`${className ?? ''} rounded-xl transition-shadow ${isOver ? 'ring-2 ring-[#2d8653] ring-offset-2' : ''}`}>
+      {children}
+    </div>
+  )
 }
 
 // ── Main editor ──────────────────────────────────────────────────────────────
@@ -430,7 +446,7 @@ export default function StandaloneMealPlanEditor({
 
   // Recipe drag-and-drop sidebar
   const [recipeSidebarOpen, setRecipeSidebarOpen] = useState(false)
-  const [activeDragRecipe, setActiveDragRecipe] = useState<RecipeLibraryRow | null>(null)
+  const [activeDragRecipe, setActiveDragRecipe] = useState<DragOverlayItem | null>(null)
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   function getAlts(meal: Meal): MealAlternative[] {
@@ -653,12 +669,22 @@ export default function StandaloneMealPlanEditor({
   // Same shape as addAlternative, but pushes a specific pre-built
   // alternative instead of an empty one — used by the recipe/alt drop
   // handler below.
-  const addAlternativeWith = useCallback((mealIdx: number, alt: MealAlternative) => {
+  const addAlternativeWith = useCallback((mealIdx: number, alt: MealAlternative, pos: number | null = null) => {
     setMeals(prev => prev.map((m, mi) => {
       if (mi !== mealIdx) return m
-      const alts = [...getAlts(m), alt]
+      const alts = insertAt(getAlts(m), alt, pos)
       return { ...m, alternatives: alts, foods: alts[0]?.foods ?? [] }
     }))
+    setExpandedAlt(null)
+  }, [])
+
+  const moveAlternative = useCallback((mealIdx: number, from: number, to: number) => {
+    setMeals(prev => prev.map((m, mi) => {
+      if (mi !== mealIdx) return m
+      const alts = moveItem(getAlts(m), from, to)
+      return { ...m, alternatives: alts, foods: alts[0]?.foods ?? [] }
+    }))
+    setExpandedAlt(null)
   }, [])
 
   // Same per-meal kcal math the "Måltidsfordeling" UI already displays
@@ -671,6 +697,15 @@ export default function StandaloneMealPlanEditor({
 
   function handleDragStart(event: DragStartEvent) {
     const data = event.active.data.current as RecipeDragData | AltDragData | undefined
+    if (data?.type === 'alternative') {
+      const alt = getAlts(meals[data.mealIdx])[data.altIdx] as MealAlternative | undefined
+      setActiveDragRecipe(alt ? {
+        title: alt.name ?? deriveMealName(alt.foods, t('mealPlans.mealAlternativeFallback')),
+        image_url: alt.image_url ?? null,
+        calories_per_serving: alt.foods.reduce((s, f) => s + f.calories, 0),
+      } : null)
+      return
+    }
     setActiveDragRecipe(data?.type === 'recipe' ? data.recipe : null)
   }
 
@@ -679,8 +714,9 @@ export default function StandaloneMealPlanEditor({
     const { active, over } = event
     if (!over) return
 
-    const destIdx = meals.findIndex((_, i) => `meal-${i}` === over.id)
-    if (destIdx === -1) return
+    const target = parseMealDropTarget(over.id)
+    if (!target || !meals[target.mealIdx]) return
+    const destIdx = target.mealIdx
     const destMeal = meals[destIdx]
     const targetCalories = targetCaloriesForMeal(destMeal.name)
 
@@ -689,18 +725,24 @@ export default function StandaloneMealPlanEditor({
 
     if (data.type === 'recipe') {
       const newAlt = recipeToAlternative(data.recipe, targetCalories, Date.now())
-      addAlternativeWith(destIdx, newAlt)
+      addAlternativeWith(destIdx, newAlt, target.pos)
       setActiveMealTab(destIdx)
       return
     }
 
-    // type === 'alternative' — copy, never move (source meal keeps its own copy)
-    if (data.mealIdx === destIdx) return // dropped back on its own meal type — no-op
+    // type === 'alternative' — within the same meal it's a reorder; onto
+    // another meal it's a copy (the source meal keeps its own).
+    if (data.mealIdx === destIdx) {
+      if (target.kind === 'tab') return // dropped back on its own meal tab — no-op
+      const to = target.pos ?? getAlts(destMeal).length - 1
+      if (to !== data.altIdx) moveAlternative(destIdx, data.altIdx, to)
+      return
+    }
     const sourceAlt = getAlts(meals[data.mealIdx])[data.altIdx]
     if (!sourceAlt) return
     const sourceCalories = sourceAlt.foods.reduce((s, f) => s + f.calories, 0)
     const scaledFoods = scaleFoods(sourceAlt.foods, sourceCalories, targetCalories)
-    addAlternativeWith(destIdx, { ...sourceAlt, foods: scaledFoods })
+    addAlternativeWith(destIdx, { ...sourceAlt, foods: scaledFoods }, target.pos)
     setActiveMealTab(destIdx)
   }
 
@@ -753,7 +795,7 @@ export default function StandaloneMealPlanEditor({
   const splitOk = Math.abs(Math.round(selectedMeals.reduce((s, m) => s + (mealSplits[m] ?? 0), 0) * 100) - 100) <= 1
 
   return (
-    <DndContext sensors={dndSensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={dndSensors} collisionDetection={mealPlanCollision} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
     <div>
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
@@ -1242,7 +1284,7 @@ export default function StandaloneMealPlanEditor({
 
               {/* ── Alternatives list ── */}
               {activeMeal && (
-                <div className="space-y-2">
+                <DroppableMealBody idx={safeMealTab} className="space-y-2">
                   <div className="flex items-center justify-between px-1">
                     <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                       {activeMeal.name}
@@ -1273,14 +1315,14 @@ export default function StandaloneMealPlanEditor({
                         id={`alt-${safeMealTab}-${altIdx}`}
                         data={{ type: 'alternative', mealIdx: safeMealTab, altIdx }}
                       >
-                        {({ setNodeRef, dragHandleProps, isDragging }) => (
-                      <div ref={setNodeRef} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden" style={{ opacity: isDragging ? 0.4 : 1 }}>
+                        {({ setNodeRef, dragHandleProps, isDragging, isOver }) => (
+                      <div ref={setNodeRef} className={`bg-white rounded-xl border shadow-sm overflow-hidden ${isOver && !isDragging ? 'border-[#2d8653] ring-2 ring-[#2d8653]' : 'border-gray-100'}`} style={{ opacity: isDragging ? 0.4 : 1 }}>
                         {/* Alt row header */}
                         <div className="w-full flex items-center hover:bg-gray-50 transition-colors">
                         <span
                           {...dragHandleProps}
                           className="pl-3 py-3 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 flex-shrink-0 touch-none"
-                          title="Dra til et annet måltid for å kopiere dit"
+                          title="Dra for å flytte, eller slipp på et annet måltid for å kopiere dit"
                         >
                           <GripVertical className="w-4 h-4" />
                         </span>
@@ -1414,7 +1456,7 @@ export default function StandaloneMealPlanEditor({
                       </Button>
                     )}
                   </div>
-                </div>
+                </DroppableMealBody>
               )}
             </>
           )}
