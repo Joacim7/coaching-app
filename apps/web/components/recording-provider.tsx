@@ -557,7 +557,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
           file_path:        path,
           file_size_bytes:  blob.size,
           share_url:        urlData.publicUrl,
-          kind:             blob.type.startsWith('audio/') ? 'audio' : 'video',
         }),
       })
       if (!res.ok) throw new Error('Kunne ikke lagre metadata')

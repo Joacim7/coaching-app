@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { title, duration_seconds, file_path, file_size_bytes, share_url, kind } = body
+  const { title, duration_seconds, file_path, file_size_bytes, share_url } = body
 
   if (!title) return NextResponse.json({ error: 'title required' }, { status: 400 })
 
@@ -35,7 +35,6 @@ export async function POST(req: Request) {
       file_path:        file_path        ?? null,
       file_size_bytes:  file_size_bytes  ?? null,
       share_url:        share_url        ?? null,
-      kind:             kind === 'audio' ? 'audio' : 'video',
     })
     .select()
     .single()

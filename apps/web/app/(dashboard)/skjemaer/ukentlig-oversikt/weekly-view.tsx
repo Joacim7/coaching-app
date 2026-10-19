@@ -8,7 +8,6 @@ import {
 } from 'lucide-react'
 import { useLocale } from '@/components/locale-provider'
 import type { TranslationKey } from '@/lib/i18n/translations'
-import { useRecordingKind } from '@/lib/use-recording-kind'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -137,7 +136,6 @@ function FeedbackModal({
 
   const [comment,    setComment]    = useState(row.feedback?.comment    ?? '')
   const [videoLink,  setVideoLink]  = useState(row.feedback?.video_link ?? '')
-  const videoKind = useRecordingKind(videoLink)
   const [saving,     setSaving]     = useState(false)
   const [completing, setCompleting] = useState(false)
   const [error,      setError]      = useState('')
@@ -271,7 +269,7 @@ function FeedbackModal({
               {videoLink && (
                 <a href={videoLink} target="_blank" rel="noopener noreferrer"
                    className="inline-flex items-center gap-1 text-xs text-[#2d8653] hover:underline mt-1">
-                  <ExternalLink className="w-3 h-3" />{t(videoKind === 'audio' ? 'weeklyOverview.openAudio' : 'weeklyOverview.openVideo')}
+                  <ExternalLink className="w-3 h-3" />{t('weeklyOverview.openVideo')}
                 </a>
               )}
             </div>

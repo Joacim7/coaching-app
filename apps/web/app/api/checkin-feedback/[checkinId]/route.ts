@@ -45,20 +45,6 @@ export async function POST(
     .maybeSingle()
   const wasAlreadyComplete = existingFeedback?.is_complete ?? false
 
-  // The client app can't read public.recordings, so resolve the linked
-  // recording's kind here and store it alongside the link. Links that don't
-  // match one of the coach's recordings (e.g. external URLs) count as video.
-  let videoKind: 'video' | 'audio' = 'video'
-  if (videoLink) {
-    const { data: rec } = await supabase
-      .from('recordings')
-      .select('kind')
-      .eq('share_url', videoLink)
-      .limit(1)
-      .maybeSingle()
-    if (rec?.kind === 'audio') videoKind = 'audio'
-  }
-
   // Upsert — one feedback row per check-in. Stamps viewed_at here too: a
   // coach saving feedback (draft or complete) has obviously seen the
   // check-in, and this endpoint is the one guaranteed-reliable write path —
@@ -73,7 +59,6 @@ export async function POST(
         coach_id:    user.id,
         comment:     comment     ?? null,
         video_link:  videoLink   ?? null,
-        video_kind:  videoKind,
         is_complete: isComplete  ?? false,
         viewed_at:   new Date().toISOString(),
         updated_at:  new Date().toISOString(),
