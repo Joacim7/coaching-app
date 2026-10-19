@@ -50,6 +50,9 @@ const UNIT_LABELS: Record<IngredientUnit, string> = {
 // Grams per 1 "stk" for common foods (matched by ingredient name)
 function gPerPiece(foodName: string): number {
   const n = foodName.toLowerCase()
+  if (n.includes('hamburgerbrød'))                                                   return 60
+  if (n.includes('tacolefse'))                                                       return 40
+  if (n.includes('burger') && !n.includes('brød') && !n.includes('dressing') && !n.includes('saus')) return 100
   if (n.includes('egg'))                                                              return 60
   if (n.includes('knekkebrød'))                                                      return 10
   if (n.includes('pitabrød') || n.includes('pita'))                                   return 80
@@ -70,6 +73,7 @@ function gPerPiece(foodName: string): number {
 // Default unit for a newly-added ingredient
 function smartUnitFor(name: string): IngredientUnit {
   const n = name.toLowerCase()
+  if (n.includes('hamburgerbrød') || n.includes('tacolefse') || (n.includes('burger') && !n.includes('brød') && !n.includes('dressing') && !n.includes('saus'))) return 'stk'
   if (n.includes('egg'))                                                               return 'stk'
   if (n.includes('pitabrød') || n.includes('pita') || n.includes('wrap'))             return 'stk'
   if (n.includes('knekkebrød') || n.includes('rugbrød') || n.includes('grovbrød') || n.includes('brød')) return 'stk'

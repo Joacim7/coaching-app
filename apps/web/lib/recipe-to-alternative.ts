@@ -43,6 +43,9 @@ function stk(grams: number, perPiece: number) {
 
 function smartAmountLabel(name: string, grams: number): string {
   const n = name.toLowerCase()
+  if (n.includes('hamburgerbrød'))                                                   return stk(grams, 60)
+  if (n.includes('tacolefse') || n.includes('tortilla'))                            return stk(grams, 40)
+  if (n.includes('burger') && !n.includes('brød') && !n.includes('dressing') && !n.includes('saus')) return stk(grams, 100)
   if (n.includes('egg'))                                                              return stk(grams, 60)
   if (n.includes('knekkebrød'))                                                      return stk(grams, 10)
   if (n.includes('rugbrød') || n.includes('grovbrød') || n.includes('brødskive'))   return stk(grams, 35)
