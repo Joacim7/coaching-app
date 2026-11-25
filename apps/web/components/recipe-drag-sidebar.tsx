@@ -85,11 +85,23 @@ export function RecipeDragSidebar({ onClose }: { onClose: () => void }) {
       .finally(() => setLoading(false))
   }, [])
 
+  // Every search word must appear in the title or one of the ingredient names.
+  const searchText = useMemo(
+    () => new Map(recipes.map(r => [
+      r.id,
+      [r.title, ...(r.ingredients ?? []).map(i => i?.name ?? '')].join(' ').toLowerCase(),
+    ])),
+    [recipes],
+  )
+
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return recipes
-    return recipes.filter(r => r.title.toLowerCase().includes(q))
-  }, [recipes, query])
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    if (terms.length === 0) return recipes
+    return recipes.filter(r => {
+      const text = searchText.get(r.id) ?? ''
+      return terms.every(t => text.includes(t))
+    })
+  }, [recipes, searchText, query])
 
   return (
     <div className="w-64 flex-shrink-0 border border-gray-100 rounded-2xl bg-gray-50/50 flex flex-col overflow-hidden h-fit max-h-[calc(100vh-160px)] sticky top-4">
@@ -109,9 +121,18 @@ export function RecipeDragSidebar({ onClose }: { onClose: () => void }) {
           <Input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Søk oppskrifter..."
-            className="h-8 pl-8 text-xs"
+            placeholder="Søk oppskrift eller ingrediens..."
+            className="h-8 pl-8 pr-7 text-xs"
           />
+          {query && (
+            <button
+              onClick={() => setQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              title="Tøm søk"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -124,7 +145,7 @@ export function RecipeDragSidebar({ onClose }: { onClose: () => void }) {
           <p className="text-xs text-gray-400 text-center py-8 px-2">
             {recipes.length === 0
               ? 'Ingen lagrede oppskrifter ennå. Legg til oppskrifter under Oppskrifter i menyen.'
-              : 'Ingen treff.'}
+              : 'Ingen treff'}
           </p>
         ) : (
           filtered.map(r => <RecipeCard key={r.id} recipe={r} />)

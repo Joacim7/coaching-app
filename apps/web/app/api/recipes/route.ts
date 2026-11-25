@@ -27,14 +27,24 @@ export async function GET() {
     if (orgMates?.length) coachIds = orgMates.map(m => m.user_id)
   }
 
-  const { data, error } = await supabase
-    .from('recipes')
-    .select('*')
-    .or(`coach_id.in.(${coachIds.join(',')}),is_standard.eq.true`)
-    .order('created_at', { ascending: false })
+  // Page through the whole library — PostgREST caps a single response
+  // (1000 rows by default), and the sidebar searches client-side.
+  const PAGE = 1000
+  const all: unknown[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('recipes')
+      .select('*')
+      .or(`coach_id.in.(${coachIds.join(',')}),is_standard.eq.true`)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data ?? [])
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    all.push(...(data ?? []))
+    if (!data || data.length < PAGE) break
+  }
+  return NextResponse.json(all)
 }
 
 export async function POST(req: Request) {
