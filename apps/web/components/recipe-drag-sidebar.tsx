@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { Search, X, ChefHat, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import type { RecipeLibraryRow } from '@/lib/recipe-to-alternative'
+import { useRecipeLibrary, searchTerms, matchesSearch } from '@/lib/recipe-search'
 
 // Drag payload shape both editors' onDragEnd handlers key off of — a plain
 // object (not the raw dnd-kit event), read from event.active.data.current.
@@ -73,35 +74,13 @@ export function RecipeDragOverlayCard({ recipe }: { recipe: DragOverlayItem }) {
 }
 
 export function RecipeDragSidebar({ onClose }: { onClose: () => void }) {
-  const [recipes, setRecipes]   = useState<RecipeLibraryRow[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [query, setQuery]       = useState('')
-
-  useEffect(() => {
-    fetch('/api/recipes')
-      .then(res => res.ok ? res.json() : [])
-      .then((data: RecipeLibraryRow[]) => setRecipes(data ?? []))
-      .catch(() => setRecipes([]))
-      .finally(() => setLoading(false))
-  }, [])
-
-  // Every search word must appear in the title or one of the ingredient names.
-  const searchText = useMemo(
-    () => new Map(recipes.map(r => [
-      r.id,
-      [r.title, ...(r.ingredients ?? []).map(i => i?.name ?? '')].join(' ').toLowerCase(),
-    ])),
-    [recipes],
-  )
+  const { recipes, loading } = useRecipeLibrary()
+  const [query, setQuery] = useState('')
 
   const filtered = useMemo(() => {
-    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-    if (terms.length === 0) return recipes
-    return recipes.filter(r => {
-      const text = searchText.get(r.id) ?? ''
-      return terms.every(t => text.includes(t))
-    })
-  }, [recipes, searchText, query])
+    const terms = searchTerms(query)
+    return recipes.filter(r => matchesSearch(terms, r.title, (r.ingredients ?? []).map(i => i?.name)))
+  }, [recipes, query])
 
   return (
     <div className="w-64 flex-shrink-0 border border-gray-100 rounded-2xl bg-gray-50/50 flex flex-col overflow-hidden h-fit max-h-[calc(100vh-160px)] sticky top-4">

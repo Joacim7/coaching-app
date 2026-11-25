@@ -21,6 +21,7 @@ import { FoodSearchInput } from '@/components/food-search-input'
 import { RecipeDragSidebar, RecipeDragOverlayCard, type RecipeDragData, type DragOverlayItem } from '@/components/recipe-drag-sidebar'
 import { mealPlanCollision, parseMealDropTarget, insertAt, moveItem } from '@/lib/meal-plan-dnd'
 import { recipeToAlternative, scaleFoods } from '@/lib/recipe-to-alternative'
+import { useRecipeLibrary, searchTerms, matchesSearch } from '@/lib/recipe-search'
 import type { Meal, Food, MealPlan, MealAlternative, FoodSearchResult } from '@coaching/types'
 import {
   parseAmountDisplay, unitToGrams, gramsToUnit, smartUnitFor,
@@ -655,6 +656,11 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
   const [activeAlt, setActiveAlt] = useState<Record<number, number>>({})
   const [expandedMeal, setExpandedMeal] = useState<number | null>(null)
   const [expandedAlt, setExpandedAlt] = useState<{ mi: number; ai: number } | null>(null)
+  // "Alle alternativer" panel search: filters the listed alternatives and
+  // finds library recipes to add to the open meal.
+  const [altSearch, setAltSearch] = useState('')
+  const { recipes: allLibraryRecipes } = useRecipeLibrary()
+  const altSearchTerms = searchTerms(altSearch)
   const [editingAltName, setEditingAltName] = useState<{ mi: number; ai: number } | null>(null)
   const [editingTargets, setEditingTargets] = useState(false)
   // Bumped per meal-index whenever that meal's foods are rescaled by
@@ -1761,9 +1767,27 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
               <p className="text-xs text-gray-400 mt-0.5">
                 {t('clientDetail.nutrition.totalCount', { n: meals.reduce((s, m) => s + getAlts(m).length, 0) })}
               </p>
+              <div className="relative mt-2">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <Input
+                  value={altSearch}
+                  onChange={e => setAltSearch(e.target.value)}
+                  placeholder={t('clientDetail.nutrition.searchAltsPlaceholder')}
+                  className="h-8 pl-8 pr-7 text-xs"
+                />
+                {altSearch && (
+                  <button
+                    onClick={() => setAltSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
             {meals.flatMap((meal, mi) =>
               getAlts(meal).map((alt, ai) => {
+                if (!matchesSearch(altSearchTerms, (alt as MealAlternative).name, alt.foods.map(f => f.name))) return null
                 const altT = alt as MealAlternative
                 const kcal = alt.foods.reduce((s, f) => s + f.calories, 0)
                 const prot = alt.foods.reduce((s, f) => s + f.protein_g, 0)
@@ -1811,6 +1835,54 @@ export default function NutritionEditor({ clientId, clientName, coachId, initial
                 )
               })
             )}
+            {altSearchTerms.length > 0 && (() => {
+              const altHits = meals.some(meal => getAlts(meal).some(alt =>
+                matchesSearch(altSearchTerms, (alt as MealAlternative).name, alt.foods.map(f => f.name))))
+              const libraryHits = allLibraryRecipes
+                .filter(r => matchesSearch(altSearchTerms, r.title, (r.ingredients ?? []).map(i => i?.name)))
+                .slice(0, 50)
+              const targetMi = expandedMeal ?? 0
+              const targetMeal = meals[targetMi]
+              if (!altHits && libraryHits.length === 0) {
+                return <p className="text-xs text-gray-400 text-center py-8 px-4">{t('clientDetail.nutrition.noSearchHits')}</p>
+              }
+              if (libraryHits.length === 0 || !targetMeal) return null
+              return (
+                <div>
+                  <div className="px-4 pt-4 pb-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{t('clientDetail.nutrition.fromLibrary')}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{t('clientDetail.nutrition.addsToMeal', { meal: targetMeal.name })}</p>
+                  </div>
+                  {libraryHits.map(r => (
+                    <button
+                      key={r.id}
+                      onClick={() => {
+                        addAlternativeWith(targetMi, recipeToAlternative(r, targetCaloriesForMeal(targetMeal.name), Date.now()))
+                        setExpandedMeal(targetMi)
+                      }}
+                      title={t('clientDetail.nutrition.addAsAlternative')}
+                      className="w-full flex items-center gap-3 px-3 py-2 border-b border-gray-50 hover:bg-gray-50 text-left transition-colors"
+                    >
+                      {r.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={r.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-[#ebf5ef] flex items-center justify-center flex-shrink-0">
+                          <ChefHat className="w-4 h-4 text-[#2d8653]" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-gray-900 truncate">{r.title}</p>
+                        {r.calories_per_serving != null && (
+                          <p className="text-[10px] text-gray-400">{Math.round(r.calories_per_serving)} kcal</p>
+                        )}
+                      </div>
+                      <Plus className="w-4 h-4 text-[#2d8653] flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
           </aside>
 
           {/* Right: daily stats + meal tabs + active tab alternatives */}
